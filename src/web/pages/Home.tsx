@@ -380,48 +380,69 @@ export function RequestFeedCard({ r }: { r: any }) {
 }
 
 export function AdminHome() {
-  const { t } = useApp();
+  const { t, me } = useApp();
   const fmt = useFmt();
   const d = useLoad(() => api('GET', '/dashboard'), []);
   if (!d.data) return <Loading />;
   const x = d.data;
+  const todo = [
+    x.pendingVerifications > 0 && { to: '/admin/verify', icon: 'shield', text: t('admin.todo_verify', { count: x.pendingVerifications }) },
+    x.openReports > 0 && { to: '/admin/reports', icon: 'flag', text: t('admin.todo_reports', { count: x.openReports }) },
+  ].filter(Boolean) as { to: string; icon: string; text: string }[];
+  const stats = [
+    { to: '/admin/users', label: t('admin.users'), value: fmt.num(x.users) },
+    { label: t('admin.open_requests'), value: fmt.num(x.openRequests) },
+    { label: t('admin.active_bookings'), value: fmt.num(x.activeBookings) },
+    { label: t('admin.held_total'), value: fmt.usd(x.heldTotal) },
+  ];
   return (
     <div className="page">
-      <h1>{t('admin.title')}</h1>
-      <div className="cards three">
-        <Link to="/admin/verify" className="card link stack" style={{ gap: 4 }}>
-          <span className="small muted">{t('admin.pending_verifications')}</span>
-          <strong style={{ fontSize: 28 }}>{fmt.num(x.pendingVerifications)}</strong>
-        </Link>
-        <Link to="/admin/reports" className={'card link stack' + (x.openReports ? ' attention' : '')} style={{ gap: 4 }}>
-          <span className="small muted">{t('admin.open_reports')}</span>
-          <strong style={{ fontSize: 28 }}>{fmt.num(x.openReports)}</strong>
-        </Link>
-        <Link to="/admin/users" className="card link stack" style={{ gap: 4 }}>
-          <span className="small muted">{t('admin.users')}</span>
-          <strong style={{ fontSize: 28 }}>{fmt.num(x.users)}</strong>
-        </Link>
-        <div className="card stack" style={{ gap: 4 }}>
-          <span className="small muted">{t('admin.open_requests')}</span>
-          <strong style={{ fontSize: 28 }}>{fmt.num(x.openRequests)}</strong>
-        </div>
-        <div className="card stack" style={{ gap: 4 }}>
-          <span className="small muted">{t('admin.active_bookings')}</span>
-          <strong style={{ fontSize: 28 }}>{fmt.num(x.activeBookings)}</strong>
-        </div>
-        <div className="card stack" style={{ gap: 4 }}>
-          <span className="small muted">{t('admin.held_total')}</span>
-          <strong style={{ fontSize: 28 }}>{fmt.usd(x.heldTotal)}</strong>
-        </div>
+      <div className="stack" style={{ gap: 4 }}>
+        <h1>{t('admin.title')}</h1>
+        {me?.name && <p className="muted">{me.name}</p>}
       </div>
-      <div className="row">
-        <Link to="/admin/verify" className="btn">
-          <Icon name="shield" size={18} /> {t('admin.verify_guides')}
-        </Link>
-        <Link to="/admin/reports" className="btn outline">
-          <Icon name="flag" size={18} /> {t('admin.reports')}
-        </Link>
-      </div>
+      <section className="stack" style={{ gap: 10 }}>
+        <h2>{t('admin.todo')}</h2>
+        {todo.length === 0 ? (
+          <div className="card row" style={{ gap: 10, flexWrap: 'nowrap' }}>
+            <Icon name="check" size={20} />
+            <span>{t('admin.all_clear')}</span>
+          </div>
+        ) : (
+          <div className="card flush">
+            {todo.map((i) => (
+              <Link key={i.to} to={i.to} className="list-item todo-item">
+                <span className="avatar av-2" style={{ width: 40, height: 40 }} aria-hidden="true">
+                  <Icon name={i.icon} size={20} />
+                </span>
+                <strong style={{ flex: 1 }}>{i.text}</strong>
+                <span className="small" style={{ color: 'var(--brand)', fontWeight: 600 }}>
+                  {t('admin.review')}
+                </span>
+                <Icon name="next" size={18} className="flip" />
+              </Link>
+            ))}
+          </div>
+        )}
+      </section>
+      <section className="stack" style={{ gap: 10 }}>
+        <h2>{t('admin.platform')}</h2>
+        <div className="stat-grid">
+          {stats.map((s) =>
+            s.to ? (
+              <Link key={s.label} to={s.to} className="stat link">
+                <span className="xs muted">{s.label}</span>
+                <strong>{s.value}</strong>
+              </Link>
+            ) : (
+              <div key={s.label} className="stat">
+                <span className="xs muted">{s.label}</span>
+                <strong>{s.value}</strong>
+              </div>
+            ),
+          )}
+        </div>
+      </section>
     </div>
   );
 }

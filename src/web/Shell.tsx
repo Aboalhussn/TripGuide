@@ -2,16 +2,14 @@ import React from 'react';
 import { brand } from '../config/brand';
 import { useApp } from './lib/app';
 import { isDemo } from './lib/api';
-import { Link, navigate } from './lib/router';
+import { Link } from './lib/router';
 import { asset } from './assets';
 import { Icon } from './ui';
-import { useTheme } from './lib/theme';
 
 type NavItem = { to: string; label: string; icon: string; badge?: number; primary?: boolean; match?: string[] };
 
 export function Shell({ path, children }: { path: string; children: React.ReactNode }) {
   const { me, t, lang, setLang, ask } = useApp();
-  const theme = useTheme();
   const role = me?.role || 'guest';
 
   const items: Record<string, NavItem[]> = {
@@ -37,11 +35,11 @@ export function Shell({ path, children }: { path: string; children: React.ReactN
       { to: '/bookings', label: t('nav.tours'), icon: 'calendar' },
     ],
     admin: [
-      { to: '/', label: t('nav.admin'), icon: 'shield' },
-      { to: '/guides', label: t('nav.guides'), icon: 'search' },
-      { to: '/notifications', label: t('nav.updates'), icon: 'bell', badge: me?.unreadNotifications },
-      { to: '/profile', label: t('nav.account'), icon: 'user' },
+      { to: '/', label: t('nav.admin'), icon: 'home' },
+      { to: '/admin/verify', label: t('nav.verify'), icon: 'shield', match: ['/admin/verify'] },
+      { to: '/admin/reports', label: t('nav.reports'), icon: 'flag' },
       { to: '/admin/users', label: t('nav.users'), icon: 'users' },
+      { to: '/profile', label: t('nav.account'), icon: 'user' },
     ],
   };
   const desktop: Record<string, NavItem[]> = {
@@ -65,7 +63,9 @@ export function Shell({ path, children }: { path: string; children: React.ReactN
       { to: '/wallet', label: t('nav.wallet'), icon: 'wallet' },
     ],
     admin: [
-      { to: '/', label: t('nav.admin'), icon: 'shield' },
+      { to: '/', label: t('nav.admin'), icon: 'home' },
+      { to: '/admin/verify', label: t('nav.verify'), icon: 'shield' },
+      { to: '/admin/reports', label: t('nav.reports'), icon: 'flag' },
       { to: '/admin/users', label: t('nav.users'), icon: 'users' },
       { to: '/guides', label: t('nav.guides'), icon: 'search' },
     ],
@@ -91,8 +91,7 @@ export function Shell({ path, children }: { path: string; children: React.ReactN
       <header className="topbar">
         <div className="topbar-inner">
           <Link to="/" className="brand" aria-label={name}>
-            <img className="logo-light" src={asset('tg-logo-horizontal.svg')} alt="" />
-            <img className="logo-dark" src={asset('tg-logo-horizontal-white.svg')} alt="" />
+            <img src={asset('tg-logo-horizontal.svg')} alt="" />
           </Link>
           {(role === 'guide' || role === 'admin') && <span className="role-tag">{t('role.' + role)}</span>}
           <nav className="topnav" aria-label={t('nav.main')}>
@@ -104,9 +103,6 @@ export function Shell({ path, children }: { path: string; children: React.ReactN
             ))}
           </nav>
           <div className="top-actions">
-            <button type="button" className="icon-btn" onClick={theme.toggle} aria-label={theme.dark ? t('theme.to_light') : t('theme.to_dark')} title={theme.dark ? t('theme.to_light') : t('theme.to_dark')}>
-              <Icon name={theme.dark ? 'sun' : 'moon'} size={20} />
-            </button>
             <button type="button" className="lang-btn" lang={lang === 'ar' ? 'en' : 'ar'} onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')}>
               {lang === 'ar' ? 'English' : 'عربي'}
             </button>
@@ -116,14 +112,10 @@ export function Shell({ path, children }: { path: string; children: React.ReactN
                 {me.unreadNotifications > 0 && <span className="dot">{me.unreadNotifications > 9 ? '9+' : me.unreadNotifications}</span>}
               </Link>
             )}
-            {me ? (
+            {me && (
               <Link to="/profile" className="icon-btn" aria-label={t('nav.account')}>
                 <Icon name="user" />
               </Link>
-            ) : (
-              <button type="button" className="btn sm outline top-signin" onClick={() => navigate('/login')}>
-                {t('nav.sign_in')}
-              </button>
             )}
           </div>
         </div>

@@ -5,7 +5,6 @@ import { useFmt } from '../lib/format';
 import { Link, navigate } from '../lib/router';
 import { asset, photoSrc } from '../assets';
 import { Avatar, Field, Icon, Loading, Modal, MonthCalendar, PageHead, ToggleGroup, VerifiedBadge, useBusy } from '../ui';
-import { useTheme } from '../lib/theme';
 
 function goNext(query: Record<string, string>) {
   const next = query.next && query.next.startsWith('/') ? query.next : '/';
@@ -35,12 +34,11 @@ export function Login({ query }: { query: Record<string, string> }) {
   const demo = meta?.demoLogins;
   return (
     <div className="page" style={{ maxWidth: 460, margin: '0 auto', width: '100%' }}>
-      <div className="center stack" style={{ alignItems: 'center', gap: 8 }}>
-        <img className="logo-light" src={asset('tg-logo-stacked.svg')} alt="" style={{ width: 150 }} />
-        <img className="logo-dark" src={asset('tg-logo-horizontal-white.svg')} alt="" style={{ width: 200, margin: '16px 0' }} />
+      <div className="stack" style={{ gap: 6 }}>
         <h1>{t('auth.welcome_back')}</h1>
+        <p className="muted">{t('auth.lede')}</p>
       </div>
-      <form className="card stack" onSubmit={go}>
+      <form className="stack" onSubmit={go}>
         <Field label={t('field.email')}>
           <input className="input" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         </Field>
@@ -60,21 +58,29 @@ export function Login({ query }: { query: Record<string, string> }) {
         </p>
       </form>
       {demo && (
-        <div className="card dashed stack">
-          <strong>{t('auth.try_demo')}</strong>
+        <section className="stack" style={{ gap: 10 }} aria-labelledby="demo-title">
+          <div className="divider" />
+          <strong id="demo-title">{t('auth.try_demo')}</strong>
           <p className="small muted">{t('auth.try_demo_text')}</p>
-          <div className="stack" style={{ gap: 8 }}>
-            <button type="button" className="btn outline" disabled={busy} onClick={() => go(undefined, { email: demo.tourist, password: demo.password })}>
-              {t('auth.demo_tourist')}
-            </button>
-            <button type="button" className="btn outline" disabled={busy} onClick={() => go(undefined, { email: demo.guide, password: demo.password })}>
-              {t('auth.demo_guide')}
-            </button>
-            <button type="button" className="btn ghost" disabled={busy} onClick={() => go(undefined, { email: demo.admin, password: demo.password })}>
-              {t('auth.demo_admin')}
-            </button>
+          <div className="card flush">
+            {([
+              ['tourist', demo.tourist, 'auth.demo_tourist', 'auth.demo_tourist_text', 'user'],
+              ['guide', demo.guide, 'auth.demo_guide', 'auth.demo_guide_text', 'calendar'],
+              ['admin', demo.admin, 'auth.demo_admin', 'auth.demo_admin_text', 'shield'],
+            ] as const).map(([k, mail, label, text, icon]) => (
+              <button key={k} type="button" className="list-item demo-pick" disabled={busy} onClick={() => go(undefined, { email: mail, password: demo.password })}>
+                <span className="avatar av-2" style={{ width: 40, height: 40 }} aria-hidden="true">
+                  <Icon name={icon} size={20} />
+                </span>
+                <span style={{ flex: 1, minWidth: 0, textAlign: 'start' }}>
+                  <strong style={{ display: 'block' }}>{t(label)}</strong>
+                  <span className="xs muted">{t(text)}</span>
+                </span>
+                <Icon name="next" size={18} className="flip" />
+              </button>
+            ))}
           </div>
-        </div>
+        </section>
       )}
     </div>
   );
@@ -154,7 +160,6 @@ export function Register({ query }: { query: Record<string, string> }) {
 
 export function Account() {
   const { t, me, setLang, lang, signOut, refreshMe, toast } = useApp();
-  const theme = useTheme();
   const [f, setF] = useState({ name: me?.name || '', country: me?.country || '', phone: me?.phone || '' });
   const [code, setCode] = useState('');
   const [showCode, setShowCode] = useState(false);
@@ -248,18 +253,6 @@ export function Account() {
           )}
         </div>
       </form>
-
-      <div className="card stack">
-        <h2>{t('theme.title')}</h2>
-        <div className="seg" role="group" aria-label={t('theme.title')}>
-          {(['light', 'dark', 'system'] as const).map((p) => (
-            <button key={p} type="button" aria-pressed={theme.pref === p} onClick={() => theme.setPref(p)}>
-              <Icon name={p === 'light' ? 'sun' : p === 'dark' ? 'moon' : 'monitor'} size={17} />
-              {t('theme.' + p)}
-            </button>
-          ))}
-        </div>
-      </div>
 
       <div className="card stack">
         <h2>{t('account.language')}</h2>

@@ -5,7 +5,6 @@ import { AppProvider, useApp } from './lib/app';
 import { match, navigate, useLocation } from './lib/router';
 import { Shell } from './Shell';
 import { Loading } from './ui';
-import { initTheme } from './lib/theme';
 import { AdminHome, GuestHome, GuideHome, TouristHome } from './pages/Home';
 import { FindGuides, GuideProfile, TouristProfile } from './pages/Guides';
 import { MyOffers, PostRequest, RequestDetail, RequestsIndex } from './pages/Requests';
@@ -75,7 +74,6 @@ function Routes() {
 }
 
 export function start() {
-  initTheme();
   createRoot(document.getElementById('root')!).render(
     <AppProvider>
       <Routes />

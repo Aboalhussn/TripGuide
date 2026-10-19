@@ -187,8 +187,7 @@ export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () =>
 export function Empty({ title, text, action }: { title: string; text?: string; action?: React.ReactNode }) {
   return (
     <div className="empty card">
-      <img className="logo-light" src={asset('tg-mark.svg')} alt="" />
-      <img className="logo-dark" src={asset('tg-mark-white.svg')} alt="" />
+      <img src={asset('tg-mark.svg')} alt="" />
       <h3>{title}</h3>
       {text && <p className="muted small">{text}</p>}
       {action}
