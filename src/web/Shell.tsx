@@ -5,11 +5,13 @@ import { isDemo } from './lib/api';
 import { Link, navigate } from './lib/router';
 import { asset } from './assets';
 import { Icon } from './ui';
+import { useTheme } from './lib/theme';
 
 type NavItem = { to: string; label: string; icon: string; badge?: number; primary?: boolean; match?: string[] };
 
 export function Shell({ path, children }: { path: string; children: React.ReactNode }) {
   const { me, t, lang, setLang, ask } = useApp();
+  const theme = useTheme();
   const role = me?.role || 'guest';
 
   const items: Record<string, NavItem[]> = {
@@ -89,7 +91,8 @@ export function Shell({ path, children }: { path: string; children: React.ReactN
       <header className="topbar">
         <div className="topbar-inner">
           <Link to="/" className="brand" aria-label={name}>
-            <img src={asset('tg-logo-horizontal.svg')} alt="" />
+            <img className="logo-light" src={asset('tg-logo-horizontal.svg')} alt="" />
+            <img className="logo-dark" src={asset('tg-logo-horizontal-white.svg')} alt="" />
           </Link>
           {(role === 'guide' || role === 'admin') && <span className="role-tag">{t('role.' + role)}</span>}
           <nav className="topnav" aria-label={t('nav.main')}>
@@ -101,6 +104,9 @@ export function Shell({ path, children }: { path: string; children: React.ReactN
             ))}
           </nav>
           <div className="top-actions">
+            <button type="button" className="icon-btn" onClick={theme.toggle} aria-label={theme.dark ? t('theme.to_light') : t('theme.to_dark')} title={theme.dark ? t('theme.to_light') : t('theme.to_dark')}>
+              <Icon name={theme.dark ? 'sun' : 'moon'} size={20} />
+            </button>
             <button type="button" className="lang-btn" lang={lang === 'ar' ? 'en' : 'ar'} onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')}>
               {lang === 'ar' ? 'English' : 'عربي'}
             </button>

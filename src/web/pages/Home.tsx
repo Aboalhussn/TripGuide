@@ -9,26 +9,14 @@ import { BookingStatus, GuideCard, Icon, Loading, Money, RequestFacts, RequestSt
 function Collage() {
   const { t, lang } = useApp();
   const rtl = lang === 'ar';
-  const side = (n: number) => (rtl ? { right: n } : { left: n });
-  const other = (n: number) => (rtl ? { left: n } : { right: n });
   return (
     <section className="collage" aria-label={t('home.pictures')}>
+      <img className="shot" src={asset('arch.jpg')} alt={t('home.alt_arch')} />
       <svg className="route" viewBox="0 0 390 300" preserveAspectRatio="none" aria-hidden="true">
-        <path d={rtl ? 'M366 250 C 300 290, 240 200, 185 235 S 70 280, 30 170' : 'M24 250 C 90 290, 150 200, 205 235 S 320 280, 360 170'} fill="none" stroke="#429EBD" strokeWidth="2" strokeDasharray="2 7" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+        <path d={rtl ? 'M400 270 C 310 250, 270 170, 180 140 S 90 70, 90 52' : 'M-10 270 C 80 250, 120 170, 210 140 S 300 70, 300 52'} fill="none" stroke="#FFFFFF" strokeOpacity="0.75" strokeWidth="2" strokeDasharray="2 7" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
       </svg>
-      <div className="photo" style={{ ...side(18), top: 18, width: '39%', height: '64%', transform: `rotate(${rtl ? 5 : -5}deg)` }}>
-        <img src={asset('ishtar.jpg')} alt={t('home.alt_ishtar')} />
-        <span className="tape" style={{ [rtl ? 'right' : 'left']: '32%', transform: 'rotate(4deg)' } as React.CSSProperties} />
-      </div>
-      <div className="photo" style={{ ...side('34%' as any), top: '17%', width: '34%', height: '59%', transform: `rotate(${rtl ? -3 : 3}deg)` }}>
-        <img src={asset('babylon.jpg')} alt={t('home.alt_babylon')} />
-        <span className="tape gold" style={{ [rtl ? 'right' : 'left']: '30%', transform: 'rotate(-6deg)' } as React.CSSProperties} />
-      </div>
-      <div className="photo" style={{ ...other(16), top: 10, width: '33%', height: '54%', transform: `rotate(${rtl ? -6 : 6}deg)` }}>
-        <img src={asset('arch.jpg')} alt={t('home.alt_arch')} />
-        <span className="tape" style={{ [rtl ? 'right' : 'left']: '28%', transform: 'rotate(-3deg)' } as React.CSSProperties} />
-      </div>
-      <img src={asset('tg-mark.svg')} alt="" style={{ position: 'absolute', ...other(20), top: '68%', width: 56, height: 'auto', transform: 'rotate(-8deg)' }} />
+      <img className="mark" src={asset('tg-mark-white.svg')} alt="" />
+      <span className="cap">{t('home.alt_arch')}</span>
     </section>
   );
 }

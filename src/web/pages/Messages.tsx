@@ -123,7 +123,7 @@ export function Thread({ id }: { id: string }) {
           return (
             <React.Fragment key={m.id}>
               {showDay && (
-                <div className="xs muted" style={{ alignSelf: 'center', padding: '4px 10px', background: '#eaf1f4', borderRadius: 999 }}>
+                <div className="xs muted" style={{ alignSelf: 'center', padding: '4px 10px', background: 'var(--chip)', borderRadius: 999 }}>
                   {day}
                 </div>
               )}
@@ -136,7 +136,7 @@ export function Thread({ id }: { id: string }) {
             </React.Fragment>
           );
         })}
-        <div className="xs muted center" style={{ alignSelf: 'center', maxWidth: 360, padding: '10px 14px', border: '1px dashed #9fc9d8', borderRadius: 12, marginTop: 8 }}>
+        <div className="xs muted center" style={{ alignSelf: 'center', maxWidth: 360, padding: '10px 14px', border: '1px dashed var(--line-strong)', borderRadius: 12, marginTop: 8 }}>
           {t('messages.safety')}
         </div>
       </div>

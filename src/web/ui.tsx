@@ -35,6 +35,9 @@ const P: Record<string, React.ReactNode> = {
   money: (<><rect x="2.5" y="6" width="19" height="12" rx="2" /><circle cx="12" cy="12" r="2.5" /></>),
   info: (<><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></>),
   more: (<><circle cx="5" cy="12" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /></>),
+  sun: (<><circle cx="12" cy="12" r="4" /><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4" /></>),
+  moon: <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" />,
+  monitor: (<><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></>),
 };
 export function Icon({ name, size = 22, stroke = 1.8, className }: { name: keyof typeof P | string; size?: number; stroke?: number; className?: string }) {
   return (
@@ -47,7 +50,7 @@ export function Icon({ name, size = 22, stroke = 1.8, className }: { name: keyof
 export function Star({ size = 15, filled = true }: { size?: number; filled?: boolean }) {
   return (
     <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24">
-      <path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5L2.5 9.4l6.6-.9z" fill={filled ? '#F7AD19' : 'none'} stroke={filled ? 'none' : '#9fb5c0'} strokeWidth="1.5" />
+      <path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5L2.5 9.4l6.6-.9z" fill={filled ? '#F7AD19' : 'none'} style={{ stroke: filled ? 'none' : 'var(--disabled)' }} strokeWidth="1.5" />
     </svg>
   );
 }
@@ -184,7 +187,8 @@ export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () =>
 export function Empty({ title, text, action }: { title: string; text?: string; action?: React.ReactNode }) {
   return (
     <div className="empty card">
-      <img src={asset('tg-mark.svg')} alt="" />
+      <img className="logo-light" src={asset('tg-mark.svg')} alt="" />
+      <img className="logo-dark" src={asset('tg-mark-white.svg')} alt="" />
       <h3>{title}</h3>
       {text && <p className="muted small">{text}</p>}
       {action}

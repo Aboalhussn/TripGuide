@@ -438,7 +438,7 @@ function TouristRequestView({ r, reload }: { r: any; reload(): void }) {
           ) : (
             <>
               <div className="between">
-                <button type="button" className="btn sm" style={{ background: 'var(--sky)', color: 'var(--navy)' }} disabled={shortlisted.length < 2} onClick={() => setCompare(true)}>
+                <button type="button" className="btn sm" style={{ background: 'var(--sky)', color: '#053F5C' }} disabled={shortlisted.length < 2} onClick={() => setCompare(true)}>
                   {t('request.compare')}
                 </button>
                 <label className="row small muted" style={{ gap: 6, flexWrap: 'nowrap' }}>
@@ -870,7 +870,7 @@ function OfferForm({ r, existing, onDone, onCancel }: { r: any; existing: any; o
             <span>{t('offer.fee', { pct: Math.round(meta.feeRate * 100) })}</span>
             <span>{fmt.usd(-fee)}</span>
           </div>
-          <div className="between bold" style={{ borderTop: '1px solid #b9dde8', marginTop: 4, paddingTop: 4 }}>
+          <div className="between bold" style={{ borderTop: '1px solid var(--line-strong)', marginTop: 4, paddingTop: 4 }}>
             <span>{t('offer.you_receive')}</span>
             <span>{fmt.usd(Math.round((p - fee) * 100) / 100)}</span>
           </div>

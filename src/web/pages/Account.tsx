@@ -5,6 +5,7 @@ import { useFmt } from '../lib/format';
 import { Link, navigate } from '../lib/router';
 import { asset, photoSrc } from '../assets';
 import { Avatar, Field, Icon, Loading, Modal, MonthCalendar, PageHead, ToggleGroup, VerifiedBadge, useBusy } from '../ui';
+import { useTheme } from '../lib/theme';
 
 function goNext(query: Record<string, string>) {
   const next = query.next && query.next.startsWith('/') ? query.next : '/';
@@ -35,7 +36,8 @@ export function Login({ query }: { query: Record<string, string> }) {
   return (
     <div className="page" style={{ maxWidth: 460, margin: '0 auto', width: '100%' }}>
       <div className="center stack" style={{ alignItems: 'center', gap: 8 }}>
-        <img src={asset('tg-logo-stacked.svg')} alt="" style={{ width: 150 }} />
+        <img className="logo-light" src={asset('tg-logo-stacked.svg')} alt="" style={{ width: 150 }} />
+        <img className="logo-dark" src={asset('tg-logo-horizontal-white.svg')} alt="" style={{ width: 200, margin: '16px 0' }} />
         <h1>{t('auth.welcome_back')}</h1>
       </div>
       <form className="card stack" onSubmit={go}>
@@ -152,6 +154,7 @@ export function Register({ query }: { query: Record<string, string> }) {
 
 export function Account() {
   const { t, me, setLang, lang, signOut, refreshMe, toast } = useApp();
+  const theme = useTheme();
   const [f, setF] = useState({ name: me?.name || '', country: me?.country || '', phone: me?.phone || '' });
   const [code, setCode] = useState('');
   const [showCode, setShowCode] = useState(false);
@@ -245,6 +248,18 @@ export function Account() {
           )}
         </div>
       </form>
+
+      <div className="card stack">
+        <h2>{t('theme.title')}</h2>
+        <div className="seg" role="group" aria-label={t('theme.title')}>
+          {(['light', 'dark', 'system'] as const).map((p) => (
+            <button key={p} type="button" aria-pressed={theme.pref === p} onClick={() => theme.setPref(p)}>
+              <Icon name={p === 'light' ? 'sun' : p === 'dark' ? 'moon' : 'monitor'} size={17} />
+              {t('theme.' + p)}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="card stack">
         <h2>{t('account.language')}</h2>
@@ -433,7 +448,7 @@ export function GuideEditor() {
               <figure key={i} className="polaroid" style={{ position: 'relative' }}>
                 <img src={photoSrc(ph.img)} alt="" />
                 <input className="input" style={{ minHeight: 36, fontSize: 13, marginTop: 6, padding: '0 8px' }} placeholder={t('editor.caption')} aria-label={t('editor.caption')} value={ph.caption} onChange={(e) => up({ photos: f.photos.map((x: any, j: number) => (j === i ? { ...x, caption: e.target.value } : x)) })} />
-                <button type="button" className="icon-btn" style={{ position: 'absolute', top: 8, insetInlineEnd: 8, background: '#fff', width: 36, height: 36 }} aria-label={t('editor.remove_photo')} onClick={() => up({ photos: f.photos.filter((_: any, j: number) => j !== i) })}>
+                <button type="button" className="icon-btn" style={{ position: 'absolute', top: 8, insetInlineEnd: 8, background: 'var(--surface)', width: 36, height: 36 }} aria-label={t('editor.remove_photo')} onClick={() => up({ photos: f.photos.filter((_: any, j: number) => j !== i) })}>
                   <Icon name="trash" size={16} />
                 </button>
               </figure>

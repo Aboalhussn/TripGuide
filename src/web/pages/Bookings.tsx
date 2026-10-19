@@ -193,7 +193,7 @@ export function BookingDetail({ id }: { id: string }) {
                 return (
                   <li key={m.id}>
                     <span className={'tl-mark' + (done ? ' done' : isToday && b.status === 'confirmed' ? ' now' : '')}>
-                      {done ? <Icon name="check" size={16} stroke={2.6} /> : isToday && b.status === 'confirmed' ? <img src={asset('tg-mark.svg')} alt="" style={{ width: 20, height: 'auto' }} /> : null}
+                      {done ? <Icon name="check" size={16} stroke={2.6} /> : isToday && b.status === 'confirmed' ? <><img className="logo-light" src={asset('tg-mark.svg')} alt="" style={{ width: 20, height: 'auto' }} /><img className="logo-dark" src={asset('tg-mark-white.svg')} alt="" style={{ width: 20, height: 'auto' }} /></> : null}
                     </span>
                     <div className={'tl-body card stack' + (isToday && held ? ' highlight' : '')} style={{ gap: 6, padding: 14 }}>
                       <div className="between">
