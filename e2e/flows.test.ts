@@ -382,7 +382,6 @@ test('home: search right there, featured guides, and admin opens a user profile'
   const p = await open();
   await go(p, '/');
   await p.getByRole('heading', { name: 'Featured guides' }).waitFor();
-  assert.ok((await p.locator('.gt-badge', { hasText: 'Sponsored' }).count()) > 0);
   await p.getByRole('searchbox', { name: 'Search guides or cities' }).fill('Karbala');
   const results = p.getByRole('region', { name: 'Search results' });
   await results.locator('.city-tile', { hasText: 'Karbala' }).waitFor();

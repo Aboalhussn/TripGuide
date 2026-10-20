@@ -29,7 +29,7 @@ const en: Record<string, Entry> = {
 
   // home
   'home.search': 'Search guides or cities', 'home.results': 'Search results', 'home.no_results': 'No guides or cities match that.', 'home.all_results': en1('See {count} result', 'See all {count} results'),
-  'home.featured': 'Featured guides', 'home.sponsored': 'Sponsored', 'home.highlights': 'Highlights', 'home.slide_n': 'Slide {n}',
+  'home.featured': 'Featured guides', 'home.highlights': 'Highlights', 'home.slide_n': 'Slide {n}',
   'home.slide_post': 'Post your trip. Guides send you offers.', 'home.slide_pay': 'Pay day by day. Your money stays safe.',
   'home.q_post': 'Post trip', 'home.q_guides': 'Guides', 'home.q_join': 'Be a guide', 'home.q_login': 'Sign in', 'home.q_trips': 'My trips', 'home.q_messages': 'Messages',
   'home.cta_post': 'Post a trip request', 'home.cta_browse': 'Browse guides',
@@ -341,7 +341,7 @@ const arStrings: Record<string, Entry> = {
   'guide.replies_hour': ar('يردّ خلال ساعة تقريبًا', 'يردّ خلال ساعتين تقريبًا', 'يردّ خلال {count} ساعات تقريبًا', 'يردّ خلال {count} ساعة تقريبًا'), 'guide.replies_day': 'يردّ عادةً خلال يوم',
 
   'home.search': 'ابحث عن مرشد أو مدينة', 'home.results': 'نتائج البحث', 'home.no_results': 'لا يوجد مرشد أو مدينة بهذا الاسم.', 'home.all_results': ar('عرض النتيجة', 'عرض النتيجتين', 'عرض {count} نتائج', 'عرض {count} نتيجة'),
-  'home.featured': 'مرشدون مميّزون', 'home.sponsored': 'مُموَّل', 'home.highlights': 'عروض مميزة', 'home.slide_n': 'الشريحة {n}',
+  'home.featured': 'مرشدون مميّزون', 'home.highlights': 'عروض مميزة', 'home.slide_n': 'الشريحة {n}',
   'home.slide_post': 'انشر رحلتك واستلم عروض المرشدين.', 'home.slide_pay': 'ادفع يومًا بيوم، ومبلغك بأمان.',
   'home.q_post': 'انشر رحلة', 'home.q_guides': 'المرشدون', 'home.q_join': 'كن مرشدًا', 'home.q_login': 'دخول', 'home.q_trips': 'رحلاتي', 'home.q_messages': 'الرسائل',
   'home.cta_post': 'انشر طلب رحلة', 'home.cta_browse': 'تصفّح المرشدين',

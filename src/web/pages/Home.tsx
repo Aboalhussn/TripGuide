@@ -163,14 +163,13 @@ function SectionHead({ title, to }: { title: string; to?: string }) {
   );
 }
 
-function GuideTile({ g, sponsored = false }: { g: any; sponsored?: boolean }) {
+function GuideTile({ g }: { g: any }) {
   const { t } = useApp();
   const fmt = useFmt();
   return (
     <Link to={`/guides/${g.id}`} className="guide-tile">
       <div className="gt-cover">
         {g.cover ? <img src={photoSrc(g.cover)} alt="" loading="lazy" /> : <img src={asset('map.jpg')} alt="" />}
-        {sponsored && <span className="gt-badge">{t('home.sponsored')}</span>}
       </div>
       <div className="gt-body">
         <div className="gt-av">
@@ -215,7 +214,7 @@ function FeaturedGuides() {
     <section className="stack" style={{ gap: 10 }}>
       <SectionHead title={t('home.featured')} />
       <div className="h-scroll">
-        {res.data ? list.map((g: any) => <GuideTile key={g.id} g={g} sponsored />) : [0, 1].map((n) => <div key={n} className="guide-tile skeleton" style={{ height: 200 }} />)}
+        {res.data ? list.map((g: any) => <GuideTile key={g.id} g={g} />) : [0, 1].map((n) => <div key={n} className="guide-tile skeleton" style={{ height: 200 }} />)}
       </div>
     </section>
   );
