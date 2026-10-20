@@ -4,7 +4,7 @@ import { useApp, useLoad } from '../lib/app';
 import { useFmt } from '../lib/format';
 import { Link, navigate } from '../lib/router';
 import { asset, photoSrc } from '../assets';
-import { Avatar, BookingStatus, CardForm, Field, Icon, Loading, Modal, Money, MonthCalendar, PageHead, ToggleGroup, VerifiedBadge, emptyCard, useBusy } from '../ui';
+import { Avatar, BookingStatus, BrandFooter, CardForm, Field, Icon, Loading, Modal, Money, MonthCalendar, PageHead, ToggleGroup, VerifiedBadge, emptyCard, useBusy } from '../ui';
 import type { CardValue } from '../ui';
 
 function goNext(query: Record<string, string>) {
@@ -281,7 +281,7 @@ export function Account() {
       >
         <Icon name="logout" size={18} className="flip" /> {t('account.sign_out')}
       </button>
-      <p className="xs faint center">{t('footer.independent')}</p>
+      <BrandFooter />
 
       {showCode && (
         <Modal title={t('account.verify_phone')} onClose={() => setShowCode(false)}>

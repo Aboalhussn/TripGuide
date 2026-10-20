@@ -172,6 +172,7 @@ export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () =>
   return (
     <div className="page">
       <div className="empty card">
+        <img src={asset('tg-mark.svg')} alt="" />
         <h2>{t('err.title')}</h2>
         <p className="muted">{errorText(error)}</p>
         {onRetry && (
@@ -668,6 +669,33 @@ export function LanguagePick({ all, value, onChange, label, render, error }: { a
         </div>
       )}
       {error && <span className="err">{error}</span>}
+    </div>
+  );
+}
+
+/** Phones and the app have no top bar, so home screens open with the logo (and the bell when signed in). */
+export function BrandBar() {
+  const { t, me } = useApp();
+  return (
+    <div className="brand-bar">
+      <img src={asset('tg-logo-horizontal.svg')} alt={t('brand.name')} className="brand-logo" />
+      {me && (
+        <Link to="/notifications" className="icon-btn" aria-label={t('nav.notifications_n', { count: me.unreadNotifications })}>
+          <Icon name="bell" />
+          {me.unreadNotifications > 0 && <span className="dot">{me.unreadNotifications > 9 ? '9+' : me.unreadNotifications}</span>}
+        </Link>
+      )}
+    </div>
+  );
+}
+
+/** Small signature at the bottom of long pages. */
+export function BrandFooter() {
+  const { t } = useApp();
+  return (
+    <div className="brand-footer">
+      <img src={asset('tg-logo-horizontal.svg')} alt={t('brand.name')} />
+      <p className="xs faint center">{t('footer.independent')}</p>
     </div>
   );
 }

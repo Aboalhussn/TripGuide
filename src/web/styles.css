@@ -397,3 +397,11 @@ html.native .demo-banner { display: none; }
 .more-panel { padding: 10px; border-radius: 14px; background: var(--paper); }
 .disclosure { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 16px 18px; border-radius: 16px; border: 1px dashed var(--line-strong); background: var(--surface); color: var(--navy); font: inherit; font-weight: 600; cursor: pointer; }
 .disclosure .hint { font-weight: 400; color: var(--muted); font-size: 13px; }
+
+/* ---------- logo on phone screens ---------- */
+.brand-bar { display: none; align-items: center; justify-content: space-between; min-height: 44px; margin-bottom: -6px; }
+.brand-bar .brand-logo { height: 30px; width: auto; display: block; }
+.brand-bar .icon-btn { position: relative; }
+@media (max-width: 959px) { .brand-bar { display: flex; } }
+.brand-footer { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 0 4px; }
+.brand-footer img { height: 26px; width: auto; opacity: .9; }

@@ -4,7 +4,7 @@ import { useApp, useLoad } from '../lib/app';
 import { useFmt } from '../lib/format';
 import { Link } from '../lib/router';
 import { asset } from '../assets';
-import { BookingStatus, GuideCard, Icon, Loading, Money, RequestFacts, RequestStatus } from '../ui';
+import { BookingStatus, GuideCard, Icon, Loading, Money, RequestFacts, RequestStatus, BrandBar, BrandFooter } from '../ui';
 
 function Collage() {
   const { t, lang } = useApp();
@@ -27,6 +27,9 @@ export function GuestHome() {
   const top = useLoad(() => api('GET', '/guides', undefined, { sort: 'best' }), []);
   return (
     <div>
+      <div className="page" style={{ paddingBottom: 0 }}>
+        <BrandBar />
+      </div>
       <section className="hero">
         <div className="stack" style={{ gap: 14 }}>
           <h1>{t('home.title')}</h1>
@@ -96,7 +99,7 @@ export function GuestHome() {
             </div>
           </section>
         )}
-        <p className="xs faint center">{t('footer.independent')}</p>
+        <BrandFooter />
       </div>
     </div>
   );
@@ -111,6 +114,7 @@ export function TouristHome() {
   const first = me.name.split(' ')[0];
   return (
     <div className="page">
+      <BrandBar />
       <div className="stack" style={{ gap: 6 }}>
         <h1 style={{ fontWeight: 900, fontSize: 34 }}>{t('dash.hello', { name: first })}</h1>
         <p className="muted">{t('dash.tourist_lede')}</p>
@@ -212,6 +216,7 @@ export function GuideHome() {
   const x = d.data;
   return (
     <div className="page">
+      <BrandBar />
       <h1 style={{ fontWeight: 900, fontSize: 32 }}>{t('dash.hello', { name: me.name.split(' ')[0] })}</h1>
 
       {!x.profileComplete && (
@@ -402,6 +407,7 @@ export function AdminHome() {
   ];
   return (
     <div className="page">
+      <BrandBar />
       <div className="stack" style={{ gap: 4 }}>
         <h1>{t('admin.title')}</h1>
         {me?.name && <p className="muted">{me.name}</p>}
