@@ -4,7 +4,7 @@ import { useApp } from './lib/app';
 import { isDemo } from './lib/api';
 import { Link } from './lib/router';
 import { asset } from './assets';
-import { Icon } from './ui';
+import { Icon, LangToggle } from './ui';
 
 type NavItem = { to: string; label: string; icon: string; badge?: number; primary?: boolean; match?: string[] };
 
@@ -103,6 +103,7 @@ export function Shell({ path, children }: { path: string; children: React.ReactN
             ))}
           </nav>
           <div className="top-actions">
+            {!me && <LangToggle />}
             {me && (
               <Link to="/notifications" className="icon-btn" aria-label={t('nav.notifications_n', { count: me.unreadNotifications })}>
                 <Icon name="bell" />

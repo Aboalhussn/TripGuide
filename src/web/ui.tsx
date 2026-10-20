@@ -38,6 +38,7 @@ const P: Record<string, React.ReactNode> = {
   sun: (<><circle cx="12" cy="12" r="4" /><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4" /></>),
   moon: <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" />,
   monitor: (<><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></>),
+  globe: (<><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9s1.3-6.4 3.8-9z" /></>),
 };
 export function Icon({ name, size = 22, stroke = 1.8, className }: { name: keyof typeof P | string; size?: number; stroke?: number; className?: string }) {
   return (
@@ -677,8 +678,9 @@ export function LanguagePick({ all, value, onChange, label, render, error }: { a
 export function BrandBar() {
   const { t, me } = useApp();
   return (
-    <div className="brand-bar">
+    <div className={'brand-bar' + (me ? '' : ' guest')}>
       <img src={asset('tg-logo-horizontal.svg')} alt={t('brand.name')} className="brand-logo" />
+      {!me && <LangToggle />}
       {me && (
         <Link to="/notifications" className="icon-btn" aria-label={t('nav.notifications_n', { count: me.unreadNotifications })}>
           <Icon name="bell" />
@@ -712,5 +714,17 @@ export function BrandFooter() {
     <div className="brand-footer">
       <img src={asset('tg-logo-horizontal.svg')} alt={t('brand.name')} />
     </div>
+  );
+}
+
+/** One tap switches language: shows "عربي" while in English and "English" while in Arabic. */
+export function LangToggle() {
+  const { lang, setLang } = useApp();
+  const next = lang === 'ar' ? 'en' : 'ar';
+  return (
+    <button type="button" className="lang-toggle" lang={next} onClick={() => setLang(next)}>
+      <Icon name="globe" size={18} />
+      {next === 'ar' ? 'عربي' : 'English'}
+    </button>
   );
 }

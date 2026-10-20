@@ -418,3 +418,7 @@ bdi { unicode-bidi: isolate; }
 
 .brand-footer { display: flex; justify-content: center; padding: 12px 0 4px; }
 .brand-footer img { height: 26px; width: auto; opacity: .9; }
+
+.lang-toggle { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--navy); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.lang-toggle:hover { background: var(--paper); }
+.lang-toggle svg { color: var(--teal); }
