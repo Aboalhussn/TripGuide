@@ -10,6 +10,8 @@ type NavItem = { to: string; label: string; icon: string; badge?: number; primar
 
 export function Shell({ path, children }: { path: string; children: React.ReactNode }) {
   const { me, t, lang, ask } = useApp();
+  // Sign-in and sign-up are full-screen: no bottom tab bar.
+  const bare = path === '/login' || path === '/register';
   const role = me?.role || 'guest';
 
   const items: Record<string, NavItem[]> = {
@@ -118,10 +120,10 @@ export function Shell({ path, children }: { path: string; children: React.ReactN
           </div>
         </div>
       </header>
-      <main className="main" id="main">
+      <main className={'main' + (bare ? ' bare' : '')} id="main">
         {children}
       </main>
-      <nav className="tabbar" aria-label={t('nav.main')}>
+      {!bare && <nav className="tabbar" aria-label={t('nav.main')}>
         {items[role].map((it) => (
           <Link key={it.to} to={it.to} aria-current={isActive(it) ? 'page' : undefined}>
             {it.primary ? (
@@ -135,7 +137,7 @@ export function Shell({ path, children }: { path: string; children: React.ReactN
             {!!it.badge && <span className="dot">{it.badge > 9 ? '9+' : it.badge}</span>}
           </Link>
         ))}
-      </nav>
+      </nav>}
     </div>
   );
 }

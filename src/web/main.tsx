@@ -6,6 +6,7 @@ import { match, navigate, useLocation } from './lib/router';
 import { Shell } from './Shell';
 import { Loading } from './ui';
 import { initNative } from './lib/native';
+import { Splash, shouldShowSplash } from './Splash';
 import { AdminHome, GuestHome, GuideHome, TouristHome } from './pages/Home';
 import { FindGuides, GuideProfile, TouristProfile } from './pages/Guides';
 import { MyOffers, PostRequest, RequestDetail, RequestsIndex } from './pages/Requests';
@@ -74,10 +75,30 @@ function Routes() {
   );
 }
 
+// After the launch screen, signed-out visitors start at sign-in (create account and guest are reached from there).
+function Root() {
+  const { me, ready } = useApp();
+  const [splash, setSplash] = React.useState(shouldShowSplash);
+  const [launched] = React.useState(splash); // only a fresh launch lands on sign-in
+  const [routed, setRouted] = React.useState(!launched);
+  React.useEffect(() => {
+    if (splash || !ready || routed) return;
+    setRouted(true);
+    const route = window.location.hash.replace(/^#/, '') || '/';
+    if (!me && route === '/') navigate('/login', { replace: true });
+  }, [splash, ready, routed, me]);
+  return (
+    <>
+      <Routes />
+      {splash && <Splash onDone={() => setSplash(false)} />}
+    </>
+  );
+}
+
 export function start() {
   createRoot(document.getElementById('root')!).render(
     <AppProvider>
-      <Routes />
+      <Root />
     </AppProvider>,
   );
 }

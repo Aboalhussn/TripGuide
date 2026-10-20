@@ -41,7 +41,10 @@ async function open(lang: 'en' | 'ar' = 'en', width = 390): Promise<Page> {
   page.on('pageerror', (e) => pageErrors.push(e.message));
   page.on('dialog', (d) => d.accept());
   await page.goto(BASE);
-  await page.evaluate((l) => localStorage.setItem('tg.lang', l), lang);
+  await page.evaluate((l) => {
+    localStorage.setItem('tg.lang', l);
+    sessionStorage.setItem('tg.splash.shown', '1'); // skip the 3-second launch screen in tests
+  }, lang);
   await page.reload();
   return page;
 }
@@ -50,7 +53,7 @@ async function login(page: Page, email: string) {
   await page.goto(BASE + '#/login');
   await page.locator('form input[type=email]').fill(email);
   await page.locator('form input[type=password]').fill('Demo@1234');
-  await page.locator('form button').first().click();
+  await page.locator('form button.btn.lg').click();
   await page.waitForURL((u) => !u.hash.includes('login'));
 }
 
@@ -351,5 +354,21 @@ test('post page: problems show while typing, before pressing the button', async 
   await t.getByRole('button', { name: /More languages/ }).click();
   await t.getByRole('button', { name: 'Kurdish', exact: true }).click();
   await noSideScroll(t, 'post page');
+});
+
+test('launch: the loading screen shows, then sign-in, which leads to create account and guest', async () => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await ctx.newPage();
+  page.on('pageerror', (err) => pageErrors.push(err.message));
+  await page.goto(BASE);
+  await page.evaluate(() => localStorage.setItem('tg.lang', 'en'));
+  await page.reload();
+  await page.locator('.splash').waitFor();
+  await page.locator('.splash').waitFor({ state: 'detached', timeout: 8000 });
+  await page.waitForURL((u) => u.hash.startsWith('#/login'));
+  await page.getByRole('heading', { name: 'Welcome back' }).waitFor();
+  await page.getByRole('link', { name: 'Create an account' }).click();
+  await page.getByRole('button', { name: 'Continue as guest' }).click();
+  await page.getByRole('heading', { name: /Post your trip/ }).waitFor();
 });
 

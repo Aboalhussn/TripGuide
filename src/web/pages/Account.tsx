@@ -4,7 +4,7 @@ import { useApp, useLoad } from '../lib/app';
 import { useFmt } from '../lib/format';
 import { Link, navigate } from '../lib/router';
 import { asset, photoSrc } from '../assets';
-import { Avatar, BookingStatus, BrandFooter, CardForm, Field, Icon, Loading, Modal, Money, MonthCalendar, PageHead, ToggleGroup, VerifiedBadge, emptyCard, useBusy } from '../ui';
+import { Avatar, BookingStatus, BrandFooter, LangToggle, CardForm, Field, Icon, Loading, Modal, Money, MonthCalendar, PageHead, ToggleGroup, VerifiedBadge, emptyCard, useBusy } from '../ui';
 import type { CardValue } from '../ui';
 
 function goNext(query: Record<string, string>) {
@@ -16,6 +16,7 @@ export function Login({ query }: { query: Record<string, string> }) {
   const { t, signIn, meta, errorText, lang, setLang } = useApp();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPw, setShowPw] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const go = async (e?: React.FormEvent, creds?: { email: string; password: string }) => {
@@ -34,34 +35,42 @@ export function Login({ query }: { query: Record<string, string> }) {
   };
   const demo = meta?.demoLogins;
   return (
-    <div className="page" style={{ maxWidth: 460, margin: '0 auto', width: '100%' }}>
-      <div className="seg lang-seg" role="group" aria-label={t('account.language')} style={{ gridTemplateColumns: '1fr 1fr', alignSelf: 'flex-end', width: 200 }}>
-        <button type="button" aria-pressed={lang === 'en'} onClick={() => setLang('en')}>English</button>
-        <button type="button" aria-pressed={lang === 'ar'} onClick={() => setLang('ar')} lang="ar">العربية</button>
+    <div className="page auth-page">
+      <div className="auth-top">
+        <LangToggle />
       </div>
-      <div className="stack" style={{ gap: 6 }}>
+      <div className="auth-head">
         <h1>{t('auth.welcome_back')}</h1>
-        <p className="muted">{t('auth.lede')}</p>
+        <p className="muted">{t('auth.lede_short')}</p>
       </div>
-      <form className="stack" onSubmit={go}>
+      <form className="auth-card" onSubmit={go}>
         <Field label={t('field.email')}>
-          <input className="input" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <input className="input ltr" type="email" inputMode="email" autoComplete="email" placeholder="name@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
         </Field>
-        <Field label={t('field.password')}>
-          <input className="input" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-        </Field>
+        <div className="field">
+          <label htmlFor="login-pw">{t('field.password')}</label>
+          <div className="pw-wrap">
+            <input id="login-pw" className="input ltr" type={showPw ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+            <button type="button" className="pw-eye" aria-label={showPw ? t('auth.hide_pw') : t('auth.show_pw')} aria-pressed={showPw} onClick={() => setShowPw(!showPw)}>
+              <Icon name={showPw ? 'eyeOff' : 'eye'} size={20} />
+            </button>
+          </div>
+        </div>
         {err && (
           <div className="note danger" role="alert">
             {err}
           </div>
         )}
-        <button className="btn lg" disabled={busy}>
+        <button className="btn lg block" disabled={busy}>
           {t('nav.sign_in')}
         </button>
-        <p className="small center">
-          {t('auth.no_account')} <Link to={'/register' + (query.next ? '?next=' + encodeURIComponent(query.next) : '')}>{t('nav.join')}</Link>
-        </p>
       </form>
+      <div className="auth-alt">
+        <span className="divider-text">{t('auth.no_account')}</span>
+        <Link to={'/register' + (query.next ? '?next=' + encodeURIComponent(query.next) : '')} className="btn lg outline block">
+          {t('auth.create_account')}
+        </Link>
+      </div>
       {demo && (
         <section className="stack" style={{ gap: 10 }} aria-labelledby="demo-title">
           <div className="divider" />
@@ -159,6 +168,13 @@ export function Register({ query }: { query: Record<string, string> }) {
           {t('auth.have_account')} <Link to="/login">{t('nav.sign_in')}</Link>
         </p>
       </form>
+      <div className="guest-way">
+        <span className="divider-text">{t('auth.or')}</span>
+        <button type="button" className="btn ghost lg" onClick={() => navigate('/', { replace: true })}>
+          <Icon name="user" size={18} /> {t('auth.guest')}
+        </button>
+        <p className="xs muted center">{t('auth.guest_note')}</p>
+      </div>
     </div>
   );
 }
