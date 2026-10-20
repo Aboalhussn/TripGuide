@@ -172,6 +172,7 @@ export function Notifications() {
   // Payments a guide asked the tourist to release stay pinned here until they act on them.
   const asks = useLoad(() => (me?.role === 'tourist' ? api('GET', '/dashboard') : Promise.resolve(null)), [me?.id]);
   const releaseAsks: any[] = (asks.data as any)?.releaseAsks || [];
+  const toReview: any[] = (asks.data as any)?.toReview || [];
   const { run } = useBusy();
   if (res.error) return <ErrorState error={res.error} onRetry={res.reload} />;
   if (!res.data) return <Loading />;
@@ -211,6 +212,12 @@ export function Notifications() {
         <Link key={a.milestoneId} to={`/bookings/${a.bookingId}`} className="card attention link stack" style={{ gap: 6 }}>
           <strong>{t('dash.release_ask_title')}</strong>
           <span className="small">{t('dash.release_ask', { day: a.day, title: '\u2068' + a.title + '\u2069', amount: fmt.usd(a.amount) })}</span>
+        </Link>
+      ))}
+      {toReview.map((b: any) => (
+        <Link key={'r' + b.id} to={`/bookings/${b.id}`} className="card link stack" style={{ gap: 6 }}>
+          <strong>{t('dash.review_title', { name: b.guide.name })}</strong>
+          <span className="small muted"><bdi>{b.title}</bdi></span>
         </Link>
       ))}
       {res.data.notifications.length === 0 ? (

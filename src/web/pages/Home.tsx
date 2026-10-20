@@ -300,7 +300,7 @@ export function TouristHome() {
   const fmt = useFmt();
   const d = useLoad(() => api('GET', '/dashboard'), []);
   if (!d.data) return <Loading />;
-  const { requests, bookings, toReview } = d.data;
+  const { requests, bookings } = d.data;
   const first = me.name.split(' ')[0];
   return (
     <div className="page">
@@ -327,12 +327,7 @@ export function TouristHome() {
       />
       <FeaturedGuides />
 
-      {toReview.map((b: any) => (
-        <Link key={b.id} to={`/bookings/${b.id}`} className="card link stack" style={{ gap: 6 }}>
-          <strong>{t('dash.review_title', { name: b.guide.name })}</strong>
-          <span className="small muted"><bdi>{b.title}</bdi></span>
-        </Link>
-      ))}
+      <TopGuides />
 
       <div className="split">
         <div className="stack-lg">

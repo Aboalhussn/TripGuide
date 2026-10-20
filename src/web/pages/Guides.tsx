@@ -253,6 +253,9 @@ export function GuideProfile({ id }: { id: string }) {
               {g.suspended && <span className="pill danger">{t('badge.suspended')}</span>}
             </div>
           </section>
+          <div style={{ padding: '0 16px' }}>
+            <AdminUserActions user={{ ...g, role: 'guide' }} onDone={res.reload} />
+          </div>
 
           <div style={{ padding: '0 16px' }} className="stack-lg">
             <section className="stat-row" aria-label={t('guide.track_record')}>
@@ -457,6 +460,32 @@ export function ReviewCard({ r }: { r: any }) {
   );
 }
 
+/** Admin only: suspend or reactivate this account right from its profile. */
+function AdminUserActions({ user, onDone }: { user: any; onDone(): void }) {
+  const { t, me, ask } = useApp();
+  const { busy, run } = useBusy();
+  if (me?.role !== 'admin' || user.role === 'admin') return null;
+  const suspended = !!user.suspended;
+  const toggle = async () => {
+    if (!suspended && !(await ask(t('admin.suspend_confirm', { name: user.name }), t('admin.suspend')))) return;
+    run(async () => {
+      await api('POST', `/admin/users/${user.id}/status`, { status: suspended ? 'active' : 'suspended' });
+      onDone();
+    }, suspended ? t('admin.reactivated_toast') : t('admin.suspended_toast'));
+  };
+  return (
+    <section className="card between admin-actions" aria-label={t('admin.account')}>
+      <div className="stack" style={{ gap: 2 }}>
+        <strong className="small">{t('admin.account')}</strong>
+        {suspended ? <span className="pill danger" style={{ alignSelf: 'flex-start' }}>{t('badge.suspended')}</span> : <span className="xs muted">{t('admin.account_active')}</span>}
+      </div>
+      <button type="button" className={'btn sm ' + (suspended ? 'outline' : 'ghost danger-text')} disabled={busy} onClick={toggle}>
+        {suspended ? t('admin.reactivate') : t('admin.suspend')}
+      </button>
+    </section>
+  );
+}
+
 export function TouristProfile({ id }: { id: string }) {
   const { t } = useApp();
   const fmt = useFmt();
@@ -482,7 +511,9 @@ export function TouristProfile({ id }: { id: string }) {
       <div className="chips">
         {u.paymentVerified && <span className="pill sky">{t('badge.payment_verified')}</span>}
         {u.phoneVerified && <span className="pill sky">{t('badge.phone_verified')}</span>}
+        {u.suspended && <span className="pill danger">{t('badge.suspended')}</span>}
       </div>
+      <AdminUserActions user={{ ...u, role: 'tourist' }} onDone={res.reload} />
       <div className="stat-row">
         <div>
           <div className="v">{fmt.num(u.stats.tripsCompleted)}</div>

@@ -72,6 +72,14 @@ export function Shell({ path, children }: { path: string; children: React.ReactN
     ],
   };
   const isActive = (it: NavItem) => (it.to === '/' ? path === '/' : (it.match || [it.to]).some((m) => path === m || path.startsWith(m + '/')));
+  // Like a phone app, the bottom tab only moves when a tab's own screen opens. Screens opened from
+  // inside a tab (a trip request, a guide, a booking...) keep the tab you came from highlighted.
+  const lastTab = React.useRef<{ role: string; to: string } | null>(null);
+  const tabs = items[role];
+  const own = tabs.find((it) => path === it.to);
+  const kept = lastTab.current?.role === role && tabs.some((it) => it.to === lastTab.current!.to) ? lastTab.current!.to : null;
+  const activeTab = own?.to ?? kept ?? tabs.find(isActive)?.to ?? null;
+  lastTab.current = activeTab ? { role, to: activeTab } : null;
   const name = lang === 'ar' ? brand.nameAr : brand.name;
 
   return (
@@ -111,7 +119,7 @@ export function Shell({ path, children }: { path: string; children: React.ReactN
       </main>
       {!bare && <nav className="tabbar" aria-label={t('nav.main')}>
         {items[role].map((it) => (
-          <Link key={it.to} to={it.to} aria-current={isActive(it) ? 'page' : undefined}>
+          <Link key={it.to} to={it.to} aria-current={activeTab === it.to ? 'page' : undefined}>
             {it.primary ? (
               <span className="plus">
                 <Icon name="plus" size={20} stroke={2.2} />

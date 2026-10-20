@@ -395,5 +395,21 @@ test('home: search right there, featured guides, and admin opens a user profile'
   await a.locator('.user-link', { hasText: 'Omar' }).first().click();
   await a.waitForFunction(() => /^#\/(guides|users)\/\d+/.test(location.hash));
   await a.getByRole('heading', { name: /Omar/ }).first().waitFor();
+  // The Users tab stays highlighted inside the profile, and the admin can suspend from here.
+  assert.equal(await a.locator('.tabbar a[aria-current="page"]').innerText(), 'Users');
+  await a.getByRole('region', { name: 'Account' }).getByRole('button', { name: 'Suspend' }).click();
+  await a.getByRole('alertdialog').getByRole('button', { name: 'Suspend' }).click();
+  await a.getByRole('region', { name: 'Account' }).getByText('Suspended').waitFor();
+  await a.getByRole('region', { name: 'Account' }).getByRole('button', { name: 'Reactivate' }).click();
+  await a.getByRole('region', { name: 'Account' }).getByText('Active').waitFor();
   await a.context().close();
+
+  // A tourist opening a request from home keeps the Home tab highlighted.
+  const h = await open();
+  await login(h, 'tourist@tripguide.demo');
+  await go(h, '/');
+  await h.locator('a.card.link[href*="#/requests/"]').first().click();
+  await h.waitForFunction(() => /^#\/requests\/\d+/.test(location.hash));
+  assert.equal(await h.locator('.tabbar a[aria-current="page"]').innerText(), 'Home');
+  await h.context().close();
 });
