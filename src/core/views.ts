@@ -124,6 +124,7 @@ export function guideCard(data: Data, g: GuideProfile, now: Date) {
     specialities: g.specialities,
     verification: g.verification,
     acceptsCash: cashOpen(g, now),
+    promoted: !!g.promotedUntil && g.promotedUntil > now.toISOString(),
     cover: g.photos[0]?.img || null,
     stats: {
       rating: s.rating,

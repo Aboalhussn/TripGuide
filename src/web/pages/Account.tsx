@@ -220,6 +220,7 @@ export function Account() {
       {(me.role === 'tourist' || me.role === 'guide') && <MyTrips guide={me.role === 'guide'} />}
 
       {me.role === 'guide' && <CashPayments />}
+      {me.role === 'guide' && <Promotion />}
 
       <div className="cards">
         {me.role !== 'admin' && (
@@ -625,6 +626,62 @@ function CashPayments() {
             </div>
           )}
           <button type="button" className="btn lg" onClick={subscribe}>
+            {s.price > 0 ? t('sub.pay', { price: fmt.usd(s.price) }) : t('sub.activate')}
+          </button>
+        </Modal>
+      )}
+    </section>
+  );
+}
+
+/** Guides: pay to be featured on the home screen for a while. */
+function Promotion() {
+  const { t, errorText, toast } = useApp();
+  const fmt = useFmt();
+  const res = useLoad(() => api('GET', '/guide/promotion'), []);
+  const [open, setOpen] = useState(false);
+  const [card, setCard] = useState<CardValue>(emptyCard);
+  const [err, setErr] = useState<string | null>(null);
+  const s = res.data;
+  if (!s) return <div className="skeleton" style={{ height: 130 }} />;
+  const buy = async () => {
+    setErr(null);
+    try {
+      await api('POST', '/guide/promotion', { card: s.price > 0 ? card : undefined });
+      setOpen(false);
+      setCard(emptyCard);
+      res.reload();
+      toast(t('promo.done_toast'));
+    } catch (e) {
+      setErr(errorText(e));
+    }
+  };
+  return (
+    <section className="card stack" aria-labelledby="promo-title">
+      <div className="between">
+        <strong id="promo-title" className="row" style={{ gap: 8 }}>
+          <Icon name="heart" size={20} /> {t('promo.title')}
+        </strong>
+        {s.active ? <span className="pill gold">{t('promo.active')}</span> : <span className="pill">{t('promo.inactive')}</span>}
+      </div>
+      <p className="small muted">{t('promo.text', { price: fmt.usd(s.price), days: s.days })}</p>
+      {s.active && <p className="small">{t('promo.until', { date: fmt.dateLong(s.until.slice(0, 10)) })}</p>}
+      <button type="button" className={'btn' + (s.active ? ' sm outline' : '')} style={{ alignSelf: 'flex-start' }} onClick={() => setOpen(true)}>
+        {s.active ? t('promo.extend', { price: fmt.usd(s.price) }) : t('promo.buy', { price: fmt.usd(s.price) })}
+      </button>
+      {open && (
+        <Modal title={t('promo.title')} onClose={() => setOpen(false)}>
+          <div className="card between">
+            <span>{t('sub.period', { days: s.days })}</span>
+            <Money usd={s.price} className="bold" />
+          </div>
+          {s.price > 0 ? <CardForm value={card} onChange={setCard} /> : <p className="note small">{t('sub.free')}</p>}
+          {err && (
+            <div className="note danger" role="alert">
+              {err}
+            </div>
+          )}
+          <button type="button" className="btn lg" onClick={buy}>
             {s.price > 0 ? t('sub.pay', { price: fmt.usd(s.price) }) : t('sub.activate')}
           </button>
         </Modal>

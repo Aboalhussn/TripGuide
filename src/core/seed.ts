@@ -40,7 +40,7 @@ export function emptyData(now: Date): Data {
     reports: [],
     sessions: [],
     payments: [],
-    platform: { guideSubscriptionPrice: settings.guideSubscriptionPrice, subscriptionDays: settings.subscriptionDays },
+    platform: { guideSubscriptionPrice: settings.guideSubscriptionPrice, subscriptionDays: settings.subscriptionDays, promotionPrice: settings.promotionPrice, promotionDays: settings.promotionDays },
   };
 }
 
@@ -283,6 +283,8 @@ export function seed(platform: Platform): Data {
       // Some verified guides already subscribe and take cash.
       acceptsCash: gs.verification === 'verified' && i % 2 === 0,
       subscriptionUntil: gs.verification === 'verified' && i % 2 === 0 ? minsAfter(ago(0), 60 * 24 * 18) : null,
+      // A few guides paid to be featured on the home screen.
+      promotedUntil: gs.verification === 'verified' && i % 3 !== 2 ? minsAfter(ago(0), 60 * 24 * 5) : null,
     });
   });
   const tourists: Record<string, User> = {};

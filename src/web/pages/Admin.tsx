@@ -286,6 +286,7 @@ export function AdminUsers() {
         <div className="card flush">
           {users.map((u: any) => (
             <div key={u.id} className="list-item">
+              <Link to={u.role === 'guide' ? `/guides/${u.id}` : `/users/${u.id}`} className="user-link" aria-disabled={u.role === 'admin' ? true : undefined} onClick={(e) => u.role === 'admin' && e.preventDefault()}>
               <Avatar user={u} size={40} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="row" style={{ gap: 6 }}>
@@ -298,6 +299,7 @@ export function AdminUsers() {
                   {u.email} · {u.country} · {fmt.date(u.memberSince, { month: 'short', year: 'numeric' })}
                 </div>
               </div>
+              </Link>
               {u.role !== 'admin' && (
                 <button type="button" className={'btn sm ' + (u.status === 'suspended' ? 'outline' : 'ghost danger-text')} disabled={busy} onClick={() => toggle(u)}>
                   {u.status === 'suspended' ? t('admin.reactivate') : t('admin.suspend')}

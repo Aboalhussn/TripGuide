@@ -21,6 +21,9 @@ export const settings = {
   // Starting price of the guide subscription that unlocks cash bookings (the admin can change it in the app).
   guideSubscriptionPrice: 5,
   subscriptionDays: 30,
+  // Starting price for a guide to be featured on the home screen (the admin can change it).
+  promotionPrice: 10,
+  promotionDays: 7,
   // Shown next to USD prices as a guide only.
   iqdPerUsd: 1310,
   // A guide must confirm a hire within this many hours, or the hire lapses and the money is returned.

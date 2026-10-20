@@ -60,13 +60,77 @@ function HomeBanners({ slides }: { slides: Slide[] }) {
   );
 }
 
-function SearchPill() {
-  const { t } = useApp();
+/** Search right on the home screen: matching cities and guides show up below as you type. */
+function HomeSearch() {
+  const { t, meta, lang } = useApp();
+  const fmt = useFmt();
+  const [q, setQ] = React.useState('');
+  const [res, setRes] = React.useState<{ q: string; guides: any[] } | null>(null);
+  const term = q.trim();
+  React.useEffect(() => {
+    if (!term) return setRes(null);
+    let live = true;
+    const id = window.setTimeout(() => {
+      api('GET', '/guides', undefined, { q: term })
+        .then((r: any) => live && setRes({ q: term, guides: r.guides }))
+        .catch(() => live && setRes({ q: term, guides: [] }));
+    }, 200);
+    return () => {
+      live = false;
+      window.clearTimeout(id);
+    };
+  }, [term]);
+  const low = term.toLowerCase();
+  const cities = term ? (meta?.cities || []).filter((c: any) => c.name.toLowerCase().includes(low) || c.nameAr.includes(term)) : [];
   return (
-    <Link to="/guides" className="search-pill">
-      <Icon name="search" size={20} />
-      <span>{t('home.search')}</span>
-    </Link>
+    <div className="home-search">
+      <label className="search-pill">
+        <Icon name="search" size={20} />
+        <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('home.search')} aria-label={t('home.search')} enterKeyHint="search" dir={lang === 'ar' ? 'rtl' : 'ltr'} />
+        {q && (
+          <button type="button" className="search-clear" aria-label={t('common.clear')} onClick={() => setQ('')}>
+            <Icon name="close" size={18} />
+          </button>
+        )}
+      </label>
+      {term && (
+        <div className="search-results card flush" role="region" aria-live="polite" aria-label={t('home.results')}>
+          {cities.length > 0 && (
+            <div className="chips" style={{ padding: '12px 14px 4px' }}>
+              {cities.map((c: any) => (
+                <Link key={c.slug} to={`/guides?city=${c.slug}`} className="city-tile sm">
+                  <Icon name="pin" size={16} /> {fmt.city(c.slug)}
+                </Link>
+              ))}
+            </div>
+          )}
+          {!res || res.q !== term ? (
+            <div className="skeleton" style={{ height: 64, margin: 12 }} />
+          ) : res.guides.length === 0 && cities.length === 0 ? (
+            <p className="muted small" style={{ padding: 16 }}>{t('home.no_results')}</p>
+          ) : (
+            res.guides.slice(0, 5).map((g: any) => (
+              <Link key={g.id} to={`/guides/${g.id}`} className="list-item">
+                <Avatar user={g} size={40} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="row" style={{ gap: 4, flexWrap: 'nowrap' }}>
+                    <strong className="gt-name">{g.name}</strong>
+                    {g.stats.verified && <VerifiedBadge />}
+                  </div>
+                  <div className="xs muted" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{fmt.pick(g.headline, g.headlineAr)}</div>
+                </div>
+                <strong className="small">{fmt.usd(g.pricePerDay)}</strong>
+              </Link>
+            ))
+          )}
+          {res && res.q === term && res.guides.length > 5 && (
+            <Link to={`/guides?q=${encodeURIComponent(term)}`} className="list-item see-all" style={{ justifyContent: 'center' }}>
+              {t('home.all_results', { count: res.guides.length })}
+            </Link>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -99,12 +163,15 @@ function SectionHead({ title, to }: { title: string; to?: string }) {
   );
 }
 
-function GuideTile({ g }: { g: any }) {
+function GuideTile({ g, sponsored = false }: { g: any; sponsored?: boolean }) {
   const { t } = useApp();
   const fmt = useFmt();
   return (
     <Link to={`/guides/${g.id}`} className="guide-tile">
-      <div className="gt-cover">{g.cover ? <img src={photoSrc(g.cover)} alt="" loading="lazy" /> : <img src={asset('map.jpg')} alt="" />}</div>
+      <div className="gt-cover">
+        {g.cover ? <img src={photoSrc(g.cover)} alt="" loading="lazy" /> : <img src={asset('map.jpg')} alt="" />}
+        {sponsored && <span className="gt-badge">{t('home.sponsored')}</span>}
+      </div>
       <div className="gt-body">
         <div className="gt-av">
           <Avatar user={g} size={44} />
@@ -133,6 +200,22 @@ function TopGuides() {
       <SectionHead title={t('home.top_guides')} to="/guides" />
       <div className="h-scroll">
         {top.data ? top.data.guides.slice(0, 6).map((g: any) => <GuideTile key={g.id} g={g} />) : [0, 1].map((n) => <div key={n} className="guide-tile skeleton" style={{ height: 200 }} />)}
+      </div>
+    </section>
+  );
+}
+
+/** Guides who paid to be featured. Hidden when nobody is promoted. */
+function FeaturedGuides() {
+  const { t } = useApp();
+  const res = useLoad(() => api('GET', '/guides', undefined, { promoted: '1' }), []);
+  const list: any[] = res.data?.guides || [];
+  if (res.data && list.length === 0) return null;
+  return (
+    <section className="stack" style={{ gap: 10 }}>
+      <SectionHead title={t('home.featured')} />
+      <div className="h-scroll">
+        {res.data ? list.map((g: any) => <GuideTile key={g.id} g={g} sponsored />) : [0, 1].map((n) => <div key={n} className="guide-tile skeleton" style={{ height: 200 }} />)}
       </div>
     </section>
   );
@@ -195,7 +278,7 @@ export function GuestHome() {
           { img: 'babylon.jpg', title: t('home.slide_pay'), cta: t('home.cta_browse'), to: '/guides' },
         ]}
       />
-      <SearchPill />
+      <HomeSearch />
       <QuickActions
         items={[
           { to: '/post', icon: 'plus', label: t('home.q_post') },
@@ -204,6 +287,7 @@ export function GuestHome() {
           { to: '/login', icon: 'user', label: t('home.q_login') },
         ]}
       />
+      <FeaturedGuides />
       <TopGuides />
       <CityTiles />
       <HowItWorks />
@@ -217,7 +301,7 @@ export function TouristHome() {
   const fmt = useFmt();
   const d = useLoad(() => api('GET', '/dashboard'), []);
   if (!d.data) return <Loading />;
-  const { requests, bookings, toReview, releaseAsks } = d.data;
+  const { requests, bookings, toReview } = d.data;
   const first = me.name.split(' ')[0];
   return (
     <div className="page">
@@ -233,7 +317,7 @@ export function TouristHome() {
           { img: 'babylon.jpg', title: t('home.slide_pay'), cta: t('home.cta_browse'), to: '/guides' },
         ]}
       />
-      <SearchPill />
+      <HomeSearch />
       <QuickActions
         items={[
           { to: '/post', icon: 'plus', label: t('home.q_post') },
@@ -242,13 +326,8 @@ export function TouristHome() {
           { to: '/messages', icon: 'chat', label: t('home.q_messages') },
         ]}
       />
+      <FeaturedGuides />
 
-      {releaseAsks.map((a: any) => (
-        <Link key={a.milestoneId} to={`/bookings/${a.bookingId}`} className="card attention link stack" style={{ gap: 6 }}>
-          <strong>{t('dash.release_ask_title')}</strong>
-          <span className="small">{t('dash.release_ask', { day: a.day, title: a.title, amount: fmt.usd(a.amount) })}</span>
-        </Link>
-      ))}
       {toReview.map((b: any) => (
         <Link key={b.id} to={`/bookings/${b.id}`} className="card link stack" style={{ gap: 6 }}>
           <strong>{t('dash.review_title', { name: b.guide.name })}</strong>
@@ -553,6 +632,7 @@ export function AdminHome() {
         )}
       </section>
       <SubscriptionSettings price={x.subscriptionPrice} days={x.subscriptionDays} active={x.activeSubscriptions} onSaved={d.reload} />
+      <SubscriptionSettings promo price={x.promotionPrice} days={x.promotionDays} active={x.activePromotions} onSaved={d.reload} />
       <section className="stack" style={{ gap: 10 }}>
         <h2>{t('admin.platform')}</h2>
         <div className="stat-grid">
@@ -576,7 +656,8 @@ export function AdminHome() {
 }
 
 /** Admin: price of the guide subscription that unlocks cash bookings. */
-function SubscriptionSettings({ price, days, active, onSaved }: { price: number; days: number; active: number; onSaved(): void }) {
+function SubscriptionSettings({ price, days, active, onSaved, promo = false }: { price: number; days: number; active: number; onSaved(): void; promo?: boolean }) {
+  const k = promo ? 'admin.promo_' : 'admin.subs_';
   const { t } = useApp();
   const [p, setP] = React.useState(String(price));
   const [dd, setDd] = React.useState(String(days));
@@ -587,7 +668,7 @@ function SubscriptionSettings({ price, days, active, onSaved }: { price: number;
     setBusy(true);
     setMsg(null);
     try {
-      await api('PUT', '/admin/settings', { guideSubscriptionPrice: Number(p), subscriptionDays: Number(dd) });
+      await api('PUT', '/admin/settings', promo ? { promotionPrice: Number(p), promotionDays: Number(dd) } : { guideSubscriptionPrice: Number(p), subscriptionDays: Number(dd) });
       setMsg(t('common.saved'));
       onSaved();
     } catch {
@@ -597,19 +678,19 @@ function SubscriptionSettings({ price, days, active, onSaved }: { price: number;
     }
   };
   return (
-    <form className="card stack" onSubmit={save} aria-labelledby="subs-title">
+    <form className="card stack" onSubmit={save} aria-labelledby={k + 'title'}>
       <div className="between">
-        <h2 id="subs-title" style={{ fontSize: 20 }}>{t('admin.subs_title')}</h2>
-        <span className="pill sky">{t('admin.subs_active', { count: active })}</span>
+        <h2 id={k + 'title'} style={{ fontSize: 20 }}>{t(k + 'title')}</h2>
+        <span className="pill sky">{t(k + 'active', { count: active })}</span>
       </div>
-      <p className="small muted">{t('admin.subs_text')}</p>
+      <p className="small muted">{t(k + 'text')}</p>
       <div className="grid-2" style={{ gap: 12 }}>
         <label className="stack" style={{ gap: 6 }}>
-          <span className="label-sm">{t('admin.subs_price')}</span>
+          <span className="label-sm">{t(k + 'price')}</span>
           <input className="input ltr" inputMode="decimal" value={p} onChange={(e) => setP(e.target.value.replace(/[^\d.]/g, ''))} />
         </label>
         <label className="stack" style={{ gap: 6 }}>
-          <span className="label-sm">{t('admin.subs_days')}</span>
+          <span className="label-sm">{t(k + 'days')}</span>
           <input className="input ltr" inputMode="numeric" value={dd} onChange={(e) => setDd(e.target.value.replace(/\D/g, ''))} />
         </label>
       </div>

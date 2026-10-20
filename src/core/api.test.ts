@@ -335,3 +335,18 @@ test('one trip a day: no offers on booked days, and confirming withdraws overlap
   const r5 = s.ok('POST', '/requests', tripBody(s.today(), { title: 'Next free day', startDate: addDays(s.today(), 5), endDate: addDays(s.today(), 5) }), other);
   assert.equal(s.ok('GET', `/requests/${r5.id}`, null, ali).busyForMe, false);
 });
+
+test('a guide pays to be featured on the home screen; it lapses after the period', () => {
+  const s = setup();
+  const { g } = postAndOffer(s);
+  const admin = s.login(DEMO_ACCOUNTS.admin);
+  s.ok('PUT', '/admin/settings', { promotionPrice: 12, promotionDays: 7 }, admin);
+  const meId = s.ok('GET', '/me', null, g).id;
+  const featured = () => s.ok('GET', '/guides', null, null, { promoted: '1' }).guides.map((x: any) => x.id);
+  assert.equal(s.call('POST', '/guide/promotion', { card: { ...CARD, number: '1234' } }, g).body.error, 'card_invalid');
+  assert.equal(s.ok('POST', '/guide/promotion', { card: CARD }, g).active, true);
+  assert.ok(featured().includes(meId));
+  assert.ok(s.ok('GET', '/wallet', null, g).transactions.some((x: any) => x.kind === 'promotion' && x.amount === -12));
+  s.advance(24 * 13); // past any seeded promotion plus the 7 days bought
+  assert.ok(!featured().includes(meId));
+});

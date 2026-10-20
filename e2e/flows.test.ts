@@ -271,6 +271,9 @@ test('a guide withdraws an offer after confirming in the page dialog', async () 
 test('on tour: the tourist releases the day the guide asked for', async () => {
   const hannah = await open();
   await login(hannah, 'tourist@tripguide.demo');
+  // The request is pinned in notifications, not on the home screen.
+  assert.equal(await hannah.getByText('A guide asked you to release a payment').count(), 0);
+  await go(hannah, '/notifications');
   await hannah.getByText('A guide asked you to release a payment').click();
   await hannah.getByText('Omar asked you to release it').waitFor();
   await hannah.getByRole('button', { name: /Release \$45 to Omar/ }).first().click();
@@ -374,3 +377,24 @@ test('launch: the loading screen shows, then sign-in, which leads to create acco
   await page.getByRole('heading', { name: 'Top guides' }).waitFor();
 });
 
+
+test('home: search right there, featured guides, and admin opens a user profile', async () => {
+  const p = await open();
+  await go(p, '/');
+  await p.getByRole('heading', { name: 'Featured guides' }).waitFor();
+  assert.ok((await p.locator('.gt-badge', { hasText: 'Sponsored' }).count()) > 0);
+  await p.getByRole('searchbox', { name: 'Search guides or cities' }).fill('Karbala');
+  const results = p.getByRole('region', { name: 'Search results' });
+  await results.locator('.city-tile', { hasText: 'Karbala' }).waitFor();
+  await results.locator('a.list-item').first().waitFor();
+  assert.equal(await p.evaluate(() => location.hash), '#/');
+  await p.context().close();
+
+  const a = await open();
+  await login(a, 'admin@tripguide.demo');
+  await go(a, '/admin/users');
+  await a.locator('.user-link', { hasText: 'Omar' }).first().click();
+  await a.waitForFunction(() => /^#\/(guides|users)\/\d+/.test(location.hash));
+  await a.getByRole('heading', { name: /Omar/ }).first().waitFor();
+  await a.context().close();
+});

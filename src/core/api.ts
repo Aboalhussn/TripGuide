@@ -71,7 +71,7 @@ function cardBrand(d: string) {
   if (/^(5[1-5]|2[2-7])/.test(d)) return 'Mastercard';
   return 'Card';
 }
-function chargeCard(ctx: Ctx, u: User, card: any, amount: number, purpose: 'booking' | 'subscription', refId: number) {
+function chargeCard(ctx: Ctx, u: User, card: any, amount: number, purpose: 'booking' | 'subscription' | 'promotion', refId: number) {
   const digits = String(card?.number || '').replace(/[\s-]/g, '');
   if (!/^\d{12,19}$/.test(digits) || !luhn(digits)) throw bad('card_invalid');
   const name = String(card?.name || '').trim();
@@ -88,15 +88,19 @@ function chargeCard(ctx: Ctx, u: User, card: any, amount: number, purpose: 'book
   return p;
 }
 const subActive = (ctx: Ctx, g: GuideProfile) => !!g.subscriptionUntil && g.subscriptionUntil > ctx.nowIso;
+const promoActive = (ctx: Ctx, g: GuideProfile) => !!g.promotedUntil && g.promotedUntil > ctx.nowIso;
 
 // Older saved data (and the browser demo's stored copy) predates payment methods.
 function normalize(data: Data) {
   if (!data.payments) data.payments = [];
-  if (!data.platform) data.platform = { guideSubscriptionPrice: settings.guideSubscriptionPrice, subscriptionDays: settings.subscriptionDays };
+  if (!data.platform) data.platform = { guideSubscriptionPrice: settings.guideSubscriptionPrice, subscriptionDays: settings.subscriptionDays, promotionPrice: settings.promotionPrice, promotionDays: settings.promotionDays };
   if (data.seq.payments === undefined) data.seq.payments = 0;
+  if (data.platform.promotionPrice === undefined) data.platform.promotionPrice = settings.promotionPrice;
+  if (data.platform.promotionDays === undefined) data.platform.promotionDays = settings.promotionDays;
   for (const g of data.guides) {
     if (g.acceptsCash === undefined) g.acceptsCash = false;
     if (g.subscriptionUntil === undefined) g.subscriptionUntil = null;
+    if (g.promotedUntil === undefined) g.promotedUntil = null;
   }
   for (const b of data.bookings) {
     if (!b.paymentMethod) b.paymentMethod = 'card';
@@ -287,6 +291,7 @@ route('POST', '/auth/register', (ctx, _p, req) => {
       verificationRequestedAt: null,
       acceptsCash: false,
       subscriptionUntil: null,
+      promotedUntil: null,
     });
   }
   const token = ctx.p.randomToken();
@@ -371,6 +376,7 @@ route('GET', '/guides', (ctx, _p, req) => {
   if (q.lang) list = list.filter((g) => g.languages.some((l) => l.code === q.lang));
   if (q.spec) list = list.filter((g) => g.specialities.includes(q.spec));
   if (q.maxPrice) list = list.filter((g) => g.pricePerDay <= Number(q.maxPrice));
+  if (q.promoted === '1') list = list.filter((g) => promoActive(ctx, g));
   if (q.verified === '1') list = list.filter((g) => g.verification === 'verified');
   if (q.female === '1') list = list.filter((g) => userById(ctx.data, g.userId)!.gender === 'f');
   if (isDate(q.from) && isDate(q.to) && q.from <= q.to) list = list.filter((g) => isAvailable(ctx.data, g, q.from, q.to));
@@ -459,6 +465,25 @@ route('PUT', '/guide/profile', (ctx, _p, req) => {
     });
   }
   return meView(ctx, u);
+});
+
+// Guides pay (price set by the admin) to be featured on the home screen for a while.
+route('GET', '/guide/promotion', (ctx) => {
+  const u = need(ctx, 'guide');
+  const g = guideOf(ctx.data, u.id)!;
+  return { price: ctx.data.platform.promotionPrice, days: ctx.data.platform.promotionDays, until: g.promotedUntil, active: promoActive(ctx, g) };
+});
+
+route('POST', '/guide/promotion', (ctx, _p, req) => {
+  const u = needActive(ctx, 'guide');
+  const g = guideOf(ctx.data, u.id)!;
+  if (!(g.headline && g.cities.length)) throw conflict('profile_incomplete');
+  const { promotionPrice: price, promotionDays: days } = ctx.data.platform;
+  if (price > 0) chargeCard(ctx, u, req.body?.card, price, 'promotion', u.id);
+  const from = promoActive(ctx, g) ? new Date(g.promotedUntil!) : ctx.now;
+  g.promotedUntil = new Date(from.getTime() + days * 86400_000).toISOString();
+  notify(ctx, u.id, 'promotion_active', { until: g.promotedUntil.slice(0, 10) }, '/profile/guide');
+  return { price, days, until: g.promotedUntil, active: true };
 });
 
 // Guides subscribe (price set by the admin) to take cash bookings; card bookings carry the usual fee instead.
@@ -1108,8 +1133,8 @@ route('GET', '/wallet', (ctx) => {
     .filter((x) => u.role === 'tourist' || x.kind !== 'refunded')
     .concat(
       ctx.data.payments
-        .filter((p) => p.purpose === 'subscription' && p.userId === u.id)
-        .map((p) => ({ bookingId: null, title: '', day: 0, kind: 'subscription', amount: -p.amount, at: p.createdAt })),
+        .filter((p) => (p.purpose === 'subscription' || p.purpose === 'promotion') && p.userId === u.id)
+        .map((p) => ({ bookingId: null, title: '', day: 0, kind: p.purpose, amount: -p.amount, at: p.createdAt })),
     )
     .sort((a, b) => String(b.at).localeCompare(String(a.at)));
   return {
@@ -1183,6 +1208,9 @@ route('GET', '/dashboard', (ctx) => {
     activeSubscriptions: ctx.data.guides.filter((g) => subActive(ctx, g)).length,
     subscriptionPrice: ctx.data.platform.guideSubscriptionPrice,
     subscriptionDays: ctx.data.platform.subscriptionDays,
+    activePromotions: ctx.data.guides.filter((g) => promoActive(ctx, g)).length,
+    promotionPrice: ctx.data.platform.promotionPrice,
+    promotionDays: ctx.data.platform.promotionDays,
   };
 });
 
@@ -1196,6 +1224,8 @@ route('PUT', '/admin/settings', (ctx, _p, req) => {
   const b = req.body || {};
   if (b.guideSubscriptionPrice !== undefined) ctx.data.platform.guideSubscriptionPrice = num(b.guideSubscriptionPrice, 'guideSubscriptionPrice', 0, 500);
   if (b.subscriptionDays !== undefined) ctx.data.platform.subscriptionDays = num(b.subscriptionDays, 'subscriptionDays', 1, 366, true);
+  if (b.promotionPrice !== undefined) ctx.data.platform.promotionPrice = num(b.promotionPrice, 'promotionPrice', 0, 1000);
+  if (b.promotionDays !== undefined) ctx.data.platform.promotionDays = num(b.promotionDays, 'promotionDays', 1, 366, true);
   return { ...ctx.data.platform, activeSubscriptions: ctx.data.guides.filter((g) => subActive(ctx, g)).length };
 });
 

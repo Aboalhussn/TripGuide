@@ -169,6 +169,9 @@ export function Notifications() {
   const { t, me, refreshMe } = useApp();
   const fmt = useFmt();
   const res = useLoad(() => api('GET', '/notifications'), [me?.id]);
+  // Payments a guide asked the tourist to release stay pinned here until they act on them.
+  const asks = useLoad(() => (me?.role === 'tourist' ? api('GET', '/dashboard') : Promise.resolve(null)), [me?.id]);
+  const releaseAsks: any[] = (asks.data as any)?.releaseAsks || [];
   const { run } = useBusy();
   if (res.error) return <ErrorState error={res.error} onRetry={res.reload} />;
   if (!res.data) return <Loading />;
@@ -204,6 +207,12 @@ export function Notifications() {
           </button>
         )}
       </PageHead>
+      {releaseAsks.map((a: any) => (
+        <Link key={a.milestoneId} to={`/bookings/${a.bookingId}`} className="card attention link stack" style={{ gap: 6 }}>
+          <strong>{t('dash.release_ask_title')}</strong>
+          <span className="small">{t('dash.release_ask', { day: a.day, title: '\u2068' + a.title + '\u2069', amount: fmt.usd(a.amount) })}</span>
+        </Link>
+      ))}
       {res.data.notifications.length === 0 ? (
         <Empty title={t('notifications.none')} />
       ) : (

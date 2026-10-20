@@ -40,6 +40,7 @@ export interface GuideProfile {
   verificationRequestedAt: string | null;
   acceptsCash: boolean; // offers cash payment (needs an active subscription)
   subscriptionUntil: string | null; // ISO time the guide's subscription runs until
+  promotedUntil: string | null; // ISO time the guide's paid promotion (featured on the home screen) runs until
 }
 
 export interface City { slug: string; name: string; nameAr: string }
@@ -190,7 +191,7 @@ export interface Report {
 export interface CardPayment {
   id: number;
   userId: number;
-  purpose: 'booking' | 'subscription';
+  purpose: 'booking' | 'subscription' | 'promotion';
   refId: number; // booking id, or the guide's user id for a subscription
   amount: number;
   brand: string;
@@ -202,6 +203,8 @@ export interface CardPayment {
 export interface PlatformSettings {
   guideSubscriptionPrice: number; // USD per period, set by the admin
   subscriptionDays: number;
+  promotionPrice: number; // USD to be featured on the home screen, set by the admin
+  promotionDays: number;
 }
 
 export interface Session { token: string; userId: number; createdAt: string }
