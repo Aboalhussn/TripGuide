@@ -35,46 +35,41 @@ export function Login({ query }: { query: Record<string, string> }) {
   };
   const demo = meta?.demoLogins;
   return (
-    <div className="page auth-page">
-      <div className="auth-top">
+    <div className="page login-page" dir="ltr">
+      <div className="login-top">
         <LangToggle />
       </div>
-      <div className="auth-head">
-        <h1>{t('auth.welcome_back')}</h1>
-        <p className="muted">{t('auth.lede_short')}</p>
+      <div className="login-brand">
+        <img src={asset('tg-logo-stacked.svg')} alt="Trip guide" />
       </div>
-      <form className="auth-card" onSubmit={go}>
-        <Field label={t('field.email')}>
-          <input className="input ltr" type="email" inputMode="email" autoComplete="email" placeholder="name@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        </Field>
-        <div className="field">
-          <label htmlFor="login-pw">{t('field.password')}</label>
-          <div className="pw-wrap">
-            <input id="login-pw" className="input ltr" type={showPw ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-            <button type="button" className="pw-eye" aria-label={showPw ? t('auth.hide_pw') : t('auth.show_pw')} aria-pressed={showPw} onClick={() => setShowPw(!showPw)}>
-              <Icon name={showPw ? 'eyeOff' : 'eye'} size={20} />
-            </button>
-          </div>
+      <form className="login-form" onSubmit={go}>
+        <input className="input login-input" type="email" inputMode="email" autoComplete="email" placeholder="Email" aria-label="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        <div className="pw-wrap">
+          <input id="login-pw" className="input login-input" type={showPw ? 'text' : 'password'} autoComplete="current-password" placeholder="Password" aria-label="Password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <button type="button" className="pw-eye" aria-label={showPw ? t('auth.hide_pw') : t('auth.show_pw')} aria-pressed={showPw} onClick={() => setShowPw(!showPw)}>
+            <Icon name={showPw ? 'eyeOff' : 'eye'} size={20} />
+          </button>
         </div>
         {err && (
-          <div className="note danger" role="alert">
+          <div className="note danger" role="alert" dir="auto">
             {err}
           </div>
         )}
-        <button className="btn lg block" disabled={busy}>
-          {t('nav.sign_in')}
+        <button className="btn lg block login-submit" disabled={busy}>
+          {t('auth.login_btn')}
         </button>
       </form>
-      <div className="auth-alt">
-        <span className="divider-text">{t('auth.no_account')}</span>
-        <Link to={'/register' + (query.next ? '?next=' + encodeURIComponent(query.next) : '')} className="btn lg outline block">
-          {t('auth.create_account')}
-        </Link>
+      <div className="login-links" dir="auto">
+        <p className="small">
+          {t('auth.no_account')} <Link to={'/register' + (query.next ? '?next=' + encodeURIComponent(query.next) : '')} className="strong-link">{t('auth.create_account')}</Link>
+        </p>
+        <button type="button" className="linkish guest-link" onClick={() => navigate('/', { replace: true })}>
+          {t('auth.guest')}
+        </button>
       </div>
       {demo && (
-        <section className="stack" style={{ gap: 10 }} aria-labelledby="demo-title">
-          <div className="divider" />
-          <strong id="demo-title">{t('auth.try_demo')}</strong>
+        <details className="demo-box" dir="auto">
+          <summary>{t('auth.try_demo')}</summary>
           <p className="small muted">{t('auth.try_demo_text')}</p>
           <div className="card flush">
             {([
@@ -94,7 +89,7 @@ export function Login({ query }: { query: Record<string, string> }) {
               </button>
             ))}
           </div>
-        </section>
+        </details>
       )}
     </div>
   );

@@ -1,5 +1,5 @@
 // Launch screen: the bird appears, a short loading bar fills (3 s), then the bird flies off
-// along a dotted trail and the app opens. Shown once per launch.
+// and the app opens. Shown once per launch.
 import React from 'react';
 import { asset } from './assets';
 
@@ -34,9 +34,6 @@ export function Splash({ onDone }: { onDone(): void }) {
   }, []);
   return (
     <div className={'splash ' + phase} role="status" aria-label="Trip guide">
-      <svg className="splash-trail" viewBox="0 0 400 800" preserveAspectRatio="none" aria-hidden="true">
-        <path d="M200 400 C 260 330, 300 240, 340 150 S 390 20, 430 -40" />
-      </svg>
       <div className="splash-center">
         <img className="splash-bird" src={asset('tg-mark.svg')} alt="" />
         <div className="splash-word" dir="ltr">

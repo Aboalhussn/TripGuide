@@ -167,6 +167,7 @@ const en: Record<string, Entry> = {
   'brand.name': 'Trip guide',
   'auth.or': 'or', 'auth.guest': 'Continue as guest', 'auth.guest_note': 'Browse guides and trips. Sign in any time to post or book.',
   'auth.lede_short': 'Sign in to post trips, chat with guides and book.', 'auth.create_account': 'Create an account', 'auth.show_pw': 'Show password', 'auth.hide_pw': 'Hide password',
+  'auth.login_btn': 'Login',
   'hire.total': 'Trip total', 'hire.agree_cash': 'I will pay the guide in cash at the end of each day.', 'hire.book_cash': 'Book and pay cash',
   'badge.cash': 'Takes cash',
   'sub.title': 'Cash payments', 'sub.active': 'Active', 'sub.inactive': 'Not subscribed',
@@ -243,7 +244,7 @@ const en: Record<string, Entry> = {
   'notif.verification_new': '{name} asked to be verified', 'notif.verification_approved': "You're verified. The badge now shows on your profile.", 'notif.verification_rejected': 'Verification was not approved: {note}',
 
   // auth & account
-  'auth.welcome_back': 'Welcome back', 'auth.no_account': 'New here?', 'auth.have_account': 'Already have an account?', 'auth.try_demo': 'Try the demo',
+  'auth.welcome_back': 'Welcome back', 'auth.no_account': "Don't have an account?", 'auth.have_account': 'Already have an account?', 'auth.try_demo': 'Try the demo',
   'auth.try_demo_text': 'Sign in as one of the sample accounts to see each side of the app.', 'auth.demo_tourist': 'Hannah, a tourist', 'auth.demo_guide': 'Zainab, a guide', 'auth.demo_admin': 'The admin team',
   'auth.create': 'Create your account', 'auth.i_am': 'I am', 'auth.role_tourist': "I'm travelling", 'auth.role_tourist_text': 'Find and hire guides', 'auth.role_guide': "I'm a guide", 'auth.role_guide_text': 'Get hired by tourists',
   'auth.password_hint': 'At least 8 characters.', 'auth.create_btn': 'Create account', 'gender.f': 'Female', 'gender.m': 'Male',
@@ -461,6 +462,7 @@ const arStrings: Record<string, Entry> = {
   'brand.name': 'Trip guide',
   'auth.or': 'أو', 'auth.guest': 'الدخول كضيف', 'auth.guest_note': 'تصفّح المرشدين والرحلات، وسجّل دخولك متى أردت لتنشر أو تحجز.',
   'auth.lede_short': 'سجّل دخولك لتنشر رحلاتك وتتحدث مع المرشدين وتحجز.', 'auth.create_account': 'إنشاء حساب', 'auth.show_pw': 'إظهار كلمة المرور', 'auth.hide_pw': 'إخفاء كلمة المرور',
+  'auth.login_btn': 'تسجيل الدخول',
   'hire.total': 'إجمالي الرحلة', 'hire.agree_cash': 'سأدفع للمرشد كاش في نهاية كل يوم.', 'hire.book_cash': 'احجز وادفع كاش',
   'badge.cash': 'يقبل الكاش',
   'sub.title': 'الدفع كاش', 'sub.active': 'مفعّل', 'sub.inactive': 'غير مشترك',
@@ -533,7 +535,7 @@ const arStrings: Record<string, Entry> = {
   'notif.report_new': 'بلاغ جديد على «{title}»', 'notif.report_filed': 'قُدّم بلاغ بخصوص «{title}»، وسيتواصل معك فريقنا.', 'notif.report_resolved': 'حُسم البلاغ على «{title}»: {action}',
   'notif.verification_new': 'طلب {name} التوثيق', 'notif.verification_approved': 'أصبحت موثّقًا، والشارة تظهر الآن في ملفك.', 'notif.verification_rejected': 'لم يُقبل التوثيق: {note}',
 
-  'auth.welcome_back': 'أهلًا بعودتك', 'auth.no_account': 'جديد هنا؟', 'auth.have_account': 'لديك حساب؟', 'auth.try_demo': 'جرّب النسخة التجريبية',
+  'auth.welcome_back': 'أهلًا بعودتك', 'auth.no_account': 'ليس لديك حساب؟', 'auth.have_account': 'لديك حساب؟', 'auth.try_demo': 'جرّب النسخة التجريبية',
   'auth.try_demo_text': 'ادخل بأحد الحسابات التجريبية لترى كل جانب من التطبيق.', 'auth.demo_tourist': 'هانا، سائحة', 'auth.demo_guide': 'زينب، مرشدة', 'auth.demo_admin': 'فريق الإدارة',
   'auth.create': 'أنشئ حسابك', 'auth.i_am': 'أنا', 'auth.role_tourist': 'مسافر', 'auth.role_tourist_text': 'أبحث عن مرشد وأستأجره', 'auth.role_guide': 'مرشد', 'auth.role_guide_text': 'يستأجرني السياح',
   'auth.password_hint': '٨ أحرف على الأقل.', 'auth.create_btn': 'أنشئ الحساب', 'gender.f': 'أنثى', 'gender.m': 'ذكر',

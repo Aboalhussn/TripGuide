@@ -366,7 +366,8 @@ test('launch: the loading screen shows, then sign-in, which leads to create acco
   await page.locator('.splash').waitFor();
   await page.locator('.splash').waitFor({ state: 'detached', timeout: 8000 });
   await page.waitForURL((u) => u.hash.startsWith('#/login'));
-  await page.getByRole('heading', { name: 'Welcome back' }).waitFor();
+  await page.locator('.login-brand').waitFor();
+  await page.getByRole('button', { name: 'Login' }).waitFor();
   await page.getByRole('link', { name: 'Create an account' }).click();
   await page.getByRole('button', { name: 'Continue as guest' }).click();
   await page.getByRole('heading', { name: /Post your trip/ }).waitFor();
