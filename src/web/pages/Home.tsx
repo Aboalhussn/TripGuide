@@ -6,17 +6,38 @@ import { Link } from '../lib/router';
 import { asset } from '../assets';
 import { BookingStatus, GuideCard, Icon, Loading, Money, RequestFacts, RequestStatus, BrandBar, BrandFooter, PromoBand } from '../ui';
 
+// The picture, the bird and its flight path stay the same in Arabic and English.
+// The path is drawn in the box's real pixels so it always ends at the bird's tail.
+const BIRD = { right: 18, top: 18, width: 44 }; // matches .collage .mark
 function Collage() {
-  const { t, lang } = useApp();
-  const rtl = lang === 'ar';
+  const { t } = useApp();
+  const ref = React.useRef<HTMLElement>(null);
+  const [size, setSize] = React.useState({ w: 390, h: 300 });
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => setSize({ w: el.clientWidth, h: el.clientHeight });
+    update();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null;
+    ro?.observe(el);
+    return () => ro?.disconnect();
+  }, []);
+  const { w, h } = size;
+  const birdH = BIRD.width * (446 / 605);
+  // The tail of the bird: its lower-left corner.
+  const ex = w - BIRD.right - BIRD.width + 5;
+  const ey = BIRD.top + birdH - 4;
+  const d = `M -10 ${h - 28} C ${w * 0.2} ${h - 48}, ${w * 0.3} ${h * 0.58}, ${w * 0.52} ${h * 0.46} S ${ex - w * 0.12} ${ey + h * 0.16}, ${ex} ${ey}`;
   return (
-    <section className="collage" aria-label={t('home.pictures')}>
+    <section ref={ref} className="collage" dir="ltr" aria-label={t('home.pictures')}>
       <img className="shot" src={asset('arch.jpg')} alt={t('home.alt_arch')} />
-      <svg className="route" viewBox="0 0 390 300" preserveAspectRatio="none" aria-hidden="true">
-        <path d={rtl ? 'M400 270 C 310 250, 270 170, 180 140 S 90 70, 90 52' : 'M-10 270 C 80 250, 120 170, 210 140 S 300 70, 300 52'} fill="none" stroke="#FFFFFF" strokeOpacity="0.75" strokeWidth="2" strokeDasharray="2 7" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+      <svg className="route" viewBox={`0 0 ${w} ${h}`} aria-hidden="true">
+        <path d={d} fill="none" stroke="#FFFFFF" strokeOpacity="0.8" strokeWidth="2.2" strokeDasharray="2 7" strokeLinecap="round" />
       </svg>
       <img className="mark" src={asset('tg-mark-white.svg')} alt="" />
-      <span className="cap">{t('home.alt_arch')}</span>
+      <span className="cap" dir="auto">
+        {t('home.alt_arch')}
+      </span>
     </section>
   );
 }
