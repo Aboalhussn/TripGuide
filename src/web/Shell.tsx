@@ -1,7 +1,6 @@
 import React from 'react';
 import { brand } from '../config/brand';
 import { useApp } from './lib/app';
-import { isDemo } from './lib/api';
 import { Link } from './lib/router';
 import { asset } from './assets';
 import { Icon, LangToggle } from './ui';
@@ -9,7 +8,7 @@ import { Icon, LangToggle } from './ui';
 type NavItem = { to: string; label: string; icon: string; badge?: number; primary?: boolean; match?: string[] };
 
 export function Shell({ path, children }: { path: string; children: React.ReactNode }) {
-  const { me, t, lang, ask } = useApp();
+  const { me, t, lang } = useApp();
   // Sign-in and sign-up are full-screen: no bottom tab bar.
   const bare = path === '/login' || path === '/register';
   const role = me?.role || 'guest';
@@ -77,19 +76,6 @@ export function Shell({ path, children }: { path: string; children: React.ReactN
 
   return (
     <div className="app">
-      {isDemo() && (
-        <div className="demo-banner">
-          {t('demo.banner')}
-          <button
-            type="button"
-            onClick={() => {
-              ask(t('demo.reset_confirm'), t('demo.reset')).then((ok) => ok && window.__TG_DEMO?.reset());
-            }}
-          >
-            {t('demo.reset')}
-          </button>
-        </div>
-      )}
       <header className="topbar">
         <div className="topbar-inner">
           <Link to="/" className="brand" aria-label={name}>

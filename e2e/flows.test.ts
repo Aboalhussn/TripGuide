@@ -300,6 +300,7 @@ test('every main screen works in Arabic, right to left, on a phone and on a desk
     }
   }
   const p = await open('ar');
+  await go(p, '/'); // a fresh launch opens on sign-in; the guest home is one step away
   await p.getByRole('heading', { name: 'انشر رحلتك، ودَع المرشدين العراقيين يرسلون عروضهم.' }).waitFor();
   await shot(p, 'e2e-home-ar');
 });
