@@ -454,7 +454,7 @@ export function ReviewCard({ r }: { r: any }) {
       </div>
       {r.trip && (
         <span className="xs muted">
-          {r.trip.title}, {fmt.date(r.trip.startDate, { month: 'long', year: 'numeric' })}
+          <bdi>{r.trip.title}</bdi>, {fmt.date(r.trip.startDate, { month: 'long', year: 'numeric' })}
         </span>
       )}
       <p style={{ fontSize: 15, lineHeight: 1.55 }}>{r.comment}</p>

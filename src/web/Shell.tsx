@@ -39,7 +39,7 @@ export function Shell({ path, children }: { path: string; children: React.ReactN
       { to: '/admin/verify', label: t('nav.verify'), icon: 'shield', match: ['/admin/verify'] },
       { to: '/admin/reports', label: t('nav.reports'), icon: 'flag' },
       { to: '/admin/users', label: t('nav.users'), icon: 'users' },
-      { to: '/profile', label: t('nav.account'), icon: 'user' },
+      { to: '/profile', label: t('nav.profile'), icon: 'user', badge: me?.unreadNotifications },
     ],
   };
   const desktop: Record<string, NavItem[]> = {

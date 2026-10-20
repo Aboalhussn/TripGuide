@@ -306,7 +306,7 @@ test('cash: a subscribed guide takes cash, the tourist books paying cash', async
   const z = await open();
   await login(z, 'guide@tripguide.demo');
   await go(z, '/profile');
-  await z.getByRole('heading', { name: 'Account' }).waitFor();
+  await z.getByRole('heading', { name: 'Profile' }).waitFor();
   await z.getByText('Cash payments').first().waitFor();
   await z.getByRole('button', { name: /^(Subscribe|Renew) for/ }).click();
   await z.getByRole('button', { name: 'Use test card' }).click();

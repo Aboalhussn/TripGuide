@@ -26,7 +26,7 @@ export function Threads() {
                   <strong>{th.other.name}</strong>
                   <span className="xs muted">{th.last ? fmt.ago(th.last.createdAt) : ''}</span>
                 </div>
-                {th.request && <div className="xs muted" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{th.request.title}</div>}
+                {th.request && <div className="xs muted" dir="auto" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{th.request.title}</div>}
                 <div className="small" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: th.unread ? 700 : 400, color: th.unread ? 'var(--navy)' : 'var(--muted)' }}>
                   {th.last ? (th.last.senderId === me.id ? t('messages.you') + ' ' : '') + th.last.body : t('messages.no_messages')}
                 </div>
@@ -93,7 +93,7 @@ export function Thread({ id }: { id: string }) {
         <div className="row" style={{ gap: 10, flexWrap: 'nowrap', padding: '10px 16px', background: 'var(--sky-soft)', borderBottom: '1px solid var(--line-strong)' }}>
           <div style={{ flex: 1, minWidth: 0 }} className="small">
             <div className="bold" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {th.request.title}
+              <bdi>{th.request.title}</bdi>
             </div>
             <div className="muted">
               {th.offer ? t('messages.offer_line', { amount: fmt.usd(th.offer.price), dates: fmt.range(th.request.startDate, th.request.endDate) }) : fmt.range(th.request.startDate, th.request.endDate)}
@@ -128,7 +128,7 @@ export function Thread({ id }: { id: string }) {
                 </div>
               )}
               <div className={'bubble ' + (m.senderId === me.id ? 'me' : 'them')}>
-                {m.body}
+                <bdi>{m.body}</bdi>
                 <div className="xs" style={{ opacity: 0.7, marginTop: 4, textAlign: 'end' }}>
                   {fmt.time(m.createdAt)}
                 </div>
@@ -181,6 +181,8 @@ export function Notifications() {
     if (typeof p.amount === 'number') p.amount = fmt.usd(p.amount);
     if (typeof p.price === 'number') p.price = fmt.usd(p.price);
     if (p.action) p.action = t('report.resolution.' + p.action);
+    // Names and trip titles may be English inside an Arabic sentence: isolate them so their order holds.
+    for (const k of ['title', 'name']) if (typeof p[k] === 'string') p[k] = '\u2068' + p[k] + '\u2069';
     return p;
   };
   return (

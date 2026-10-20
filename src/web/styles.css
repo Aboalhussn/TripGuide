@@ -405,3 +405,7 @@ html.native .demo-banner { display: none; }
 @media (max-width: 959px) { .brand-bar { display: flex; } }
 .brand-footer { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 0 4px; }
 .brand-footer img { height: 26px; width: auto; opacity: .9; }
+
+/* User-written text (often English inside the Arabic app) keeps its own direction. */
+input, textarea, .quote, .bubble { unicode-bidi: plaintext; }
+bdi { unicode-bidi: isolate; }

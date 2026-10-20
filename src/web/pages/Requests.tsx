@@ -292,7 +292,7 @@ function MyRequests() {
               </div>
               <span className="xs muted">{fmt.ago(r.createdAt)}</span>
             </div>
-            <strong style={{ fontSize: 17 }}>{r.title}</strong>
+            <strong style={{ fontSize: 17 }}><bdi>{r.title}</bdi></strong>
             <RequestFacts r={r} />
             <div className="small">
               <strong>{t('request.offers_n', { count: r.offersCount })}</strong>
@@ -388,7 +388,7 @@ function RequestHeader({ r }: { r: any }) {
           {t('request.posted', { when: fmt.ago(r.createdAt) })}
         </span>
       </div>
-      <h1 style={{ fontWeight: 900 }}>{r.title}</h1>
+      <h1 style={{ fontWeight: 900 }}><bdi>{r.title}</bdi></h1>
       <RequestFacts r={r} />
       {r.interests.length > 0 && (
         <div className="chips">
@@ -400,7 +400,7 @@ function RequestHeader({ r }: { r: any }) {
         </div>
       )}
       {r.places.length > 0 && <p className="small">{t('request.wants_to_see', { places: fmt.list(r.places.map((p: number) => fmt.place(p))) })}</p>}
-      {r.description && <p className="quote">{r.description}</p>}
+      {r.description && <p className="quote"><bdi>{r.description}</bdi></p>}
     </section>
   );
 }
@@ -564,7 +564,7 @@ function OfferCard({ o, r, onShort, onChat, onHire, busy }: { o: any; r: any; on
           <span className="small muted">{t('offer.for_days', { count: o.plan.length, perDay: fmt.usd(o.perDay) })}</span>
           {o.status !== 'pending' && <OfferStatus status={o.status} />}
         </div>
-        <p className="quote">{o.message}</p>
+        <p className="quote"><bdi>{o.message}</bdi></p>
         {open ? (
           <>
             <ol className="stack" style={{ listStyle: 'none', margin: 0, padding: 0, gap: 8 }}>
@@ -572,8 +572,8 @@ function OfferCard({ o, r, onShort, onChat, onHire, busy }: { o: any; r: any; on
                 <li key={i} className="row small" style={{ gap: 10, alignItems: 'flex-start', flexWrap: 'nowrap' }}>
                   <strong style={{ flex: 'none', minWidth: 54 }}>{t('offer.day_n', { count: i + 1 })}</strong>
                   <span>
-                    <strong>{d.title}</strong>
-                    {d.details && <span className="muted"> {d.details}</span>}
+                    <strong><bdi>{d.title}</bdi></strong>
+                    {d.details && <span className="muted"> <bdi>{d.details}</bdi></span>}
                   </span>
                 </li>
               ))}
@@ -685,7 +685,7 @@ function HireModal({ offer, r, onClose, onDone }: { offer: any; r: any; onClose(
     <Modal title={t('hire.title', { name: first })} onClose={onClose}>
       <div className="card stack" style={{ gap: 6 }}>
         <div className="between">
-          <span>{r.title}</span>
+          <span><bdi>{r.title}</bdi></span>
         </div>
         <div className="between small muted">
           <span>{fmt.range(r.startDate, r.endDate)}</span>
@@ -827,11 +827,11 @@ function GuideRequestView({ r, reload }: { r: any; reload(): void }) {
                 <ol className="stack small" style={{ listStyle: 'none', margin: 0, padding: 0, gap: 6 }}>
                   {mine.plan.map((d: any, i: number) => (
                     <li key={i}>
-                      <strong>{t('offer.day_n', { count: i + 1 })}:</strong> {d.title}
+                      <strong>{t('offer.day_n', { count: i + 1 })}:</strong> <bdi>{d.title}</bdi>
                     </li>
                   ))}
                 </ol>
-                <p className="quote">{mine.message}</p>
+                <p className="quote"><bdi>{mine.message}</bdi></p>
                 {mine.status === 'pending' && r.status === 'open' && (
                   <div className="row">
                     <button type="button" className="btn outline sm" onClick={() => setEditing(true)}>
@@ -1032,7 +1032,7 @@ export function MyOffers() {
               <OfferStatus status={o.status} />
               <span className="xs muted">{fmt.ago(o.updatedAt)}</span>
             </div>
-            <strong>{o.request.title}</strong>
+            <strong><bdi>{o.request.title}</bdi></strong>
             <div className="small muted">
               {fmt.range(o.request.startDate, o.request.endDate)} · {o.request.tourist.name}
             </div>

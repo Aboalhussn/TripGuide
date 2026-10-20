@@ -50,7 +50,7 @@ export function BookingsList() {
                 <BookingStatus status={b.status} />
                 <span className="small muted">{fmt.range(b.startDate, b.endDate)}</span>
               </div>
-              <strong style={{ fontSize: 17 }}>{b.title}</strong>
+              <strong style={{ fontSize: 17 }}><bdi>{b.title}</bdi></strong>
               <div className="row small" style={{ gap: 10 }}>
                 <Avatar user={other} size={28} />
                 <span>{other.name}</span>
@@ -128,7 +128,7 @@ export function BookingDetail({ id }: { id: string }) {
       <div className="split">
         <div className="stack-lg">
           <section className="stack" style={{ gap: 12 }}>
-            <h2 style={{ fontWeight: 900, fontSize: 28 }}>{b.title}</h2>
+            <h2 style={{ fontWeight: 900, fontSize: 28 }}><bdi>{b.title}</bdi></h2>
             <Link to={asGuide ? `/users/${other.id}` : `/guides/${other.id}`} className="card link row" style={{ gap: 12, flexWrap: 'nowrap' }}>
               <Avatar user={other} size={44} />
               <div style={{ flex: 1 }}>
@@ -236,7 +236,7 @@ export function BookingDetail({ id }: { id: string }) {
                         </strong>
                         <strong>{fmt.usd(m.amount)}</strong>
                       </div>
-                      <div className="small muted">{m.title}</div>
+                      <div className="small muted"><bdi>{m.title}</bdi></div>
                       <div className="row xs">
                         {m.status === 'released' && <span style={{ color: 'var(--teal-ink)', fontWeight: 500 }}>{t(asGuide ? 'booking.m.released_g' : 'booking.m.released_t', { name: first(other.name), when: fmt.ago(m.settledAt) })}</span>}
                         {cashPaid && <span style={{ color: 'var(--teal-ink)', fontWeight: 500 }}>{t('pay.m.cash_paid', { when: fmt.ago(m.settledAt) })}</span>}

@@ -129,7 +129,7 @@ export function TouristHome() {
       {toReview.map((b: any) => (
         <Link key={b.id} to={`/bookings/${b.id}`} className="card link stack" style={{ gap: 6 }}>
           <strong>{t('dash.review_title', { name: b.guide.name })}</strong>
-          <span className="small muted">{b.title}</span>
+          <span className="small muted"><bdi>{b.title}</bdi></span>
         </Link>
       ))}
 
@@ -156,7 +156,7 @@ export function TouristHome() {
                   <RequestStatus status={r.status} />
                   <span className="xs muted">{fmt.ago(r.createdAt)}</span>
                 </div>
-                <strong style={{ fontSize: 17 }}>{r.title}</strong>
+                <strong style={{ fontSize: 17 }}><bdi>{r.title}</bdi></strong>
                 <RequestFacts r={r} />
                 <div className="between small">
                   <span>
@@ -180,7 +180,7 @@ export function TouristHome() {
                   <div style={{ fontSize: 20, fontWeight: 700 }}>{fmt.date(b.startDate, { day: 'numeric' })}</div>
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }} className="stack" >
-                  <strong style={{ lineHeight: 1.3 }}>{b.title}</strong>
+                  <strong style={{ lineHeight: 1.3 }}><bdi>{b.title}</bdi></strong>
                   <span className="small muted">{b.guide.name}</span>
                   <div className="row">
                     <BookingStatus status={b.status} />
@@ -276,7 +276,7 @@ export function GuideHome() {
       {x.toReview.map((b: any) => (
         <Link key={b.id} to={`/bookings/${b.id}`} className="card link stack" style={{ gap: 4 }}>
           <strong>{t('dash.review_tourist', { name: b.tourist.name })}</strong>
-          <span className="small muted">{b.title}</span>
+          <span className="small muted"><bdi>{b.title}</bdi></span>
         </Link>
       ))}
 
@@ -303,7 +303,7 @@ export function GuideHome() {
                 <div style={{ fontSize: 20, fontWeight: 700 }}>{fmt.date(b.startDate, { day: 'numeric' })}</div>
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <strong style={{ display: 'block', lineHeight: 1.3 }}>{b.title}</strong>
+                <strong style={{ display: 'block', lineHeight: 1.3 }}><bdi>{b.title}</bdi></strong>
                 <span className="small muted">
                   {t('dash.tour_line', { name: b.tourist.name, count: b.groupSize })}
                 </span>
@@ -352,12 +352,12 @@ export function RequestFeedCard({ r }: { r: any }) {
         </span>
       </div>
       <Link to={`/requests/${r.id}`} style={{ fontWeight: 700, fontSize: 17, textDecoration: 'none', lineHeight: 1.3 }}>
-        {r.title}
+        <bdi>{r.title}</bdi>
       </Link>
       <RequestFacts r={r} />
       {r.description && (
         <p className="small muted" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-          {r.description}
+          <bdi>{r.description}</bdi>
         </p>
       )}
       <div className="between small">

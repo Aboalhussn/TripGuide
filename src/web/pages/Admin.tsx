@@ -71,7 +71,7 @@ export function AdminVerify() {
               <dt>{t('guide.speaks')}</dt>
               <dd>{fmt.list(g.languages.map((l: any) => fmt.language(l.code)))}</dd>
             </dl>
-            {g.bio && <p className="quote small">{g.bio}</p>}
+            {g.bio && <p className="quote small"><bdi>{g.bio}</bdi></p>}
             {rejecting === g.id ? (
               <div className="stack" style={{ gap: 10 }}>
                 <Field label={t('admin.reject_note')}>
@@ -147,7 +147,7 @@ function ReportCard({ r, onDone }: { r: any; onDone: () => void }) {
       </div>
       <div className="held-box">
         <span className="small muted">
-          {r.booking.title} · {fmt.range(r.booking.startDate, r.booking.endDate)}
+          <bdi>{r.booking.title}</bdi> · {fmt.range(r.booking.startDate, r.booking.endDate)}
         </span>
         <span className="between">
           <span className="small">{t('admin.held_on_booking')}</span>
@@ -156,7 +156,7 @@ function ReportCard({ r, onDone }: { r: any; onDone: () => void }) {
       </div>
       <div className="stack" style={{ gap: 6 }}>
         <span className="label-sm">{t('admin.what_happened')}</span>
-        <p className="quote" style={{ margin: 0 }}>{r.details}</p>
+        <p className="quote" style={{ margin: 0 }}><bdi>{r.details}</bdi></p>
       </div>
       {r.messages.length > 0 && (
         <details>
@@ -166,7 +166,7 @@ function ReportCard({ r, onDone }: { r: any; onDone: () => void }) {
           <div className="stack" style={{ gap: 6, marginTop: 8 }}>
             {r.messages.map((m: any) => (
               <div key={m.id} className="small">
-                <strong>{m.senderId === r.threadParticipants?.tourist ? t('role.tourist') : t('role.guide')}:</strong> {m.body} <span className="xs muted">{fmt.ago(m.createdAt)}</span>
+                <strong>{m.senderId === r.threadParticipants?.tourist ? t('role.tourist') : t('role.guide')}:</strong> <bdi>{m.body}</bdi> <span className="xs muted">{fmt.ago(m.createdAt)}</span>
               </div>
             ))}
           </div>

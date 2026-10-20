@@ -662,7 +662,7 @@ function MyTrips({ guide }: { guide: boolean }) {
                   <Icon name="calendar" size={20} />
                 </span>
                 <span style={{ flex: 1, minWidth: 0 }}>
-                  <strong style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.title}</strong>
+                  <strong dir="auto" style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'start' }}>{b.title}</strong>
                   <span className="xs muted">
                     {fmt.range(b.startDate, b.endDate)} · {other.name}
                   </span>
