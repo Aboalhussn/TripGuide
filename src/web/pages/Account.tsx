@@ -4,7 +4,7 @@ import { useApp, useLoad } from '../lib/app';
 import { useFmt } from '../lib/format';
 import { Link, navigate } from '../lib/router';
 import { asset, photoSrc } from '../assets';
-import { Avatar, BookingStatus, BrandFooter, LangToggle, CardForm, Field, Icon, Loading, Modal, Money, MonthCalendar, PageHead, ToggleGroup, VerifiedBadge, emptyCard, useBusy } from '../ui';
+import { Avatar, BookingStatus, BrandFooter, HeroBand, LangToggle, CardForm, Field, Icon, Loading, Modal, Money, MonthCalendar, PageHead, ToggleGroup, VerifiedBadge, emptyCard, useBusy } from '../ui';
 import type { CardValue } from '../ui';
 
 function goNext(query: Record<string, string>) {
@@ -95,20 +95,38 @@ export function Login({ query }: { query: Record<string, string> }) {
   );
 }
 
+/** The rules a new password must meet, shown live under the field. */
+function passwordRules(pw: string) {
+  return [
+    { key: 'len', ok: pw.length >= 8 },
+    { key: 'upper', ok: /[A-Z]/.test(pw) },
+    { key: 'lower', ok: /[a-z]/.test(pw) },
+    { key: 'digit', ok: /\d/.test(pw) },
+    { key: 'symbol', ok: /[^A-Za-z0-9]/.test(pw) },
+  ];
+}
+
 export function Register({ query }: { query: Record<string, string> }) {
   const { t, signIn, errorText } = useApp();
   const [f, setF] = useState({ role: query.role === 'guide' ? 'guide' : 'tourist', name: '', email: '', password: '', country: query.role === 'guide' ? 'Iraq' : '', gender: '' });
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const up = (p: Partial<typeof f>) => setF((x) => ({ ...x, ...p }));
+  const rules = passwordRules(f.password);
+  const strong = rules.every((r) => r.ok);
   const go = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr(null);
+    if (!strong) {
+      setErr(t('err.password_weak'));
+      document.getElementById('reg-pw')?.focus();
+      return;
+    }
     setBusy(true);
     try {
       const r = await api('POST', '/auth/register', f);
       signIn(r.token, r.user);
-      if (f.role === 'guide') navigate('/profile/guide', { replace: true });
+      if (f.role === 'guide') navigate('/guide/setup', { replace: true });
       else goNext(query);
     } catch (x) {
       setErr(errorText(x));
@@ -136,9 +154,18 @@ export function Register({ query }: { query: Record<string, string> }) {
         <Field label={t('field.email')}>
           <input className="input" type="email" autoComplete="email" value={f.email} onChange={(e) => up({ email: e.target.value })} />
         </Field>
-        <Field label={t('field.password')} hint={t('auth.password_hint')}>
-          <input className="input" type="password" autoComplete="new-password" value={f.password} onChange={(e) => up({ password: e.target.value })} />
+        <Field label={t('field.password')}>
+          <input id="reg-pw" className="input" type="password" autoComplete="new-password" value={f.password} onChange={(e) => up({ password: e.target.value })} aria-describedby="pw-rules" />
         </Field>
+        <ul id="pw-rules" className="pw-rules" aria-label={t('auth.pw_rules')}>
+          {rules.map((r) => (
+            <li key={r.key} className={r.ok ? 'ok' : ''}>
+              <span className="pw-dot" aria-hidden="true">{r.ok && <Icon name="check" size={12} stroke={3} />}</span>
+              {t('auth.pw_' + r.key)}
+              <span className="sr-only">{r.ok ? t('auth.pw_met') : t('auth.pw_missing')}</span>
+            </li>
+          ))}
+        </ul>
         <div className="grid-2">
           <Field label={t('field.country')}>
             <input className="input" autoComplete="country-name" value={f.country} onChange={(e) => up({ country: e.target.value })} />
@@ -355,7 +382,6 @@ export function GuideEditor() {
   const [f, setF] = useState(() => (g ? { headline: g.headline, headlineAr: g.headlineAr, bio: g.bio, bioAr: g.bioAr, pricePerDay: String(g.pricePerDay), cities: g.cities, languages: g.languages, specialities: g.specialities, places: g.places, photos: g.photos, blockedDates: g.blockedDates } : null));
   const [month, setMonth] = useState(meta?.today?.slice(0, 7));
   const [err, setErr] = useState<string | null>(null);
-  const [docs, setDocs] = useState<string[]>([]);
   const { busy, run } = useBusy();
   useEffect(() => {
     if (window.location.hash.includes('verify')) setTimeout(() => document.getElementById('verify')?.scrollIntoView(), 50);
@@ -517,42 +543,16 @@ export function GuideEditor() {
 
       <section id="verify" className="card stack">
         <h2>{t('verify.title')}</h2>
-        {g.verification === 'verified' ? (
+        {g.verification !== 'verified' && g.verification !== 'pending' ? (
+          <Link to="/verify" className="btn" style={{ alignSelf: 'flex-start' }}>
+            {t('verifyp.open')}
+          </Link>
+        ) : g.verification === 'verified' ? (
           <p className="row">
             <VerifiedBadge /> {t('verify.status_text.verified')}
           </p>
-        ) : g.verification === 'pending' ? (
-          <p className="note">{t('verify.status_text.pending')}</p>
         ) : (
-          <>
-            {g.verification === 'rejected' && <p className="note danger">{t('verify.rejected_note', { note: g.verificationNote })}</p>}
-            <p className="small">{t('verify.text')}</p>
-            <label className="btn outline" style={{ alignSelf: 'flex-start' }}>
-              <Icon name="image" size={18} /> {t('verify.choose_files')}
-              <input type="file" multiple accept="image/*,application/pdf" className="sr-only" onChange={(e) => setDocs(Array.from(e.target.files || []).slice(0, 4).map((x) => x.name))} />
-            </label>
-            {docs.length > 0 && (
-              <ul className="small" style={{ margin: 0 }}>
-                {docs.map((d) => (
-                  <li key={d}>{d}</li>
-                ))}
-              </ul>
-            )}
-            <p className="xs muted">{t('verify.demo_note')}</p>
-            <button
-              type="button"
-              className="btn"
-              disabled={busy || !docs.length}
-              onClick={() =>
-                run(async () => {
-                  await api('POST', '/guide/verification', { docs });
-                  await refreshMe();
-                }, t('verify.sent'))
-              }
-            >
-              {t('verify.send')}
-            </button>
-          </>
+          <p className="note warn">{t('verify.status_text.pending')}</p>
         )}
       </section>
     </div>
@@ -749,5 +749,267 @@ function MyTrips({ guide }: { guide: boolean }) {
         </Link>
       )}
     </section>
+  );
+}
+
+/* ---------- New guides: set up the profile in three short steps ---------- */
+
+export function GuideSetup() {
+  const { t, me, meta, refreshMe, toast, errorText } = useApp();
+  const fmt = useFmt();
+  const g = me?.guide;
+  const [step, setStep] = useState(0);
+  const [tried, setTried] = useState<Record<number, boolean>>({});
+  const [err, setErr] = useState<string | null>(null);
+  const { busy, run } = useBusy();
+  const [f, setF] = useState(() => ({
+    headline: g?.headline || '',
+    headlineAr: g?.headlineAr || '',
+    bio: g?.bio || '',
+    bioAr: g?.bioAr || '',
+    cities: (g?.cities || []) as string[],
+    specialities: (g?.specialities || []) as string[],
+    languages: (g?.languages?.length ? g.languages : [{ code: 'ar', level: 'native' }]) as { code: string; level: string }[],
+    pricePerDay: g?.pricePerDay ? String(g.pricePerDay) : '40',
+  }));
+  if (!me || me.role !== 'guide') return null;
+  if (!meta) return <Loading />;
+  const up = (p: Partial<typeof f>) => setF((x) => ({ ...x, ...p }));
+  const STEPS = [
+    { img: 'arch.jpg', check: () => ({ headline: f.headline.trim().length < 5 ? t('setup.v_headline') : '', bio: f.bio.trim().length < 30 ? t('setup.v_bio', { count: Math.max(0, 30 - f.bio.trim().length) }) : '' }) },
+    { img: 'skyline.jpg', check: () => ({ cities: f.cities.length ? '' : t('v.cities') }) },
+    { img: 'gate.jpg', check: () => ({ languages: f.languages.length ? '' : t('v.languages'), price: Number(f.pricePerDay) >= 10 && Number(f.pricePerDay) <= 1000 ? '' : t('setup.v_price') }) },
+  ];
+  const errs: Record<string, string> = STEPS[step].check();
+  const show = (k: string) => (tried[step] ? errs[k] || undefined : undefined);
+  const langCodes = f.languages.map((l) => l.code);
+  const last = STEPS.length - 1;
+  const toTop = () => window.scrollTo({ top: 0 });
+  const next = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    setErr(null);
+    if (Object.values(errs).some(Boolean)) {
+      setTried((x) => ({ ...x, [step]: true }));
+      return;
+    }
+    if (step < last) {
+      setStep(step + 1);
+      toTop();
+      return;
+    }
+    run(async () => {
+      try {
+        await api('PUT', '/guide/profile', { ...f, headline: f.headline.trim(), bio: f.bio.trim(), pricePerDay: Number(f.pricePerDay) });
+        await refreshMe();
+        toast(t('setup.done_toast'));
+        navigate('/', { replace: true });
+      } catch (x) {
+        setErr(errorText(x));
+        throw x;
+      }
+    });
+  };
+  return (
+    <div className="page post-wizard" style={{ maxWidth: 640, margin: '0 auto', width: '100%' }}>
+      <div className="wiz-top">
+        {step > 0 && (
+          <button type="button" className="back icon-btn" aria-label={t('post.prev')} onClick={() => { setStep(step - 1); toTop(); }}>
+            <Icon name="back" />
+          </button>
+        )}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="xs muted">{t('setup.title')}</div>
+          <div className="small bold">{t('post.step_n', { n: step + 1, total: STEPS.length })}</div>
+        </div>
+      </div>
+      <div className="wiz-progress three" role="progressbar" aria-valuemin={1} aria-valuemax={STEPS.length} aria-valuenow={step + 1} aria-label={t('post.step_n', { n: step + 1, total: STEPS.length })}>
+        {STEPS.map((_, i) => (
+          <i key={i} className={i <= step ? 'on' : ''} />
+        ))}
+      </div>
+      <div className="wiz-hero" key={step}>
+        <HeroBand img={STEPS[step].img} title={t(`setup.s${step + 1}_title`)} text={t(`setup.s${step + 1}_text`)} />
+      </div>
+      <form className="stack-lg wiz-body" onSubmit={next} noValidate>
+        {step === 0 && (
+          <div className="stack">
+            <Field label={t('field.headline')} hint={show('headline') ? undefined : t('editor.headline_hint')} error={show('headline')}>
+              <input className="input" value={f.headline} onChange={(e) => up({ headline: e.target.value })} maxLength={90} />
+            </Field>
+            <Field label={t('field.headlineAr')}>
+              <input className="input" dir="rtl" lang="ar" value={f.headlineAr} onChange={(e) => up({ headlineAr: e.target.value })} maxLength={90} />
+            </Field>
+            <Field label={t('field.bio')} hint={show('bio') ? undefined : t('editor.bio_hint')} error={show('bio')}>
+              <textarea className="textarea" rows={5} value={f.bio} onChange={(e) => up({ bio: e.target.value })} maxLength={1500} />
+            </Field>
+            <Field label={t('field.bioAr')}>
+              <textarea className="textarea" dir="rtl" lang="ar" rows={4} value={f.bioAr} onChange={(e) => up({ bioAr: e.target.value })} maxLength={1500} />
+            </Field>
+          </div>
+        )}
+        {step === 1 && (
+          <div className="stack-lg">
+            <div className="stack" style={{ gap: 6 }}>
+              <ToggleGroup label={t('field.cities')} options={meta.cities.map((c: any) => c.slug)} value={f.cities} onChange={(cities) => up({ cities })} render={fmt.city} />
+              {show('cities') && <span className="err small">{show('cities')}</span>}
+            </div>
+            <ToggleGroup label={t('field.specialities')} options={meta.interests} value={f.specialities} onChange={(specialities) => up({ specialities })} render={(i) => t('interest.' + i)} />
+          </div>
+        )}
+        {step === 2 && (
+          <div className="stack-lg">
+            <div className="stack">
+              <span className="label-like">{t('editor.languages')}</span>
+              {f.languages.map((l, i) => (
+                <div key={l.code} className="row" style={{ flexWrap: 'nowrap' }}>
+                  <span style={{ flex: 1 }}>{fmt.language(l.code)}</span>
+                  <select className="select" style={{ width: 'auto' }} aria-label={t('editor.level_for', { lang: fmt.language(l.code) })} value={l.level} onChange={(e) => up({ languages: f.languages.map((x, j) => (j === i ? { ...x, level: e.target.value } : x)) })}>
+                    {meta.levels.map((lv: string) => (
+                      <option key={lv} value={lv}>
+                        {t('level.' + lv)}
+                      </option>
+                    ))}
+                  </select>
+                  <button type="button" className="icon-btn" aria-label={t('common.remove_x', { name: fmt.language(l.code) })} disabled={f.languages.length === 1} onClick={() => up({ languages: f.languages.filter((_, j) => j !== i) })}>
+                    <Icon name="trash" size={18} />
+                  </button>
+                </div>
+              ))}
+              <select className="select" value="" aria-label={t('editor.add_language')} onChange={(e) => e.target.value && up({ languages: [...f.languages, { code: e.target.value, level: 'good' }] })}>
+                <option value="">{t('editor.add_language')}</option>
+                {meta.languages.filter((c: string) => !langCodes.includes(c)).map((c: string) => (
+                  <option key={c} value={c}>
+                    {fmt.language(c)}
+                  </option>
+                ))}
+              </select>
+              {show('languages') && <span className="err small">{show('languages')}</span>}
+            </div>
+            <Field label={t('field.pricePerDay')} hint={show('price') ? undefined : t('editor.price_hint', { pct: Math.round(meta.feeRate * 100) })} error={show('price')}>
+              <div className="price-input">
+                <span className="bold">$</span>
+                <input inputMode="numeric" value={f.pricePerDay} onChange={(e) => up({ pricePerDay: e.target.value.replace(/\D/g, '') })} aria-label={t('field.pricePerDay')} />
+                <span className="small muted">{t('common.per_day')}</span>
+              </div>
+            </Field>
+            <p className="note small">{t('setup.later_note')}</p>
+          </div>
+        )}
+        {err && (
+          <div className="note danger" role="alert">
+            {err}
+          </div>
+        )}
+        <div className="wiz-actions">
+          {step > 0 && (
+            <button type="button" className="btn lg ghost" onClick={() => { setStep(step - 1); toTop(); }}>
+              {t('post.prev')}
+            </button>
+          )}
+          <button className="btn lg" style={{ flex: 1 }} disabled={busy}>
+            {step < last ? t('post.next') : t('setup.finish')}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+/* ---------- Guides: verify the account ---------- */
+
+export function VerifyAccount() {
+  const { t, me, refreshMe, errorText } = useApp();
+  const [docs, setDocs] = useState<string[]>([]);
+  const [err, setErr] = useState<string | null>(null);
+  const { busy, run } = useBusy();
+  if (!me || me.role !== 'guide') return null;
+  const g = me.guide;
+  const status = g.verification as string;
+  const send = () =>
+    run(async () => {
+      setErr(null);
+      try {
+        await api('POST', '/guide/verification', { docs });
+        await refreshMe();
+        window.scrollTo({ top: 0 });
+      } catch (x) {
+        setErr(errorText(x));
+        throw x;
+      }
+    });
+  return (
+    <div className="page" style={{ maxWidth: 640, margin: '0 auto', width: '100%' }}>
+      <PageHead title={t('verify.title')} backTo="/" />
+      <HeroBand img="ishtar.jpg" title={t('verifyp.title')} text={t('verifyp.text')} />
+      {status === 'verified' ? (
+        <div className="card row" style={{ gap: 10, flexWrap: 'nowrap' }}>
+          <VerifiedBadge size={22} /> <span>{t('verify.status_text.verified')}</span>
+        </div>
+      ) : status === 'pending' ? (
+        <div className="note warn verify-wait" role="status">
+          <Icon name="clock" size={20} />
+          <span>
+            <strong>{t('verifyp.sent_title')}</strong>
+            <br />
+            {t('verify.status_text.pending')}
+          </span>
+        </div>
+      ) : (
+        <>
+          {status === 'rejected' && <p className="note danger">{t('verify.rejected_note', { note: g.verificationNote })}</p>}
+          {!me.guide.profileComplete && (
+            <div className="note warn stack" style={{ gap: 8 }}>
+              <span>{t('verifyp.finish_first')}</span>
+              <Link to="/guide/setup" className="btn sm" style={{ alignSelf: 'flex-start' }}>
+                {t('dash.edit_profile')}
+              </Link>
+            </div>
+          )}
+          <section className="card stack">
+            <h2 style={{ fontSize: 18 }}>{t('verifyp.why')}</h2>
+            <ul className="verify-list">
+              {['badge', 'first', 'trust'].map((k) => (
+                <li key={k}>
+                  <span className="qa-ico sm"><Icon name={k === 'badge' ? 'shield' : k === 'first' ? 'search' : 'heart'} size={18} /></span>
+                  <span>{t('verifyp.why_' + k)}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+          <section className="card stack">
+            <h2 style={{ fontSize: 18 }}>{t('verifyp.what')}</h2>
+            <ul className="verify-list">
+              {['id', 'licence'].map((k) => (
+                <li key={k}>
+                  <span className="qa-ico sm"><Icon name="image" size={18} /></span>
+                  <span>{t('verifyp.what_' + k)}</span>
+                </li>
+              ))}
+            </ul>
+            <label className="btn outline" style={{ alignSelf: 'flex-start' }}>
+              <Icon name="image" size={18} /> {t('verify.choose_files')}
+              <input type="file" multiple accept="image/*,application/pdf" className="sr-only" onChange={(e) => setDocs(Array.from(e.target.files || []).slice(0, 4).map((x) => x.name))} />
+            </label>
+            {docs.length > 0 && (
+              <ul className="small" style={{ margin: 0 }}>
+                {docs.map((d) => (
+                  <li key={d}><bdi>{d}</bdi></li>
+                ))}
+              </ul>
+            )}
+            <p className="xs muted">{t('verify.demo_note')}</p>
+          </section>
+          {err && (
+            <div className="note danger" role="alert">
+              {err}
+            </div>
+          )}
+          <button type="button" className="btn lg" disabled={busy || !docs.length || !me.guide.profileComplete} onClick={send}>
+            {t('verify.send')}
+          </button>
+          <p className="xs muted center">{t('verifyp.within_note')}</p>
+        </>
+      )}
+    </div>
   );
 }

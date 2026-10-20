@@ -219,21 +219,44 @@ test('a new guide signs up, fills the profile, asks for verification and the adm
   await go(g, '/register?role=guide');
   await g.getByLabel('Full name').fill('Karim Nasser');
   await g.getByLabel('Email').fill('karim@example.com');
-  await g.getByLabel('Password').fill('a-long-password');
+  // The password must have a capital, a small letter, a number and a symbol.
+  await g.getByLabel('Password', { exact: true }).fill('a-long-password');
   await g.getByLabel('Gender').selectOption('m');
   await g.getByRole('button', { name: 'Create account' }).click();
-  await g.getByRole('heading', { name: 'Your guide profile' }).waitFor();
+  await g.getByText('Your password needs a capital letter, a small letter, a number and a symbol.').waitFor();
+  await g.getByLabel('Password', { exact: true }).fill('Kufa#Ride24');
+  assert.equal(await g.locator('.pw-rules li.ok').count(), 5);
+  await g.getByRole('button', { name: 'Create account' }).click();
+  // Three set-up steps, each with a photo banner and a Next button.
+  await g.getByRole('heading', { name: 'About you' }).waitFor();
+  await g.getByRole('button', { name: 'Next' }).click();
+  await g.getByText('Write a headline of at least 5 characters.').waitFor();
   await g.getByLabel('Headline', { exact: true }).fill('Kufa and Najaf by bicycle');
   await g.getByLabel('About you', { exact: true }).fill('I run small cycling tours between Kufa and Najaf, with tea stops at the river.');
-  await g.getByLabel('Price per day (USD)').fill('35');
+  await g.getByRole('button', { name: 'Next' }).click();
+  await g.getByRole('heading', { name: 'Where you guide' }).waitFor();
   await g.getByRole('button', { name: 'Najaf', exact: true }).click();
-  await g.getByRole('button', { name: 'Great Mosque of Kufa' }).click();
+  await g.getByRole('button', { name: 'Next' }).click();
+  await g.getByRole('heading', { name: 'Languages and price' }).waitFor();
   await g.getByLabel('Add a language').selectOption('en');
+  await g.getByLabel('Price per day (USD)').fill('35');
+  await shot(g, 'e2e-guide-setup');
+  await g.getByRole('button', { name: 'Finish' }).click();
+  // Home shows the verify alert, which opens the verification page.
+  await g.getByText('Your profile is ready').first().waitFor();
+  await g.getByRole('link', { name: /Verify your account/ }).click();
+  await g.waitForFunction(() => location.hash === '#/verify');
+  await g.getByRole('heading', { name: 'Verify your account' }).waitFor();
+  await g.locator('input[type=file]').setInputFiles({ name: 'id-card.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('fake') });
+  await g.getByRole('button', { name: 'Send for review' }).click();
+  await g.locator('.note.warn').getByText('Verification is done within 24 hours.').waitFor();
+  await go(g, '/');
+  await g.locator('.note.warn').getByText('Sent for review').waitFor();
+  // Photos and days off stay editable in the profile.
+  await go(g, '/profile/guide');
+  await g.getByRole('button', { name: 'Great Mosque of Kufa' }).click();
   await g.getByRole('button', { name: 'Save profile' }).click();
   await g.getByText('Saved').first().waitFor();
-  await g.locator('#verify input[type=file]').setInputFiles({ name: 'id-card.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('fake') });
-  await g.getByRole('button', { name: 'Send for review' }).click();
-  await g.getByText('Our team is checking your documents').waitFor();
 
   const admin = await open();
   await login(admin, 'admin@tripguide.demo');
@@ -489,13 +512,16 @@ test('admin: home sections, city statistics, prices page, and Users on its own',
   await go(a, '/');
   const order = await a.locator('main h2').allInnerTexts();
   assert.deepEqual(order.slice(0, 3), ['Needs you', 'The platform', 'Governorates and visitors']);
+  await a.locator('.stat-tile').nth(3).waitFor();
   assert.equal(await a.locator('.stat-tile').count(), 4);
+  await a.locator('.cs-row').nth(4).waitFor();
   assert.equal(await a.locator('.cs-row').count(), 5);
   assert.equal(await a.getByRole('heading', { name: 'Guide subscription' }).count(), 0);
   // Stats replaces Reports in the bottom bar.
   assert.deepEqual((await a.locator('.tabbar a').allInnerTexts()).map((x) => x.split('\n')[0]), ['Admin', 'Verify', 'Stats', 'Users', 'Profile']);
   await a.locator('.tabbar a', { hasText: 'Stats' }).click();
   await a.getByRole('heading', { name: 'City statistics' }).waitFor();
+  await a.locator('.cs-row').nth(7).waitFor();
   assert.equal(await a.locator('.cs-row').count(), 8);
   await a.getByRole('heading', { name: 'Languages tourists ask for' }).waitFor();
   await noSideScroll(a, 'admin stats');

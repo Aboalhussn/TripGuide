@@ -583,3 +583,24 @@ bdi { unicode-bidi: isolate; }
 .cs-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; }
 .pricing-link { text-decoration: none; color: var(--navy); }
 @media (max-height: 700px) { .login-brand { margin: 20px 0 28px; } .login-brand img { width: 150px; } }
+
+/* Photo banner used as the intro of each step (same look as the home banners) */
+.hero-band .over { min-height: 170px; padding: 24px 22px; justify-content: flex-end; }
+.hero-band h1.mark-text { font-size: 25px; font-weight: 900; max-width: 22ch; margin: 0; line-height: 1.3; }
+.hero-band .promo-text { max-width: 40ch; }
+.wiz-progress.three { grid-template-columns: repeat(3, 1fr); }
+/* Password rules under the field */
+.pw-rules { list-style: none; margin: -6px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; font-size: 13px; color: var(--muted); }
+.pw-rules li { display: flex; align-items: center; gap: 6px; }
+.pw-rules li.ok { color: #1d5b34; }
+.pw-dot { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--line-strong); display: grid; place-items: center; flex: none; }
+.pw-rules li.ok .pw-dot { background: #2f8a50; border-color: #2f8a50; color: #fff; }
+/* Verification */
+.verify-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.verify-list li { display: flex; align-items: center; gap: 12px; font-size: 15px; }
+.verify-wait { display: flex; gap: 10px; align-items: flex-start; }
+.verify-alert { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 18px; background: var(--brand); color: #fff; text-decoration: none; }
+.verify-alert .st-ico { background: rgba(255,255,255,.14); color: var(--gold); }
+.verify-alert strong { display: block; }
+.verify-alert .small { color: var(--brand-dim); }
+.link-note { text-decoration: none; color: inherit; }

@@ -710,6 +710,20 @@ export function PromoBand({ title, text, to, cta, img = 'skyline.jpg' }: { title
   );
 }
 
+/** Photo banner with the navy wash and white text, like the home screen banners. Used as the intro of each step. */
+export function HeroBand({ img, title, text, children }: { img: string; title: string; text?: string; children?: React.ReactNode }) {
+  return (
+    <section className="promo-band hero-band">
+      <img src={asset(img)} alt="" />
+      <div className="over">
+        <h1 className="mark-text">{title}</h1>
+        {text && <p className="promo-text">{text}</p>}
+        {children}
+      </div>
+    </section>
+  );
+}
+
 /** Small logo signature at the bottom of long pages. */
 export function BrandFooter() {
   const { t } = useApp();

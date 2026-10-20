@@ -13,7 +13,7 @@ import { FindGuides, GuideProfile, TouristProfile } from './pages/Guides';
 import { MyOffers, PostRequest, RequestDetail, RequestsIndex } from './pages/Requests';
 import { BookingDetail, BookingsList, Wallet } from './pages/Bookings';
 import { Notifications, Thread, Threads } from './pages/Messages';
-import { Account, GuideEditor, Login, Register } from './pages/Account';
+import { Account, GuideEditor, GuideSetup, Login, Register, VerifyAccount } from './pages/Account';
 import { AdminReports, AdminUsers, AdminVerify, AdminStats, AdminPricing } from './pages/Admin';
 
 function NeedLogin({ path }: { path: string }) {
@@ -61,6 +61,8 @@ function Routes() {
   else if (p('/wallet')) page = authed(<Wallet />);
   else if (p('/profile')) page = authed(<Account />);
   else if (p('/profile/guide')) page = authed(<GuideEditor />);
+  else if (p('/guide/setup')) page = authed(<GuideSetup />);
+  else if (p('/verify')) page = authed(<VerifyAccount />);
   else if ((m = p('/users/:id'))) page = authed(<TouristProfile id={m.id} />);
   else if (p('/login')) page = <Login query={query} />;
   else if (p('/register')) page = <Register query={query} />;

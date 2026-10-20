@@ -285,24 +285,31 @@ export function GuideHome() {
       <h1 style={{ fontWeight: 900, fontSize: 32 }}>{t('dash.hello', { name: me.name.split(' ')[0] })}</h1>
 
       {!x.profileComplete && (
-        <div className="note warn stack" style={{ gap: 8 }}>
+        <Link to="/guide/setup" className="note warn stack link-note" style={{ gap: 6 }}>
           <strong>{t('dash.finish_profile')}</strong>
           <span>{t('dash.finish_profile_text')}</span>
-          <Link to="/profile/guide" className="btn sm" style={{ alignSelf: 'flex-start' }}>
-            {t('dash.edit_profile')}
-          </Link>
-        </div>
+          <span className="btn sm" style={{ alignSelf: 'flex-start' }}>{t('dash.edit_profile')}</span>
+        </Link>
       )}
-      {x.profileComplete && x.verification !== 'verified' && (
-        <div className="note stack" style={{ gap: 8 }}>
-          <strong>{t('verify.status.' + x.verification)}</strong>
-          <span>{t('verify.status_text.' + x.verification)}</span>
-          {x.verification !== 'pending' && (
-            <Link to="/profile/guide#verify" className="btn sm" style={{ alignSelf: 'flex-start' }}>
-              {t('verify.get_verified')}
-            </Link>
-          )}
-        </div>
+      {x.profileComplete && x.verification === 'pending' && (
+        <Link to="/verify" className="note warn row link-note" style={{ gap: 10, flexWrap: 'nowrap' }} role="status">
+          <Icon name="clock" size={20} />
+          <span>
+            <strong>{t('verifyp.sent_title')}</strong>
+            <br />
+            {t('verify.status_text.pending')}
+          </span>
+        </Link>
+      )}
+      {x.profileComplete && (x.verification === 'none' || x.verification === 'rejected') && (
+        <Link to="/verify" className="verify-alert link-note">
+          <span className="st-ico"><Icon name="shield" size={22} /></span>
+          <span style={{ flex: 1 }}>
+            <strong>{t('dash.verify_alert_title')}</strong>
+            <span className="small">{x.verification === 'rejected' ? t('verify.status_text.rejected') : t('dash.verify_alert_text')}</span>
+          </span>
+          <Icon name="next" size={18} className="flip" />
+        </Link>
       )}
 
       {w.data && (

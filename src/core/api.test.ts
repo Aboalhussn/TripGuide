@@ -66,7 +66,7 @@ test('seed: demo accounts log in and dashboards load', () => {
 
 test('full flow: post, offer, hire, confirm, release day by day, review both ways', () => {
   const s = setup();
-  const reg = s.ok('POST', '/auth/register', { role: 'tourist', name: 'Test Tourist', email: 'tt@example.com', password: 'longpassword', country: 'Spain', gender: 'f' });
+  const reg = s.ok('POST', '/auth/register', { role: 'tourist', name: 'Test Tourist', email: 'tt@example.com', password: 'Long#pass1', country: 'Spain', gender: 'f' });
   const tt = reg.token;
   const req = s.ok('POST', '/requests', tripBody(s.today()), tt);
   assert.equal(req.days, 2);
@@ -187,7 +187,7 @@ test('report and admin refund', () => {
 
 test('guide sign-up, profile, verification approved by admin', () => {
   const s = setup();
-  const g = s.ok('POST', '/auth/register', { role: 'guide', name: 'New Guide', email: 'new@guide.iq', password: 'password123', country: 'Iraq', gender: 'm' }).token;
+  const g = s.ok('POST', '/auth/register', { role: 'guide', name: 'New Guide', email: 'new@guide.iq', password: 'Guide#2026', country: 'Iraq', gender: 'm' }).token;
   assert.equal(s.call('POST', '/guide/verification', { docs: ['id.jpg'] }, g).body.error, 'profile_incomplete');
   s.ok('PUT', '/guide/profile', { headline: 'Basra boat tours', bio: 'I run boat trips on the Shatt al-Arab and in the marshes for small groups.', cities: ['basra'], pricePerDay: 45, languages: [{ code: 'ar', level: 'native' }, { code: 'en', level: 'good' }], specialities: ['nature'] }, g);
   s.ok('POST', '/guide/verification', { docs: ['id.jpg'] }, g);
@@ -378,4 +378,12 @@ test('admin city statistics', () => {
   assert.ok(st.totals.visitors > 0);
   assert.equal(st.cities.reduce((a: number, c: any) => Math.max(a, c.visitors), 0), st.cities[0].visitors);
   assert.equal(s.call('GET', '/admin/stats', null, s.login(DEMO_ACCOUNTS.tourist)).status, 403);
+});
+
+test('new accounts need a strong password', () => {
+  const s = setup();
+  const reg = (password: string) => s.call('POST', '/auth/register', { role: 'tourist', name: 'Pat Doe', email: password.length + 'p' + Math.random() + '@ex.com', password, country: 'Spain', gender: 'f' });
+  assert.equal(reg('Ab1!').body.error, 'password_short');
+  for (const weak of ['alllower1!', 'ALLUPPER1!', 'NoDigits!!', 'NoSymbol12']) assert.equal(reg(weak).body.error, 'password_weak', weak);
+  assert.equal(reg('Strong#Pass9').status, 200);
 });

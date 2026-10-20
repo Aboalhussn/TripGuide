@@ -251,6 +251,8 @@ route('POST', '/auth/register', (ctx, _p, req) => {
   const email = str(b.email, 'email', 3, 120).toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw bad('email_invalid');
   if (typeof b.password !== 'string' || b.password.length < 8) throw bad('password_short');
+  // Strong passwords: a capital letter, a small letter, a number and a symbol.
+  if (!/[A-Z]/.test(b.password) || !/[a-z]/.test(b.password) || !/\d/.test(b.password) || !/[^A-Za-z0-9]/.test(b.password)) throw bad('password_weak');
   if (b.password.length > 200) throw bad('field_too_long', { field: 'password', max: 200 });
   if (ctx.data.users.some((u) => u.email === email)) throw conflict('email_taken');
   const country = str(b.country, 'country', 2, 60);

@@ -4,9 +4,8 @@ import { useApp, useLoad } from '../lib/app';
 import { useFmt } from '../lib/format';
 import { Link, navigate } from '../lib/router';
 import { RequestFeedCard } from './Home';
-import { Avatar, Empty, ErrorState, Field, GuideCard, Icon, Loading, Modal, Money, OfferStatus, PageHead, Rating, RequestFacts, RequestStatus, Star, Stepper, ToggleGroup, VerifiedBadge, useBusy, CardForm, PayMethodPicker, emptyCard, DateRangePicker, LanguagePick } from '../ui';
+import { Avatar, Empty, ErrorState, Field, GuideCard, Icon, Loading, Modal, Money, OfferStatus, PageHead, Rating, RequestFacts, RequestStatus, Star, Stepper, ToggleGroup, VerifiedBadge, useBusy, CardForm, PayMethodPicker, emptyCard, DateRangePicker, LanguagePick, HeroBand } from '../ui';
 import type { CardValue } from '../ui';
-import { IlloBudget, IlloPlan, IlloWhere, IlloWho } from '../illustrations';
 
 function addDays(date: string, n: number) {
   const d = new Date(date + 'T00:00:00Z');
@@ -105,10 +104,10 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
 
   // Four short steps instead of one long form. Each step checks only its own fields.
   const STEPS = [
-    { key: 'where', fields: ['title', 'cities'], Illo: IlloWhere },
-    { key: 'who', fields: ['dates'], Illo: IlloWho },
-    { key: 'plan', fields: ['languages'], Illo: IlloPlan },
-    { key: 'budget', fields: ['budgetMin', 'budgetMax'], Illo: IlloBudget },
+    { key: 'where', fields: ['title', 'cities'], img: 'babylon.jpg' },
+    { key: 'who', fields: ['dates'], img: 'ishtar.jpg' },
+    { key: 'plan', fields: ['languages'], img: 'malwiya.jpg' },
+    { key: 'budget', fields: ['budgetMin', 'budgetMax'], img: 'ziggurat.jpg' },
   ];
   const last = STEPS.length - 1;
   const cur = STEPS[step];
@@ -181,11 +180,9 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
         ))}
       </div>
 
-      <section className="wiz-hero" key={cur.key}>
-        <cur.Illo />
-        <h1>{t(`post.s${step + 1}_title`)}</h1>
-        <p className="muted">{t(`post.s${step + 1}_text`)}</p>
-      </section>
+      <div className="wiz-hero" key={cur.key}>
+        <HeroBand img={cur.img} title={t(`post.s${step + 1}_title`)} text={t(`post.s${step + 1}_text`)} />
+      </div>
 
       {g && step === 0 && (
         <div className="card row" style={{ gap: 12, flexWrap: 'nowrap' }}>
