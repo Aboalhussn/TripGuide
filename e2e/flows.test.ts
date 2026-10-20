@@ -573,3 +573,51 @@ test('profile and cover photos, and the guide + button adds a tour photo tourist
   await tt.locator('.guide-head img.avatar-img').waitFor();
   await tt.context().close();
 });
+
+test('post steps: the step bar stays on top and the buttons stay right above the tab bar while scrolling', async () => {
+  const p = await open();
+  await login(p, 'tourist@tripguide.demo');
+  await go(p, '/post');
+  await p.getByLabel('Title').fill('Babylon weekend');
+  await p.getByRole('button', { name: 'Babylon', exact: true }).click();
+  await p.getByRole('button', { name: 'Next' }).click();
+  await p.getByRole('button', { name: 'Next' }).click();
+  await p.getByLabel('Add my own day plan').check(); // makes the page long
+  const where = () =>
+    p.evaluate(() => ({
+      head: Math.round(document.querySelector('.wiz-head')!.getBoundingClientRect().top),
+      actions: Math.round(document.querySelector('.wiz-actions')!.getBoundingClientRect().bottom),
+      tabbar: Math.round(document.querySelector('.tabbar')!.getBoundingClientRect().top),
+    }));
+  const before = await where();
+  await p.mouse.wheel(0, 1500);
+  await p.waitForTimeout(200);
+  const after = await where();
+  assert.equal(after.head, 0);
+  assert.ok(Math.abs(after.actions - after.tabbar) <= 1, JSON.stringify(after));
+  assert.deepEqual(after, before);
+  await p.context().close();
+});
+
+test('home: pulling down at the top spins the logo bird and refreshes', async () => {
+  const p = await open();
+  await go(p, '/');
+  await p.getByRole('heading', { name: 'Top guides' }).waitFor();
+  await p.evaluate(`document.querySelector('.ptr-body > *').__old = true`);
+  // A finger dragging down from the top (plain script: no helpers injected by the test compiler).
+  await p.evaluate(`(async function () {
+    var t = document.querySelector('main');
+    function touch(y) { return new Touch({ identifier: 1, target: t, clientX: 200, clientY: y }); }
+    function fire(type, y) { window.dispatchEvent(new TouchEvent(type, { touches: [touch(y)], changedTouches: [touch(y)], cancelable: true, bubbles: true })); }
+    fire('touchstart', 100);
+    for (var y = 110; y <= 340; y += 20) { fire('touchmove', y); await new Promise(function (r) { setTimeout(r, 16); }); }
+  })()`);
+  await p.locator('.ptr.ready').waitFor();
+  await p.evaluate(`window.dispatchEvent(new TouchEvent('touchend', { touches: [], changedTouches: [], bubbles: true }))`);
+  await p.locator('.ptr.busy').waitFor();
+  await p.locator('.ptr.busy').waitFor({ state: 'detached' });
+  // The page content was rebuilt (fresh data), and the home is still there.
+  assert.equal(await p.evaluate(`!!document.querySelector('.ptr-body > *').__old`), false);
+  await p.getByRole('heading', { name: 'Top guides' }).waitFor();
+  await p.context().close();
+});

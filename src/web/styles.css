@@ -546,14 +546,21 @@ bdi { unicode-bidi: isolate; }
 .wiz-hero { display: flex; flex-direction: column; gap: 6px; animation: wiz-in .35s ease both; }
 .wiz-hero .illo { width: 100%; height: auto; display: block; margin-bottom: 8px; }
 .wiz-hero h1 { font-size: 26px; font-weight: 900; line-height: 1.25; }
-.wiz-body { animation: wiz-in .35s .05s ease both; }
-.wiz-actions { display: flex; gap: 10px; position: sticky; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); background: var(--bg); padding: 10px 0 4px; z-index: 5; }
-@media (min-width: 960px) { .wiz-actions { bottom: 0; } }
+/* .wiz-body is not animated: an animation would trap the fixed buttons and pop-up sheets inside the form. */
+html:has(.post-wizard) { scroll-padding: 110px 0 170px; }
+/* Steps: the top bar (back, step, progress) stays at the top; the buttons stay fixed right above the tab bar. */
+.wiz-head { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 15; background: var(--bg); margin: -20px -18px 0; padding: 14px 18px 12px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 1px 0 var(--line); }
+.post-wizard { padding-bottom: 100px; }
+.wiz-actions { display: flex; gap: 10px; position: fixed; z-index: 15; left: 0; right: 0; bottom: calc(75px + env(safe-area-inset-bottom, 0px)); background: var(--bg); padding: 10px max(18px, env(safe-area-inset-right, 0px)) 10px max(18px, env(safe-area-inset-left, 0px)); border-top: 1px solid var(--line); }
+@media (min-width: 960px) {
+  .wiz-head { margin: 0; padding: 14px 0 12px; top: 60px; }
+  .wiz-actions { bottom: 0; padding-inline: max(18px, calc((100vw - 640px) / 2)); }
+}
 .plan-days { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .plan-day-n { font-size: 13px; font-weight: 700; color: var(--teal-ink, var(--navy)); }
 .wiz-summary { background: var(--sky-soft); border-color: transparent; }
 @keyframes wiz-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .wiz-hero, .wiz-body { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .wiz-hero { animation: none; } }
 
 /* Admin: colored number tiles and city bars */
 .stat-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
@@ -624,3 +631,13 @@ bdi { unicode-bidi: isolate; }
 .photo-fab:active { transform: scale(.94); }
 @media (min-width: 960px) { .photo-fab { bottom: 28px; } }
 .fab-preview { width: 100%; max-height: 300px; object-fit: cover; border-radius: 16px; display: block; }
+
+/* Pull to refresh on the home screen: the logo bird spins in place */
+.ptr { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 8px); left: 50%; z-index: 25; width: 48px; height: 48px; border-radius: 50%; background: var(--surface); box-shadow: 0 6px 18px -6px rgba(5,63,92,.4); display: grid; place-items: center; pointer-events: none; opacity: 0; transition: opacity .15s; }
+.ptr img { width: 28px; height: auto; display: block; }
+.ptr.ready { background: var(--sky-soft); }
+.ptr.busy img { animation: ptr-spin .8s linear infinite; }
+.ptr:not(.shown) { transition: transform .25s ease, opacity .2s; }
+.ptr-body { transition: transform .25s ease; }
+@keyframes ptr-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ptr.busy img { animation-duration: 2s; } }

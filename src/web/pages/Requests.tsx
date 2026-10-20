@@ -165,6 +165,7 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
 
   return (
     <div className="page post-wizard" style={{ maxWidth: 640, margin: '0 auto', width: '100%' }}>
+      <div className="wiz-head">
       <div className="wiz-top">
         <button type="button" className="back icon-btn" aria-label={step === 0 ? t('common.back') : t('post.prev')} onClick={goBack}>
           <Icon name="back" />
@@ -178,6 +179,7 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
         {STEPS.map((st, i) => (
           <i key={st.key} className={i <= step ? 'on' : ''} />
         ))}
+      </div>
       </div>
 
       <div className="wiz-hero" key={cur.key}>

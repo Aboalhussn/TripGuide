@@ -789,6 +789,7 @@ export function GuideSetup() {
   };
   return (
     <div className="page post-wizard" style={{ maxWidth: 640, margin: '0 auto', width: '100%' }}>
+      <div className="wiz-head">
       <div className="wiz-top">
         {(step > 0 || editing) && (
           <button type="button" className="back icon-btn" aria-label={step > 0 ? t('post.prev') : t('common.back')} onClick={() => { if (step === 0) return navigate('/profile'); setStep(step - 1); toTop(); }}>
@@ -804,6 +805,7 @@ export function GuideSetup() {
         {STEPS.map((_, i) => (
           <i key={i} className={i <= step ? 'on' : ''} />
         ))}
+      </div>
       </div>
       <div className="wiz-hero" key={step}>
         <HeroBand img={STEPS[step].img} title={t(`setup.s${step + 1}_title`)} text={t(`setup.s${step + 1}_text`)} />

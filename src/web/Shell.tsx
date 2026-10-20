@@ -6,6 +6,7 @@ import { resizeImage } from './lib/image';
 import { Link } from './lib/router';
 import { asset } from './assets';
 import { Field, Icon, LangToggle, Modal } from './ui';
+import { PullToRefresh } from './PullToRefresh';
 
 type NavItem = { to: string; label: string; icon: string; badge?: number; primary?: boolean; match?: string[] };
 
@@ -120,7 +121,7 @@ export function Shell({ path, children }: { path: string; children: React.ReactN
         </div>
       </header>
       <main className={'main' + (bare ? ' bare' : '') + (chat ? ' chat-open' : '')} id="main">
-        {children}
+        {path === '/' ? <PullToRefresh>{children}</PullToRefresh> : children}
       </main>
       {role === 'guide' && !bare && !chat && path !== '/guide/setup' && <PhotoFab />}
       {!bare && !chat && <nav className="tabbar" aria-label={t('nav.main')}>
