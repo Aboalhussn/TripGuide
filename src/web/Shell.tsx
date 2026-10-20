@@ -1,9 +1,11 @@
 import React from 'react';
 import { brand } from '../config/brand';
 import { useApp } from './lib/app';
+import { api } from './lib/api';
+import { resizeImage } from './lib/image';
 import { Link } from './lib/router';
 import { asset } from './assets';
-import { Icon, LangToggle } from './ui';
+import { Field, Icon, LangToggle, Modal } from './ui';
 
 type NavItem = { to: string; label: string; icon: string; badge?: number; primary?: boolean; match?: string[] };
 
@@ -120,6 +122,7 @@ export function Shell({ path, children }: { path: string; children: React.ReactN
       <main className={'main' + (bare ? ' bare' : '') + (chat ? ' chat-open' : '')} id="main">
         {children}
       </main>
+      {role === 'guide' && !bare && !chat && path !== '/guide/setup' && <PhotoFab />}
       {!bare && !chat && <nav className="tabbar" aria-label={t('nav.main')}>
         {items[role].map((it) => (
           <Link key={it.to} to={it.to} aria-current={activeTab === it.to ? 'page' : undefined}>
@@ -136,5 +139,65 @@ export function Shell({ path, children }: { path: string; children: React.ReactN
         ))}
       </nav>}
     </div>
+  );
+}
+
+/** Guides: the round + above the tab bar adds a photo from their tours to the public profile. */
+function PhotoFab() {
+  const { t, me, refreshMe, toast, errorText } = useApp();
+  const [img, setImg] = React.useState<string | null>(null);
+  const [caption, setCaption] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const full = (me?.guide?.photos?.length || 0) >= 12;
+  const pick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      setImg(await resizeImage(file));
+    } catch {
+      toast(t('err.photo_invalid'), 'error');
+    }
+  };
+  const add = async () => {
+    if (!img) return;
+    setBusy(true);
+    try {
+      await api('POST', '/guide/photos', { img, caption: caption.trim() });
+      await refreshMe();
+      setImg(null);
+      setCaption('');
+      toast(t('fab.added'));
+    } catch (x) {
+      toast(errorText(x), 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      {full ? (
+        <Link to="/profile/guide" className="photo-fab" aria-label={t('fab.full')} title={t('fab.full')}>
+          <Icon name="image" size={24} stroke={2} />
+        </Link>
+      ) : (
+        <label className="photo-fab" aria-label={t('fab.add')} title={t('fab.add')}>
+          <Icon name="plus" size={28} stroke={2.4} />
+          <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={pick} />
+        </label>
+      )}
+      {img && (
+        <Modal title={t('fab.title')} onClose={() => setImg(null)}>
+          <img src={img} alt="" className="fab-preview" />
+          <Field label={t('editor.caption')}>
+            <input className="input" value={caption} onChange={(e) => setCaption(e.target.value)} maxLength={80} placeholder={t('fab.caption_ph')} />
+          </Field>
+          <p className="xs muted">{t('fab.note')}</p>
+          <button type="button" className="btn lg" onClick={add} disabled={busy}>
+            {t('fab.publish')}
+          </button>
+        </Modal>
+      )}
+    </>
   );
 }

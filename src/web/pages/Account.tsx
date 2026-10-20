@@ -4,6 +4,7 @@ import { useApp, useLoad } from '../lib/app';
 import { useFmt } from '../lib/format';
 import { Link, navigate } from '../lib/router';
 import { asset, photoSrc } from '../assets';
+import { resizeImage } from '../lib/image';
 import { Avatar, BookingStatus, BrandFooter, HeroBand, LangToggle, CardForm, Field, Icon, Loading, Modal, Money, MonthCalendar, PageHead, ToggleGroup, VerifiedBadge, emptyCard, useBusy } from '../ui';
 import type { CardValue } from '../ui';
 
@@ -201,6 +202,69 @@ export function Register({ query }: { query: Record<string, string> }) {
   );
 }
 
+/** Profile header: cover photo and profile photo, each with its own change button. */
+function ProfileHeader() {
+  const { t, me, refreshMe, toast, errorText } = useApp();
+  const [busy, setBusy] = useState<'' | 'avatar' | 'cover'>('');
+  const pick = (kind: 'avatar' | 'cover') => async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setBusy(kind);
+    try {
+      const img = kind === 'avatar' ? await resizeImage(file, { max: 320, limit: 190_000, square: true }) : await resizeImage(file, { max: 1280, limit: 440_000 });
+      await api('PUT', '/me', { [kind]: img });
+      await refreshMe();
+      toast(kind === 'avatar' ? t('account.avatar_saved') : t('account.cover_saved'));
+    } catch (x: any) {
+      toast(x?.message === 'too big' || x instanceof Event ? t('err.photo_invalid') : errorText(x), 'error');
+    } finally {
+      setBusy('');
+    }
+  };
+  const remove = (kind: 'avatar' | 'cover') => async () => {
+    await api('PUT', '/me', { [kind]: null });
+    await refreshMe();
+  };
+  return (
+    <section className="profile-head" aria-label={t('account.photos')}>
+      <div className="ph-cover" style={me.cover ? { backgroundImage: `url(${me.cover})` } : undefined}>
+        <div className="ph-cover-actions" dir="ltr">
+          <label className={'ph-chip' + (busy === 'cover' ? ' busy' : '')}>
+            <Icon name="image" size={16} /> {me.cover ? t('account.change_cover') : t('account.add_cover')}
+            <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={pick('cover')} disabled={!!busy} />
+          </label>
+          {me.cover && (
+            <button type="button" className="ph-chip icon" aria-label={t('account.remove_cover')} onClick={remove('cover')}>
+              <Icon name="trash" size={16} />
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="ph-body">
+        <div className="ph-avatar">
+          <Avatar user={me} size={92} />
+          <label className={'ph-cam' + (busy === 'avatar' ? ' busy' : '')} aria-label={me.avatar ? t('account.change_avatar') : t('account.add_avatar')} title={me.avatar ? t('account.change_avatar') : t('account.add_avatar')}>
+            <Icon name="camera" size={16} stroke={2} />
+            <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={pick('avatar')} disabled={!!busy} />
+          </label>
+        </div>
+        <div className="ph-text">
+          <h2>{me.name}</h2>
+          <div className="muted small">
+            <bdi>{me.email}</bdi> · {t('role.' + me.role)}
+          </div>
+          {me.avatar && (
+            <button type="button" className="linkish xs" onClick={remove('avatar')}>
+              {t('account.remove_avatar')}
+            </button>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function Account() {
   const { t, me, setLang, lang, signOut, refreshMe, toast, ask } = useApp();
   const [f, setF] = useState({ name: me?.name || '', country: me?.country || '', phone: me?.phone || '' });
@@ -212,15 +276,7 @@ export function Account() {
   return (
     <div className="page" style={{ maxWidth: 720, margin: '0 auto', width: '100%' }}>
       <PageHead title={t('account.title')} />
-      <div className="row" style={{ gap: 14 }}>
-        <Avatar user={me} size={64} />
-        <div>
-          <h2>{me.name}</h2>
-          <div className="muted small">
-            {me.email} · {t('role.' + me.role)}
-          </div>
-        </div>
-      </div>
+      <ProfileHeader />
 
       {me.role === 'guide' && (
         <div className="card stack">
@@ -234,8 +290,11 @@ export function Account() {
           </div>
           <p className="small muted">{me.guide.profileComplete ? t('account.guide_profile_text') : t('dash.finish_profile_text')}</p>
           <div className="row">
-            <Link to="/profile/guide" className="btn sm">
+            <Link to="/guide/setup" className="btn sm">
               {t('dash.edit_profile')}
+            </Link>
+            <Link to="/profile/guide" className="btn sm outline">
+              {t('editor.title_media')}
             </Link>
             <Link to={`/guides/${me.id}`} className="btn sm ghost">
               {t('dash.view_public')}
@@ -351,29 +410,6 @@ export function Account() {
   );
 }
 
-async function resizeImage(file: File): Promise<string> {
-  const url = URL.createObjectURL(file);
-  try {
-    const img = await new Promise<HTMLImageElement>((res, rej) => {
-      const i = new Image();
-      i.onload = () => res(i);
-      i.onerror = rej;
-      i.src = url;
-    });
-    const max = 900;
-    const scale = Math.min(1, max / Math.max(img.width, img.height));
-    const c = document.createElement('canvas');
-    c.width = Math.round(img.width * scale);
-    c.height = Math.round(img.height * scale);
-    c.getContext('2d')!.drawImage(img, 0, 0, c.width, c.height);
-    let q = 0.82;
-    let out = c.toDataURL('image/jpeg', q);
-    while (out.length > 380_000 && q > 0.4) out = c.toDataURL('image/jpeg', (q -= 0.1));
-    return out;
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-}
 
 export function GuideEditor() {
   const { t, me, meta, refreshMe, toast, errorText } = useApp();
@@ -394,7 +430,7 @@ export function GuideEditor() {
     setErr(null);
     await run(async () => {
       try {
-        await api('PUT', '/guide/profile', { ...f, pricePerDay: Number(f.pricePerDay) });
+        await api('PUT', '/guide/profile', { photos: f.photos, blockedDates: f.blockedDates });
         await refreshMe();
       } catch (x) {
         setErr(errorText(x));
@@ -410,73 +446,12 @@ export function GuideEditor() {
   const langCodes = f.languages.map((l: any) => l.code);
   return (
     <div className="page" style={{ maxWidth: 760, margin: '0 auto', width: '100%' }}>
-      <PageHead title={t('editor.title')} backTo="/profile">
+      <PageHead title={t('editor.title_media')} backTo="/profile">
         <Link to={`/guides/${me.id}`} className="btn sm ghost">
           {t('dash.view_public')}
         </Link>
       </PageHead>
       <form className="stack-lg" onSubmit={save} noValidate>
-        <fieldset className="card stack">
-          <legend>{t('editor.basics')}</legend>
-          <Field label={t('field.headline')} hint={t('editor.headline_hint')}>
-            <input className="input" value={f.headline} onChange={(e) => up({ headline: e.target.value })} maxLength={90} />
-          </Field>
-          <Field label={t('field.headlineAr')}>
-            <input className="input" dir="rtl" lang="ar" value={f.headlineAr} onChange={(e) => up({ headlineAr: e.target.value })} maxLength={90} />
-          </Field>
-          <Field label={t('field.bio')} hint={t('editor.bio_hint')}>
-            <textarea className="textarea" rows={6} value={f.bio} onChange={(e) => up({ bio: e.target.value })} maxLength={1500} />
-          </Field>
-          <Field label={t('field.bioAr')}>
-            <textarea className="textarea" dir="rtl" lang="ar" rows={5} value={f.bioAr} onChange={(e) => up({ bioAr: e.target.value })} maxLength={1500} />
-          </Field>
-          <Field label={t('field.pricePerDay')} hint={t('editor.price_hint', { pct: Math.round(meta.feeRate * 100) })}>
-            <input className="input" inputMode="numeric" value={f.pricePerDay} onChange={(e) => up({ pricePerDay: e.target.value.replace(/\D/g, '') })} />
-          </Field>
-        </fieldset>
-
-        <fieldset className="card stack">
-          <legend>{t('editor.where')}</legend>
-          <ToggleGroup label={t('field.cities')} options={meta.cities.map((c: any) => c.slug)} value={f.cities} onChange={(cities) => up({ cities, places: f.places.filter((p: number) => cities.includes(meta.places.find((x: any) => x.id === p)?.city)) })} render={fmt.city} />
-          {f.cities.length > 0 && (
-            <ToggleGroup
-              label={t('field.places')}
-              options={meta.places.filter((p: any) => f.cities.includes(p.city)).map((p: any) => String(p.id))}
-              value={f.places.map(String)}
-              onChange={(v) => up({ places: v.map(Number) })}
-              render={(id) => fmt.place(Number(id))}
-            />
-          )}
-          <ToggleGroup label={t('field.specialities')} options={meta.interests} value={f.specialities} onChange={(specialities) => up({ specialities })} render={(i) => t('interest.' + i)} />
-        </fieldset>
-
-        <fieldset className="card stack">
-          <legend>{t('editor.languages')}</legend>
-          {f.languages.map((l: any, i: number) => (
-            <div key={l.code} className="row" style={{ flexWrap: 'nowrap' }}>
-              <span style={{ flex: 1 }}>{fmt.language(l.code)}</span>
-              <select className="select" style={{ width: 'auto' }} aria-label={t('editor.level_for', { lang: fmt.language(l.code) })} value={l.level} onChange={(e) => up({ languages: f.languages.map((x: any, j: number) => (j === i ? { ...x, level: e.target.value } : x)) })}>
-                {meta.levels.map((lv: string) => (
-                  <option key={lv} value={lv}>
-                    {t('level.' + lv)}
-                  </option>
-                ))}
-              </select>
-              <button type="button" className="icon-btn" aria-label={t('common.remove_x', { name: fmt.language(l.code) })} disabled={f.languages.length === 1} onClick={() => up({ languages: f.languages.filter((_: any, j: number) => j !== i) })}>
-                <Icon name="trash" size={18} />
-              </button>
-            </div>
-          ))}
-          <select className="select" value="" aria-label={t('editor.add_language')} onChange={(e) => e.target.value && up({ languages: [...f.languages, { code: e.target.value, level: 'good' }] })}>
-            <option value="">{t('editor.add_language')}</option>
-            {meta.languages.filter((c: string) => !langCodes.includes(c)).map((c: string) => (
-              <option key={c} value={c}>
-                {fmt.language(c)}
-              </option>
-            ))}
-          </select>
-        </fieldset>
-
         <fieldset className="card stack">
           <legend>{t('editor.photos')}</legend>
           <p className="small muted">{t('editor.photos_hint')}</p>
@@ -491,7 +466,7 @@ export function GuideEditor() {
               </figure>
             ))}
           </div>
-          {f.photos.length < 8 && (
+          {f.photos.length < 12 && (
             <label className="btn outline" style={{ alignSelf: 'flex-start' }}>
               <Icon name="image" size={18} /> {t('editor.add_photo')}
               <input
@@ -768,12 +743,15 @@ export function GuideSetup() {
     bio: g?.bio || '',
     bioAr: g?.bioAr || '',
     cities: (g?.cities || []) as string[],
+    places: (g?.places || []) as number[],
     specialities: (g?.specialities || []) as string[],
     languages: (g?.languages?.length ? g.languages : [{ code: 'ar', level: 'native' }]) as { code: string; level: string }[],
     pricePerDay: g?.pricePerDay ? String(g.pricePerDay) : '40',
   }));
   if (!me || me.role !== 'guide') return null;
   if (!meta) return <Loading />;
+  // Editing later opens the same steps with everything already filled in.
+  const editing = !!g?.profileComplete;
   const up = (p: Partial<typeof f>) => setF((x) => ({ ...x, ...p }));
   const STEPS = [
     { img: 'arch.jpg', check: () => ({ headline: f.headline.trim().length < 5 ? t('setup.v_headline') : '', bio: f.bio.trim().length < 30 ? t('setup.v_bio', { count: Math.max(0, 30 - f.bio.trim().length) }) : '' }) },
@@ -801,8 +779,8 @@ export function GuideSetup() {
       try {
         await api('PUT', '/guide/profile', { ...f, headline: f.headline.trim(), bio: f.bio.trim(), pricePerDay: Number(f.pricePerDay) });
         await refreshMe();
-        toast(t('setup.done_toast'));
-        navigate('/', { replace: true });
+        toast(editing ? t('common.saved') : t('setup.done_toast'));
+        navigate(editing ? '/profile' : '/', { replace: true });
       } catch (x) {
         setErr(errorText(x));
         throw x;
@@ -812,13 +790,13 @@ export function GuideSetup() {
   return (
     <div className="page post-wizard" style={{ maxWidth: 640, margin: '0 auto', width: '100%' }}>
       <div className="wiz-top">
-        {step > 0 && (
-          <button type="button" className="back icon-btn" aria-label={t('post.prev')} onClick={() => { setStep(step - 1); toTop(); }}>
+        {(step > 0 || editing) && (
+          <button type="button" className="back icon-btn" aria-label={step > 0 ? t('post.prev') : t('common.back')} onClick={() => { if (step === 0) return navigate('/profile'); setStep(step - 1); toTop(); }}>
             <Icon name="back" />
           </button>
         )}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="xs muted">{t('setup.title')}</div>
+          <div className="xs muted">{editing ? t('setup.title_edit') : t('setup.title')}</div>
           <div className="small bold">{t('post.step_n', { n: step + 1, total: STEPS.length })}</div>
         </div>
       </div>
@@ -850,9 +828,18 @@ export function GuideSetup() {
         {step === 1 && (
           <div className="stack-lg">
             <div className="stack" style={{ gap: 6 }}>
-              <ToggleGroup label={t('field.cities')} options={meta.cities.map((c: any) => c.slug)} value={f.cities} onChange={(cities) => up({ cities })} render={fmt.city} />
+              <ToggleGroup label={t('field.cities')} options={meta.cities.map((c: any) => c.slug)} value={f.cities} onChange={(cities) => up({ cities, places: f.places.filter((p) => cities.includes(meta.places.find((x: any) => x.id === p)?.city)) })} render={fmt.city} />
               {show('cities') && <span className="err small">{show('cities')}</span>}
             </div>
+            {f.cities.length > 0 && (
+              <ToggleGroup
+                label={t('field.places')}
+                options={meta.places.filter((p: any) => f.cities.includes(p.city)).map((p: any) => String(p.id))}
+                value={f.places.map(String)}
+                onChange={(v) => up({ places: v.map(Number) })}
+                render={(id) => fmt.place(Number(id))}
+              />
+            )}
             <ToggleGroup label={t('field.specialities')} options={meta.interests} value={f.specialities} onChange={(specialities) => up({ specialities })} render={(i) => t('interest.' + i)} />
           </div>
         )}
@@ -892,7 +879,7 @@ export function GuideSetup() {
                 <span className="small muted">{t('common.per_day')}</span>
               </div>
             </Field>
-            <p className="note small">{t('setup.later_note')}</p>
+            {!editing && <p className="note small">{t('setup.later_note')}</p>}
           </div>
         )}
         {err && (
@@ -907,7 +894,7 @@ export function GuideSetup() {
             </button>
           )}
           <button className="btn lg" style={{ flex: 1 }} disabled={busy}>
-            {step < last ? t('post.next') : t('setup.finish')}
+            {step < last ? t('post.next') : editing ? t('setup.save') : t('setup.finish')}
           </button>
         </div>
       </form>

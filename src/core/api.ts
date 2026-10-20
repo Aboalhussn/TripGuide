@@ -87,6 +87,7 @@ function chargeCard(ctx: Ctx, u: User, card: any, amount: number, purpose: 'book
   ctx.data.payments.push(p);
   return p;
 }
+const MAX_PHOTOS = 12; // tour photos on a guide's profile
 const subActive = (ctx: Ctx, g: GuideProfile) => !!g.subscriptionUntil && g.subscriptionUntil > ctx.nowIso;
 const promoActive = (ctx: Ctx, g: GuideProfile) => !!g.promotedUntil && g.promotedUntil > ctx.nowIso;
 
@@ -348,6 +349,26 @@ route('PUT', '/me', (ctx, _p, req) => {
     if (phone !== u.phone) u.phoneVerified = false;
     u.phone = phone;
   }
+  // Profile and cover photos: a resized JPEG/PNG/WebP data URL, or null to remove.
+  if (b.avatar !== undefined) u.avatar = b.avatar === null ? null : imageData(b.avatar, 'avatar', 200_000);
+  if (b.cover !== undefined) u.cover = b.cover === null ? null : imageData(b.cover, 'cover', 450_000);
+  return meView(ctx, u);
+});
+
+function imageData(v: unknown, field: string, max: number) {
+  const img = String(v || '');
+  if (!/^data:image\/(jpeg|png|webp);base64,/.test(img)) throw bad('photo_invalid');
+  if (img.length > max) throw bad('photo_too_big', { field });
+  return img;
+}
+
+// Guides add one photo from their tours straight from the + button.
+route('POST', '/guide/photos', (ctx, _p, req) => {
+  const u = needActive(ctx, 'guide');
+  const g = guideOf(ctx.data, u.id)!;
+  if (g.photos.length >= MAX_PHOTOS) throw bad('photos_full', { max: MAX_PHOTOS });
+  const img = imageData(req.body?.img, 'img', 400_000);
+  g.photos.push({ img, caption: optStr(req.body?.caption, 'caption', 80), captionAr: optStr(req.body?.captionAr, 'captionAr', 80) });
   return meView(ctx, u);
 });
 
@@ -458,7 +479,7 @@ route('PUT', '/guide/profile', (ctx, _p, req) => {
     g.blockedDates = [...new Set(b.blockedDates as string[])].sort();
   }
   if (b.photos !== undefined) {
-    if (!Array.isArray(b.photos) || b.photos.length > 8) throw bad('field_too_long', { field: 'photos', max: 8 });
+    if (!Array.isArray(b.photos) || b.photos.length > MAX_PHOTOS) throw bad('field_too_long', { field: 'photos', max: MAX_PHOTOS });
     g.photos = b.photos.map((ph: any) => {
       const img = String(ph?.img || '');
       const lib = img.startsWith('lib:') && PHOTO_LIBRARY.includes(img.slice(4));

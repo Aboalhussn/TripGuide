@@ -387,3 +387,21 @@ test('new accounts need a strong password', () => {
   for (const weak of ['alllower1!', 'ALLUPPER1!', 'NoDigits!!', 'NoSymbol12']) assert.equal(reg(weak).body.error, 'password_weak', weak);
   assert.equal(reg('Strong#Pass9').status, 200);
 });
+
+test('profile photo, cover photo, and a tour photo added from the + button', () => {
+  const s = setup();
+  const g = s.login(DEMO_ACCOUNTS.guide);
+  const img = 'data:image/jpeg;base64,' + 'A'.repeat(200);
+  const me = s.ok('PUT', '/me', { avatar: img, cover: img }, g);
+  assert.equal(me.avatar, img);
+  assert.equal(s.ok('GET', `/guides/${me.id}`).avatar, img);
+  assert.equal(s.ok('GET', `/guides/${me.id}`).cover, img);
+  assert.equal(s.call('PUT', '/me', { avatar: 'http://x/y.jpg' }, g).body.error, 'photo_invalid');
+  assert.equal(s.ok('PUT', '/me', { avatar: null }, g).avatar, null);
+  const before = s.ok('GET', `/guides/${me.id}`).photos.length;
+  s.ok('POST', '/guide/photos', { img, caption: 'Sunrise at Babylon' }, g);
+  const photos = s.ok('GET', `/guides/${me.id}`).photos;
+  assert.equal(photos.length, before + 1);
+  assert.equal(photos.at(-1).caption, 'Sunrise at Babylon');
+  assert.equal(s.call('POST', '/guide/photos', { img }, s.login(DEMO_ACCOUNTS.tourist)).status, 403);
+});

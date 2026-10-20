@@ -26,6 +26,8 @@ export function publicUser(u: User) {
     name: displayName(u),
     country: u.country,
     avatarColor: u.avatarColor,
+    avatar: u.avatar || null,
+    cover: u.cover || null,
     memberSince: u.createdAt.slice(0, 10),
     phoneVerified: u.phoneVerified,
     paymentVerified: u.paymentVerified,
@@ -125,7 +127,7 @@ export function guideCard(data: Data, g: GuideProfile, now: Date) {
     verification: g.verification,
     acceptsCash: cashOpen(g, now),
     promoted: !!g.promotedUntil && g.promotedUntil > now.toISOString(),
-    cover: g.photos[0]?.img || null,
+    cover: u.cover || g.photos[0]?.img || null, // the uploaded cover, else the first tour photo
     stats: {
       rating: s.rating,
       reviewsCount: s.reviewsCount,

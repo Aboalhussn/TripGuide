@@ -9,6 +9,8 @@ export interface User {
   country: string;
   gender: 'm' | 'f';
   avatarColor: number; // index into the avatar palette
+  avatar?: string | null; // uploaded profile photo (data URL), if any
+  cover?: string | null; // uploaded cover photo shown behind the profile header, if any
   phone: string;
   phoneVerified: boolean;
   paymentVerified: boolean;

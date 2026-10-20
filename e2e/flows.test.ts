@@ -247,16 +247,23 @@ test('a new guide signs up, fills the profile, asks for verification and the adm
   await g.getByRole('link', { name: /Verify your account/ }).click();
   await g.waitForFunction(() => location.hash === '#/verify');
   await g.getByRole('heading', { name: 'Verify your account' }).waitFor();
-  await g.locator('input[type=file]').setInputFiles({ name: 'id-card.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('fake') });
+  await g.locator('main input[type=file]').setInputFiles({ name: 'id-card.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('fake') });
   await g.getByRole('button', { name: 'Send for review' }).click();
   await g.locator('.note.warn').getByText('Verification is done within 24 hours.').waitFor();
   await go(g, '/');
   await g.locator('.note.warn').getByText('Sent for review').waitFor();
-  // Photos and days off stay editable in the profile.
-  await go(g, '/profile/guide');
+  // "Edit profile" opens the same steps, filled in; changes are optional.
+  await go(g, '/profile');
+  await g.getByRole('link', { name: 'Edit profile' }).click();
+  await g.getByText('Edit your guide profile').waitFor();
+  assert.equal(await g.getByLabel('Headline', { exact: true }).inputValue(), 'Kufa and Najaf by bicycle');
+  await g.getByRole('button', { name: 'Next' }).click();
   await g.getByRole('button', { name: 'Great Mosque of Kufa' }).click();
-  await g.getByRole('button', { name: 'Save profile' }).click();
+  await g.getByRole('button', { name: 'Next' }).click();
+  assert.equal(await g.getByLabel('Price per day (USD)').inputValue(), '35');
+  await g.getByRole('button', { name: 'Save changes' }).click();
   await g.getByText('Saved').first().waitFor();
+  await g.waitForFunction(() => location.hash === '#/profile');
 
   const admin = await open();
   await login(admin, 'admin@tripguide.demo');
@@ -536,4 +543,33 @@ test('admin: home sections, city statistics, prices page, and Users on its own',
   await a.locator('nav.tabs').getByRole('link', { name: 'Reports' }).click();
   await a.waitForFunction(() => location.hash === '#/admin/reports');
   await a.context().close();
+});
+
+test('profile and cover photos, and the guide + button adds a tour photo tourists can see', async () => {
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAHElEQVR4nGNk+M9AEmBkYGBgYGBg+P+fgQEAJ/QD/WUX9CIAAAAASUVORK5CYII=', 'base64');
+  const g = await open();
+  await login(g, 'guide@tripguide.demo');
+  await go(g, '/profile');
+  await g.locator('.ph-cam input[type=file]').setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: png });
+  await g.getByText('Profile photo updated').first().waitFor();
+  await g.locator('.ph-avatar img.avatar-img').waitFor();
+  await g.locator('.ph-cover-actions input[type=file]').setInputFiles({ name: 'cover.png', mimeType: 'image/png', buffer: png });
+  await g.getByText('Cover photo updated').first().waitFor();
+  assert.match(await g.locator('.ph-cover').getAttribute('style') || '', /data:image/);
+  // The + above the tab bar.
+  await go(g, '/');
+  await g.locator('label.photo-fab input[type=file]').setInputFiles({ name: 'tour.png', mimeType: 'image/png', buffer: png });
+  await g.getByRole('dialog').getByLabel('Caption').fill('Sunrise at the gate');
+  await g.getByRole('dialog').getByRole('button', { name: 'Add to my profile' }).click();
+  await g.getByText('Added. Tourists can see it on your profile.').first().waitFor();
+  await g.context().close();
+
+  // A tourist sees the photo and the profile photo on the guide's page.
+  const tt = await open();
+  await login(tt, 'tourist@tripguide.demo');
+  await go(tt, '/guides?q=Zainab');
+  await tt.getByRole('link', { name: /Zainab Al-Rubaie/ }).first().click();
+  await tt.getByText('Sunrise at the gate').waitFor();
+  await tt.locator('.guide-head img.avatar-img').waitFor();
+  await tt.context().close();
 });

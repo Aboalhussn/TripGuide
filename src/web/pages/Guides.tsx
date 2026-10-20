@@ -219,7 +219,7 @@ export function GuideProfile({ id }: { id: string }) {
   const isMe = me?.id === g.id;
   const canHire = !me || me.role === 'tourist';
   const first = g.name.split(' ')[0];
-  const cover = g.photos[0]?.img;
+  const cover = g.cover;
 
   const message = () =>
     run(async () => {
@@ -414,7 +414,7 @@ export function GuideProfile({ id }: { id: string }) {
               <Rating rating={s.rating} count={s.reviewsCount} />
             </div>
             {isMe ? (
-              <Link to="/profile/guide" className="btn">
+              <Link to="/guide/setup" className="btn">
                 {t('guide.edit_mine')}
               </Link>
             ) : canHire && !g.suspended ? (
