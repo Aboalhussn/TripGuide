@@ -11,12 +11,15 @@ export interface User {
   avatarColor: number; // index into the avatar palette
   avatar?: string | null; // uploaded profile photo (data URL), if any
   cover?: string | null; // uploaded cover photo shown behind the profile header, if any
+  savedCard?: SavedCard | null; // a card kept for faster payments: never the full number or CVC
   phone: string;
   phoneVerified: boolean;
   paymentVerified: boolean;
   status: 'active' | 'suspended';
   createdAt: string;
 }
+
+export interface SavedCard { brand: string; last4: string; name: string; expiry: string }
 
 export interface GuidePhoto { img: string; caption: string; captionAr: string }
 export interface GuideLanguage { code: string; level: 'native' | 'fluent' | 'good' | 'basic' }
@@ -208,6 +211,7 @@ export interface PlatformSettings {
   subscriptionDays: number;
   promotionPrice: number; // USD to be featured on the home screen, set by the admin
   promotionDays: number;
+  iqdPerUsd: number; // exchange rate shown next to USD prices, set by the admin
 }
 
 export interface Session { token: string; userId: number; createdAt: string }

@@ -143,7 +143,12 @@ export function Thread({ id }: { id: string }) {
               {t('messages.see_booking')}
             </Link>
           ) : asTourist && th.offer && th.offer.status === 'pending' && th.request.status === 'open' ? (
-            <Link to={`/requests/${th.request.id}`} className="btn sm">
+            <Link to={`/requests/${th.request.id}?hire=${th.offer.id}`} className="btn sm">
+              {t('messages.hire')}
+            </Link>
+          ) : asTourist ? (
+            // No offer from this guide on this trip: Hire opens the page to send them a trip.
+            <Link to={`/post?guide=${th.other.id}`} className="btn sm">
               {t('messages.hire')}
             </Link>
           ) : (

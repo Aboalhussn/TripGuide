@@ -40,7 +40,7 @@ export function emptyData(now: Date): Data {
     reports: [],
     sessions: [],
     payments: [],
-    platform: { guideSubscriptionPrice: settings.guideSubscriptionPrice, subscriptionDays: settings.subscriptionDays, promotionPrice: settings.promotionPrice, promotionDays: settings.promotionDays },
+    platform: { guideSubscriptionPrice: settings.guideSubscriptionPrice, subscriptionDays: settings.subscriptionDays, promotionPrice: settings.promotionPrice, promotionDays: settings.promotionDays, iqdPerUsd: settings.iqdPerUsd },
   };
 }
 

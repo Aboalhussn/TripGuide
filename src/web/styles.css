@@ -643,3 +643,32 @@ html:has(.post-wizard) { scroll-padding: 110px 0 170px; }
 .ptr-body { transition: transform .25s ease; }
 @keyframes ptr-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .ptr.busy img { animation-duration: 2s; } }
+
+/* Hired, waiting for the guide to confirm */
+.hired-card { display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: 18px; background: var(--brand); color: #fff; }
+.hired-card strong { color: #fff; font-size: 17px; }
+.hired-card .small { color: #fff; opacity: .9; }
+.hired-card .st-ico { background: rgba(255,255,255,.14); color: var(--gold); }
+.btn.ghost-light { background: rgba(255,255,255,.14); color: #fff; border-color: transparent; }
+.send-trip { background: var(--sky-soft); border-color: transparent; }
+
+/* Pick limits: a clear message the moment a limit is reached, and the other options locked */
+.limit-note { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: #a33a22; background: #fde8e4; border-radius: 10px; padding: 6px 10px; align-self: flex-start; }
+.toggle-chip.locked, .toggle-chip:disabled { opacity: .4; cursor: not-allowed; background: var(--paper); }
+
+.per-day-note { display: flex; gap: 8px; align-items: flex-start; background: var(--sky-soft); color: var(--navy); }
+.price-input.sm { min-height: 50px; border-width: 1.5px; }
+.price-input.sm input { font-size: 18px; }
+.trip-total { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: 14px; background: var(--brand); color: #fff; }
+.trip-total strong { font-size: 22px; color: #fff; }
+.trip-total .xs { color: var(--brand-dim); }
+
+/* Saved payment card */
+.pay-card-visual { display: flex; flex-direction: column; gap: 14px; padding: 18px; border-radius: 18px; color: #fff; background: linear-gradient(135deg, #053f5c, #0b4d6e 60%, #429ebd); max-width: 340px; box-shadow: 0 14px 30px -14px rgba(5,63,92,.6); }
+.pcv-brand { font-weight: 800; font-size: 15px; letter-spacing: .04em; }
+.pcv-num { font-size: 19px; letter-spacing: .12em; font-variant-numeric: tabular-nums; }
+.pcv-foot { display: flex; justify-content: space-between; font-size: 13px; opacity: .9; text-transform: uppercase; }
+.saved-card-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.saved-card { display: inline-flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; background: var(--paper); font-weight: 600; }
+.sc-brand { color: var(--navy); font-weight: 800; }
+.sc-exp { font-size: 12px; color: var(--muted); font-weight: 500; }

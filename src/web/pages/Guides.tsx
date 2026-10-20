@@ -422,11 +422,22 @@ export function GuideProfile({ id }: { id: string }) {
                 <button type="button" className="btn outline" style={{ flex: 1 }} onClick={message} disabled={busy}>
                   {t('guide.message')}
                 </button>
-                <Link to={me ? `/post?guide=${g.id}` : `/login?next=${encodeURIComponent('/post?guide=' + g.id)}`} className="btn" style={{ flex: 1.4 }}>
-                  {t('guide.hire', { name: first })}
-                </Link>
+                {g.forMe?.booking ? (
+                  <Link to={`/bookings/${g.forMe.booking.id}`} className="btn" style={{ flex: 1.4 }}>
+                    {g.forMe.booking.status === 'awaiting_guide' ? t('guide.hired_waiting', { name: first }) : t('guide.see_booking')}
+                  </Link>
+                ) : g.forMe?.offer ? (
+                  <Link to={`/requests/${g.forMe.offer.requestId}?hire=${g.forMe.offer.id}`} className="btn" style={{ flex: 1.4 }}>
+                    {t('offer.hire_for', { amount: fmt.usd(g.forMe.offer.price) })}
+                  </Link>
+                ) : (
+                  <Link to={me ? `/post?guide=${g.id}` : `/login?next=${encodeURIComponent('/post?guide=' + g.id)}`} className="btn" style={{ flex: 1.4 }}>
+                    {t('guide.hire', { name: first })}
+                  </Link>
+                )}
               </div>
             ) : null}
+            {!isMe && g.forMe?.offer && !g.forMe.booking && <p className="xs muted center">{t('guide.offer_on', { title: g.forMe.offer.title })}</p>}
           </div>
         </aside>
       </div>

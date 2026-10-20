@@ -4,8 +4,11 @@ import { useApp, useLoad } from '../lib/app';
 import { useFmt } from '../lib/format';
 import { Link, navigate } from '../lib/router';
 import { RequestFeedCard } from './Home';
-import { Avatar, Empty, ErrorState, Field, GuideCard, Icon, Loading, Modal, Money, OfferStatus, PageHead, Rating, RequestFacts, RequestStatus, Star, Stepper, ToggleGroup, VerifiedBadge, useBusy, CardForm, PayMethodPicker, emptyCard, DateRangePicker, LanguagePick, HeroBand } from '../ui';
+import { Avatar, Empty, ErrorState, Field, GuideCard, Icon, Loading, Modal, Money, OfferStatus, PageHead, Rating, RequestFacts, RequestStatus, Star, Stepper, ToggleGroup, VerifiedBadge, useBusy, CardForm, PayMethodPicker, emptyCard, DateRangePicker, LanguagePick, HeroBand, LimitNote } from '../ui';
 import type { CardValue } from '../ui';
+
+/** Trip request limits; the server checks the same numbers. */
+export const TRIP_LIMITS = { cities: 4, places: 6, languages: 3, interests: 5, people: 10, perDay: 2000 };
 
 function addDays(date: string, n: number) {
   const d = new Date(date + 'T00:00:00Z');
@@ -55,7 +58,7 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
   const up = (patch: Partial<typeof f>) => setF((x) => ({ ...x, ...patch }));
   const days = f.startDate && f.endDate && f.endDate >= f.startDate ? daysBetween(f.startDate, f.endDate) : 0;
   const placesInCities = meta.places.filter((p: any) => f.cities.includes(p.city) && !f.places.includes(p.id) && (!placeQuery || fmt.place(p.id).toLowerCase().includes(placeQuery.toLowerCase())));
-  const suggested = g && days ? g.pricePerDay * days : null;
+  const suggested = g ? g.pricePerDay : null; // per day, like the budget
 
   // Live checks: each problem shows as soon as the field is touched, and all of them on submit.
   const errors: Record<string, string> = {};
@@ -69,10 +72,13 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
   if (!f.languages.length) errors.languages = t('v.languages');
   const bMin = f.budgetMin === '' ? null : Number(f.budgetMin);
   const bMax = f.budgetMax === '' ? null : Number(f.budgetMax);
+  // The budget is entered per day; the whole-trip total is shown live and sent to the server.
   if (bMax === null) errors.budgetMax = t('v.budget_max');
   else if (bMax < 10) errors.budgetMax = t('v.budget_low', { amount: fmt.usd(10) });
+  else if (bMax > TRIP_LIMITS.perDay) errors.budgetMax = t('v.budget_high', { amount: fmt.usd(TRIP_LIMITS.perDay) });
   else if (bMin !== null && bMax < bMin) errors.budgetMax = t('err.budget_order');
   if (bMin === null) errors.budgetMin = t('v.budget_min');
+  else if (bMin > TRIP_LIMITS.perDay) errors.budgetMin = t('v.budget_high', { amount: fmt.usd(TRIP_LIMITS.perDay) });
   const show = (k: string) => (tried || touched[k] ? errors[k] : undefined);
 
   if (!me) {
@@ -149,8 +155,8 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
       try {
         const r = await api('POST', '/requests', {
           ...f,
-          budgetMin: Number(f.budgetMin),
-          budgetMax: Number(f.budgetMax),
+          budgetMin: Number(f.budgetMin) * days,
+          budgetMax: Number(f.budgetMax) * days,
           plan: usePlan ? dayPlan.map((d) => ({ title: d.title.trim(), details: d.details.trim() })) : [],
           directGuideId: g ? g.id : undefined,
         });
@@ -186,6 +192,39 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
         <HeroBand img={cur.img} title={t(`post.s${step + 1}_title`)} text={t(`post.s${step + 1}_text`)} />
       </div>
 
+      {g && step === 0 && g.forMe?.openRequests?.length > 0 && (
+        <section className="card stack send-trip" aria-labelledby="send-trip-h">
+          <strong id="send-trip-h">{t('post.send_existing', { name: g.name.split(' ')[0] })}</strong>
+          <span className="xs muted">{t('post.send_existing_text', { name: g.name.split(' ')[0] })}</span>
+          {g.forMe.openRequests.map((x: any) => (
+            <div key={x.id} className="between" style={{ gap: 10, flexWrap: 'nowrap' }}>
+              <span className="stack" style={{ gap: 0, minWidth: 0 }}>
+                <span className="bold" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><bdi>{x.title}</bdi></span>
+                <span className="xs muted">{fmt.range(x.startDate, x.endDate)}</span>
+              </span>
+              {x.invited ? (
+                <Link to={`/requests/${x.id}`} className="btn sm ghost">{t('post.sent_check')}</Link>
+              ) : (
+                <button
+                  type="button"
+                  className="btn sm"
+                  disabled={busy}
+                  onClick={() =>
+                    run(async () => {
+                      await api('POST', `/requests/${x.id}/invite`, { guideId: g.id });
+                      toast(t('post.sent_existing', { name: g.name.split(' ')[0] }));
+                      navigate(`/requests/${x.id}`);
+                    })
+                  }
+                >
+                  {t('post.send_to', { name: g.name.split(' ')[0] })}
+                </button>
+              )}
+            </div>
+          ))}
+          <span className="divider-text xs">{t('post.or_new')}</span>
+        </section>
+      )}
       {g && step === 0 && (
         <div className="card row" style={{ gap: 12, flexWrap: 'nowrap' }}>
           <Avatar user={g} size={48} />
@@ -207,7 +246,7 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
               <input id="pf-title" className="input" value={f.title} onBlur={() => f.title && touch('title')} onChange={(e) => { up({ title: e.target.value }); if (e.target.value.trim().length >= 5) touch('title'); }} maxLength={90} required />
             </Field>
             <div id="pf-cities" tabIndex={-1} className="stack" style={{ gap: 6 }}>
-              <ToggleGroup label={t('field.cities')} options={meta.cities.map((c: any) => c.slug)} value={f.cities} onChange={(cities) => { touch('cities'); up({ cities, places: f.places.filter((id) => cities.includes(meta.places.find((p: any) => p.id === id)?.city)) }); }} render={fmt.city} />
+              <ToggleGroup max={TRIP_LIMITS.cities} label={t('field.cities')} options={meta.cities.map((c: any) => c.slug)} value={f.cities} onChange={(cities) => { touch('cities'); up({ cities, places: f.places.filter((id) => cities.includes(meta.places.find((p: any) => p.id === id)?.city)) }); }} render={fmt.city} />
               {show('cities') && <span className="err small">{show('cities')}</span>}
             </div>
             {f.cities.length > 0 && (
@@ -227,11 +266,12 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
                 </div>
                 <div className="chips">
                   {placesInCities.slice(0, 10).map((p: any) => (
-                    <button key={p.id} type="button" className="toggle-chip" style={{ borderStyle: 'dashed' }} onClick={() => up({ places: [...f.places, p.id] })}>
+                    <button key={p.id} type="button" className={'toggle-chip' + (f.places.length >= TRIP_LIMITS.places ? ' locked' : '')} disabled={f.places.length >= TRIP_LIMITS.places} style={{ borderStyle: 'dashed' }} onClick={() => up({ places: [...f.places, p.id] })}>
                       + {fmt.place(p.id)}
                     </button>
                   ))}
                 </div>
+                {f.places.length >= TRIP_LIMITS.places && <LimitNote max={TRIP_LIMITS.places} />}
                 {placesInCities.length > 10 && <input className="input" placeholder={t('post.find_place')} value={placeQuery} onChange={(e) => setPlaceQuery(e.target.value)} />}
               </div>
             )}
@@ -240,7 +280,7 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
 
         {step === 1 && (
           <div className="stack">
-            <Stepper label={t('field.groupSize')} value={f.groupSize} onChange={(groupSize) => up({ groupSize })} />
+            <Stepper label={t('field.groupSize')} value={f.groupSize} max={TRIP_LIMITS.people} maxNote={t('v.max_people', { count: TRIP_LIMITS.people })} onChange={(groupSize) => up({ groupSize })} />
             <DateRangePicker id="pf-dates" label={t('post.dates')} start={f.startDate} end={f.endDate} today={today} error={show('dates')} onChange={(startDate, endDate) => { touch('dates'); up({ startDate, endDate }); }} />
             {days > 0 && !errors.dates && <p className="small muted">{t('post.days', { count: days })}</p>}
             {!g && (
@@ -255,7 +295,7 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
         {step === 2 && (
           <div className="stack-lg">
             <div id="pf-languages" tabIndex={-1}>
-              <LanguagePick label={t('post.guide_speaks')} all={meta.languages} value={f.languages} onChange={(languages) => { touch('languages'); up({ languages }); }} render={fmt.language} error={show('languages')} />
+              <LanguagePick max={TRIP_LIMITS.languages} label={t('post.guide_speaks')} all={meta.languages} value={f.languages} onChange={(languages) => { touch('languages'); up({ languages }); }} render={fmt.language} error={show('languages')} />
             </div>
             <div className="stack" style={{ gap: 10 }}>
               <label className="check">
@@ -279,7 +319,7 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
                 </ol>
               )}
             </div>
-            <ToggleGroup label={t('field.interests')} options={meta.interests} value={f.interests} onChange={(interests) => up({ interests })} render={(i) => t('interest.' + i)} />
+            <ToggleGroup max={TRIP_LIMITS.interests} label={t('field.interests')} options={meta.interests} value={f.interests} onChange={(interests) => up({ interests })} render={(i) => t('interest.' + i)} />
             <Field label={t('post.anything_else')}>
               <textarea className="textarea" rows={3} value={f.description} onChange={(e) => up({ description: e.target.value })} maxLength={2000} placeholder={t('post.anything_placeholder')} />
             </Field>
@@ -288,18 +328,35 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
 
         {step === 3 && (
           <div className="stack">
+            <div className="note per-day-note">
+              <Icon name="calendar" size={18} /> <span>{t('post.per_day_explain', { count: days })}</span>
+            </div>
             <div className="grid-2">
-              <Field label={t('field.budgetMin')} error={show('budgetMin')}>
-                <input id="pf-budgetMin" className="input ltr" inputMode="numeric" value={f.budgetMin} onBlur={() => touch('budgetMin')} onChange={(e) => { up({ budgetMin: e.target.value.replace(/\D/g, '') }); touch('budgetMin'); }} placeholder="$" />
+              <Field label={t('post.per_day_from')} error={show('budgetMin')}>
+                <div className="price-input sm">
+                  <span className="bold">$</span>
+                  <input id="pf-budgetMin" inputMode="numeric" aria-label={t('post.per_day_from')} value={f.budgetMin} onBlur={() => touch('budgetMin')} onChange={(e) => { up({ budgetMin: e.target.value.replace(/\D/g, '').slice(0, 5) }); touch('budgetMin'); }} />
+                  <span className="xs muted">{t('common.per_day')}</span>
+                </div>
               </Field>
-              <Field label={t('field.budgetMax')} error={show('budgetMax')}>
-                <input id="pf-budgetMax" className="input ltr" inputMode="numeric" value={f.budgetMax} onBlur={() => touch('budgetMax')} onChange={(e) => { up({ budgetMax: e.target.value.replace(/\D/g, '') }); if (e.target.value.length >= 2) touch('budgetMax'); }} placeholder="$" />
+              <Field label={t('post.per_day_to')} error={show('budgetMax')}>
+                <div className="price-input sm">
+                  <span className="bold">$</span>
+                  <input id="pf-budgetMax" inputMode="numeric" aria-label={t('post.per_day_to')} value={f.budgetMax} onBlur={() => touch('budgetMax')} onChange={(e) => { up({ budgetMax: e.target.value.replace(/\D/g, '').slice(0, 5) }); touch('budgetMax'); }} />
+                  <span className="xs muted">{t('common.per_day')}</span>
+                </div>
               </Field>
             </div>
-            {f.budgetMax !== '' && <p className="small muted">{t('post.iqd', { min: fmt.iqd(Number(f.budgetMin || 0)), max: fmt.iqd(Number(f.budgetMax)) })}</p>}
+            {f.budgetMax !== '' && !errors.budgetMax && !errors.budgetMin && (
+              <div className="trip-total" role="status">
+                <span className="small">{t('post.whole_trip', { count: days })}</span>
+                <strong>{fmt.usd(Number(f.budgetMin || 0) * days)}–{fmt.usd(Number(f.budgetMax) * days)}</strong>
+                <span className="xs muted">{t('post.iqd', { min: fmt.iqd(Number(f.budgetMin || 0) * days), max: fmt.iqd(Number(f.budgetMax) * days) })}</span>
+              </div>
+            )}
             {suggested !== null && (
               <p className="small muted">
-                {t('post.guide_rate', { name: g.name.split(' ')[0], amount: fmt.usd(suggested), count: days })}{' '}
+                {t('post.guide_rate_day', { name: g.name.split(' ')[0], amount: fmt.usd(suggested) })}{' '}
                 <button type="button" className="linkish" onClick={() => up({ budgetMin: String(suggested), budgetMax: String(suggested) })}>
                   {t('post.use_rate')}
                 </button>
@@ -519,6 +576,20 @@ function TouristRequestView({ r, reload }: { r: any; reload(): void }) {
   const [compare, setCompare] = useState(false);
   const [hireOffer, setHireOffer] = useState<any>(null);
   const { busy, run } = useBusy();
+  // "Hire" from a chat or a guide's page lands here with ?hire=<offer id> and opens the hire sheet straight away.
+  useEffect(() => {
+    const m = window.location.hash.match(/[?&]hire=(\d+)/);
+    const o = m && r.offers.find((x: any) => x.id === Number(m[1]) && x.status === 'pending');
+    if (o && r.status === 'open') setHireOffer(o);
+  }, [r.id]);
+  const waiting = r.status === 'awarded' && r.booking?.status === 'awaiting_guide' ? r.booking : null;
+  const cancelHire = async () => {
+    if (!(await ask(t('hire.cancel_confirm', { name: waiting.guideName.split(' ')[0] }), t('hire.cancel')))) return;
+    run(async () => {
+      await api('POST', `/bookings/${waiting.id}/cancel`, { reason: 'Changed my mind before confirmation' });
+      reload();
+    }, t('hire.cancelled_toast'));
+  };
   const shortlisted = r.offers.filter((o: any) => o.shortlisted);
   const visible = (tab === 'shortlist' ? shortlisted : r.offers).slice().sort((a: any, b: any) => {
     if (sort === 'price') return a.price - b.price;
@@ -548,11 +619,33 @@ function TouristRequestView({ r, reload }: { r: any; reload(): void }) {
       <div className="split">
         <div className="stack-lg">
           <RequestHeader r={r} />
-          {r.booking && ['awaiting_guide', 'confirmed', 'completed', 'disputed'].includes(r.booking.status) && (
-            <Link to={`/bookings/${r.booking.id}`} className="card attention link between">
-              <strong>{t('request.see_booking')}</strong>
-              <Icon name="next" className="flip" />
-            </Link>
+          {waiting ? (
+            <section className="hired-card" aria-label={t('hire.waiting_title', { name: waiting.guideName })}>
+              <div className="row" style={{ gap: 10, flexWrap: 'nowrap', alignItems: 'flex-start' }}>
+                <span className="st-ico"><Icon name="clock" size={20} /></span>
+                <div className="stack" style={{ gap: 4 }}>
+                  <strong>{t('hire.waiting_title', { name: waiting.guideName })}</strong>
+                  <span className="small">{t('hire.waiting_text', { name: waiting.guideName.split(' ')[0], amount: fmt.usd(waiting.total), count: fmt.until(waiting.confirmBy) })}</span>
+                </div>
+              </div>
+              <div className="row" style={{ gap: 8 }}>
+                <Link to={`/bookings/${waiting.id}`} className="btn sm gold">{t('request.see_booking')}</Link>
+                <button type="button" className="btn sm ghost-light" onClick={() => chat({ guideId: waiting.guideId })} disabled={busy}>
+                  {t('hire.chat_with', { name: waiting.guideName.split(' ')[0] })}
+                </button>
+              </div>
+              <button type="button" className="linkish xs" style={{ color: '#fff', alignSelf: 'flex-start' }} onClick={cancelHire} disabled={busy}>
+                {t('hire.change_mind')}
+              </button>
+            </section>
+          ) : (
+            r.booking &&
+            ['confirmed', 'completed', 'disputed'].includes(r.booking.status) && (
+              <Link to={`/bookings/${r.booking.id}`} className="card attention link between">
+                <strong>{t('request.see_booking')}</strong>
+                <Icon name="next" className="flip" />
+              </Link>
+            )
           )}
           <div className="stat-row">
             <div>
@@ -602,7 +695,7 @@ function TouristRequestView({ r, reload }: { r: any; reload(): void }) {
               {shortlisted.length < 2 && r.offers.length > 1 && <p className="xs muted">{t('request.compare_hint')}</p>}
               {visible.length === 0 && <Empty title={tab === 'shortlist' ? t('request.no_shortlist') : t('request.no_offers')} text={tab === 'shortlist' ? t('request.no_shortlist_text') : t('request.no_offers_text')} />}
               {visible.map((o: any) => (
-                <OfferCard key={o.id} o={o} r={r} onShort={() => toggleShort(o)} onChat={() => chat(o)} onHire={() => setHireOffer(o)} busy={busy} />
+                <OfferCard key={o.id} o={o} r={r} hiredName={waiting && o.guideId !== waiting.guideId ? waiting.guideName.split(' ')[0] : null} onShort={() => toggleShort(o)} onChat={() => chat(o)} onHire={() => setHireOffer(o)} busy={busy} />
               ))}
             </>
           )}
@@ -637,7 +730,7 @@ function TouristRequestView({ r, reload }: { r: any; reload(): void }) {
   );
 }
 
-function OfferCard({ o, r, onShort, onChat, onHire, busy }: { o: any; r: any; onShort(): void; onChat(): void; onHire(): void; busy: boolean }) {
+function OfferCard({ o, r, hiredName, onShort, onChat, onHire, busy }: { o: any; r: any; hiredName?: string | null; onShort(): void; onChat(): void; onHire(): void; busy: boolean }) {
   const { t } = useApp();
   const fmt = useFmt();
   const [open, setOpen] = useState(o.shortlisted);
@@ -702,6 +795,7 @@ function OfferCard({ o, r, onShort, onChat, onHire, busy }: { o: any; r: any; on
           </button>
         )}
       </div>
+      {hiredName && <p className="xs muted" style={{ margin: 0 }}>{t('hire.locked_note', { name: hiredName })}</p>}
     </article>
   );
 }

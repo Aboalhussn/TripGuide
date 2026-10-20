@@ -405,3 +405,56 @@ test('profile photo, cover photo, and a tour photo added from the + button', () 
   assert.equal(photos.at(-1).caption, 'Sunrise at Babylon');
   assert.equal(s.call('POST', '/guide/photos', { img }, s.login(DEMO_ACCOUNTS.tourist)).status, 403);
 });
+
+test('hire flow: the guide page knows the pending offer and booking; cancelling before confirmation reopens the trip', () => {
+  const s = setup();
+  const { tt, g, offer, req: r } = postAndOffer(s);
+  const gid = s.ok('GET', '/me', null, g).id;
+  let me = s.ok('GET', `/guides/${gid}`, null, tt).forMe;
+  assert.equal(me.offer.id, offer.id);
+  assert.equal(me.booking, null);
+  const b = s.ok('POST', `/offers/${offer.id}/hire`, { confirmPayment: true, card: CARD }, tt);
+  me = s.ok('GET', `/guides/${gid}`, null, tt).forMe;
+  assert.equal(me.booking.id, b.id);
+  assert.notEqual(me.offer?.id, offer.id); // the hired offer is no longer offered
+  const req = s.ok('GET', `/requests/${r.id}`, null, tt);
+  assert.equal(req.status, 'awarded');
+  assert.equal(req.booking.guideId, gid);
+  assert.ok(req.booking.confirmBy);
+  s.ok('POST', `/bookings/${b.id}/cancel`, {}, tt);
+  assert.equal(s.ok('GET', `/requests/${r.id}`, null, tt).status, 'open');
+  // A trip already posted can be sent to another guide instead of typing it again.
+  const other = s.data.guides.find((x) => x.userId !== gid && x.headline)!;
+  const sendable = s.ok('GET', `/guides/${other.userId}`, null, tt).forMe.openRequests;
+  assert.ok(sendable.some((x: any) => x.id === r.id));
+  s.ok('POST', `/requests/${r.id}/invite`, { guideId: other.userId }, tt);
+  assert.ok(s.ok('GET', `/guides/${other.userId}`, null, tt).forMe.openRequests.find((x: any) => x.id === r.id).invited);
+});
+
+test('strict limits: trips up to 10 people, 3 languages, 4 cities; the admin sets the dinar rate', () => {
+  const s = setup();
+  const tt = s.login(DEMO_ACCOUNTS.tourist);
+  const base = tripBody(s.today());
+  assert.equal(s.call('POST', '/requests', { ...base, groupSize: 11 }, tt).body.error, 'field_range');
+  assert.equal(s.ok('POST', '/requests', { ...base, groupSize: 10 }, tt).groupSize, 10);
+  assert.equal(s.call('POST', '/requests', { ...base, languages: ['en', 'ar', 'fr', 'de'] }, tt).body.error, 'field_too_long');
+  assert.equal(s.call('POST', '/requests', { ...base, cities: ['baghdad', 'babylon', 'najaf', 'karbala', 'basra'] }, tt).body.error, 'field_too_long');
+  const admin = s.login(DEMO_ACCOUNTS.admin);
+  s.ok('PUT', '/admin/settings', { iqdPerUsd: 1500 }, admin);
+  assert.equal(s.ok('GET', '/meta').iqdPerUsd, 1500);
+  assert.equal(s.call('PUT', '/admin/settings', { iqdPerUsd: 5 }, admin).status, 400);
+});
+
+test('a saved card: kept without the full number, used to pay, and removable', () => {
+  const s = setup();
+  const { tt, offer } = postAndOffer(s);
+  assert.equal(s.call('PUT', '/me/card', { ...CARD, number: '1234' }, tt).body.error, 'card_invalid');
+  const me = s.ok('PUT', '/me/card', CARD, tt);
+  assert.deepEqual(me.savedCard, { brand: 'Visa', last4: '4242', name: 'Test Tourist', expiry: '12/30' });
+  assert.ok(!JSON.stringify(s.data.users).includes('4242424242424242'));
+  const b = s.ok('POST', `/offers/${offer.id}/hire`, { confirmPayment: true, method: 'card', card: { saved: true } }, tt);
+  assert.equal(b.cardLast4, '4242');
+  assert.equal(s.ok('DELETE', '/me/card', null, tt).savedCard, null);
+  const g = s.login(DEMO_ACCOUNTS.guide);
+  assert.equal(s.ok('PUT', '/me/card', CARD, g).savedCard.last4, '4242');
+});

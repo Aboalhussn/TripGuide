@@ -414,6 +414,46 @@ export function AdminPricing() {
       <PageHead title={t('admin.pricing')} backTo="/" />
       <SubscriptionSettings price={x.subscriptionPrice} days={x.subscriptionDays} active={x.activeSubscriptions} onSaved={d.reload} />
       <SubscriptionSettings promo price={x.promotionPrice} days={x.promotionDays} active={x.activePromotions} onSaved={d.reload} />
+      <RateSettings rate={x.iqdPerUsd} onSaved={d.reload} />
     </div>
+  );
+}
+
+/** The dollar to dinar rate shown next to every USD price in the app. */
+function RateSettings({ rate, onSaved }: { rate: number; onSaved(): void }) {
+  const { t, refreshMeta, errorText } = useApp();
+  const fmt = useFmt();
+  const [v, setV] = useState(String(rate));
+  const [msg, setMsg] = useState<string | null>(null);
+  const { busy, run } = useBusy();
+  const n = Number(v);
+  const err = v === '' ? t('admin.rate_required') : n < 100 || n > 100000 ? t('admin.rate_range') : null;
+  const save = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (err) return;
+    run(async () => {
+      try {
+        await api('PUT', '/admin/settings', { iqdPerUsd: n });
+        await refreshMeta?.();
+        setMsg(t('common.saved'));
+        onSaved();
+      } catch (x) {
+        setMsg(errorText(x));
+      }
+    });
+  };
+  return (
+    <form className="card stack" onSubmit={save} aria-labelledby="rate-title">
+      <h2 id="rate-title" style={{ fontSize: 20 }}>{t('admin.rate_title')}</h2>
+      <p className="small muted">{t('admin.rate_text')}</p>
+      <Field label={t('admin.rate_label')} error={err}>
+        <input className="input ltr" inputMode="numeric" value={v} onChange={(e) => { setV(e.target.value.replace(/\D/g, '').slice(0, 6)); setMsg(null); }} />
+      </Field>
+      {!err && <p className="small muted">{t('admin.rate_example', { usd: fmt.usd(100), iqd: (100 * n).toLocaleString('en-US') })}</p>}
+      <div className="row">
+        <button className="btn" disabled={busy || !!err}>{t('common.save')}</button>
+        {msg && <span className="small muted" role="status">{msg}</span>}
+      </div>
+    </form>
   );
 }

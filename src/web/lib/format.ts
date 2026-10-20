@@ -68,7 +68,8 @@ export function makeFmt(lang: Lang, meta: any) {
   const pct = (x: number | null) => (x === null ? '—' : new Intl.NumberFormat(lang === 'ar' ? 'ar-IQ' : 'en-US', { style: 'percent' }).format(x));
   const minutes = (m: number | null) => m;
   const pick = (en: string, ar: string) => (lang === 'ar' && ar ? ar : en);
-  return { num, usd, iqd, date, dateLong, range, time, ago, until, city, cities, place, language, list, pct, minutes, pick };
+  const perDaySuffix = lang === 'ar' ? ' لليوم' : ' a day';
+  return { perDaySuffix, num, usd, iqd, date, dateLong, range, time, ago, until, city, cities, place, language, list, pct, minutes, pick };
 }
 
 export function useFmt() {

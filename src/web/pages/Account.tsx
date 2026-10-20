@@ -5,7 +5,7 @@ import { useFmt } from '../lib/format';
 import { Link, navigate } from '../lib/router';
 import { asset, photoSrc } from '../assets';
 import { resizeImage } from '../lib/image';
-import { Avatar, BookingStatus, BrandFooter, HeroBand, LangToggle, CardForm, Field, Icon, Loading, Modal, Money, MonthCalendar, PageHead, ToggleGroup, VerifiedBadge, emptyCard, useBusy } from '../ui';
+import { Avatar, BookingStatus, BrandFooter, HeroBand, LimitNote, LangToggle, CardForm, Field, Icon, Loading, Modal, Money, MonthCalendar, PageHead, ToggleGroup, VerifiedBadge, emptyCard, useBusy } from '../ui';
 import type { CardValue } from '../ui';
 
 function goNext(query: Record<string, string>) {
@@ -112,15 +112,29 @@ export function Register({ query }: { query: Record<string, string> }) {
   const [f, setF] = useState({ role: query.role === 'guide' ? 'guide' : 'tourist', name: '', email: '', password: '', country: query.role === 'guide' ? 'Iraq' : '', gender: '' });
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const up = (p: Partial<typeof f>) => setF((x) => ({ ...x, ...p }));
+  const [dirty, setDirty] = useState<Record<string, boolean>>({});
+  const [tried, setTried] = useState(false);
+  const up = (p: Partial<typeof f>) => {
+    setF((x) => ({ ...x, ...p }));
+    setDirty((d) => ({ ...d, ...Object.fromEntries(Object.keys(p).map((k) => [k, true])) }));
+  };
   const rules = passwordRules(f.password);
   const strong = rules.every((r) => r.ok);
+  // Every field is checked as you type; the message shows as soon as the field has been touched.
+  const errs: Record<string, string> = {};
+  if (f.name.trim().length < 2) errs.name = t('v.name');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(f.email.trim())) errs.email = f.email ? t('err.email_invalid') : t('v.email');
+  if (!strong) errs.password = t('err.password_weak');
+  if (f.country.trim().length < 2) errs.country = t('v.country');
+  if (!f.gender) errs.gender = t('v.gender');
+  const show = (k: string) => (tried || dirty[k] ? errs[k] : undefined);
   const go = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr(null);
-    if (!strong) {
-      setErr(t('err.password_weak'));
-      document.getElementById('reg-pw')?.focus();
+    setTried(true);
+    const first = Object.keys(errs)[0];
+    if (first) {
+      document.getElementById('reg-' + first)?.focus();
       return;
     }
     setBusy(true);
@@ -149,14 +163,14 @@ export function Register({ query }: { query: Record<string, string> }) {
             </button>
           ))}
         </div>
-        <Field label={t('field.name')}>
-          <input className="input" autoComplete="name" value={f.name} onChange={(e) => up({ name: e.target.value })} />
+        <Field label={t('field.name')} error={show('name')}>
+          <input id="reg-name" className="input" autoComplete="name" value={f.name} onChange={(e) => up({ name: e.target.value.slice(0, 60) })} />
         </Field>
-        <Field label={t('field.email')}>
-          <input className="input" type="email" autoComplete="email" value={f.email} onChange={(e) => up({ email: e.target.value })} />
+        <Field label={t('field.email')} error={show('email')}>
+          <input id="reg-email" className="input" type="email" autoComplete="email" value={f.email} onChange={(e) => up({ email: e.target.value.trim() })} />
         </Field>
-        <Field label={t('field.password')}>
-          <input id="reg-pw" className="input" type="password" autoComplete="new-password" value={f.password} onChange={(e) => up({ password: e.target.value })} aria-describedby="pw-rules" />
+        <Field label={t('field.password')} error={dirty.password && f.password.length >= 8 ? show('password') : undefined}>
+          <input id="reg-password" className="input" type="password" autoComplete="new-password" value={f.password} onChange={(e) => up({ password: e.target.value })} aria-describedby="pw-rules" />
         </Field>
         <ul id="pw-rules" className="pw-rules" aria-label={t('auth.pw_rules')}>
           {rules.map((r) => (
@@ -168,11 +182,11 @@ export function Register({ query }: { query: Record<string, string> }) {
           ))}
         </ul>
         <div className="grid-2">
-          <Field label={t('field.country')}>
-            <input className="input" autoComplete="country-name" value={f.country} onChange={(e) => up({ country: e.target.value })} />
+          <Field label={t('field.country')} error={show('country')}>
+            <input id="reg-country" className="input" autoComplete="country-name" value={f.country} onChange={(e) => up({ country: e.target.value.slice(0, 60) })} />
           </Field>
-          <Field label={t('field.gender')}>
-            <select className="select" value={f.gender} onChange={(e) => up({ gender: e.target.value })}>
+          <Field label={t('field.gender')} error={show('gender')}>
+            <select id="reg-gender" className="select" value={f.gender} onChange={(e) => up({ gender: e.target.value })}>
               <option value="">{t('common.choose')}</option>
               <option value="f">{t('gender.f')}</option>
               <option value="m">{t('gender.m')}</option>
@@ -199,6 +213,82 @@ export function Register({ query }: { query: Record<string, string> }) {
         <p className="xs muted center">{t('auth.guest_note')}</p>
       </div>
     </div>
+  );
+}
+
+/** Payment card kept in the profile (tourists and guides). Only brand, last 4, name and expiry are stored. */
+function PaymentCard() {
+  const { t, me, refreshMe, toast, errorText, ask } = useApp();
+  const [open, setOpen] = useState(false);
+  const [card, setCard] = useState<CardValue>({ ...emptyCard, saved: false });
+  const [err, setErr] = useState<string | null>(null);
+  const { busy, run } = useBusy();
+  const c = me.savedCard;
+  const save = () =>
+    run(async () => {
+      setErr(null);
+      try {
+        await api('PUT', '/me/card', card);
+        await refreshMe();
+        setOpen(false);
+        setCard({ ...emptyCard, saved: false });
+        toast(t('card.saved_toast'));
+      } catch (x) {
+        setErr(errorText(x));
+        throw x;
+      }
+    });
+  const remove = async () => {
+    if (!(await ask(t('card.remove_confirm'), t('card.remove')))) return;
+    run(async () => {
+      await api('DELETE', '/me/card');
+      await refreshMe();
+    }, t('card.removed_toast'));
+  };
+  return (
+    <section className="card stack" aria-labelledby="pay-card-h">
+      <div className="between">
+        <strong id="pay-card-h" className="row" style={{ gap: 8 }}>
+          <Icon name="wallet" size={20} /> {t('card.title')}
+        </strong>
+        {c && <span className="pill sky">{t('card.on_file')}</span>}
+      </div>
+      <p className="small muted">{me.role === 'guide' ? t('card.text_guide') : t('card.text_tourist')}</p>
+      {c ? (
+        <>
+          <div className="pay-card-visual" dir="ltr">
+            <span className="pcv-brand">{c.brand}</span>
+            <span className="pcv-num">•••• •••• •••• {c.last4}</span>
+            <span className="pcv-foot">
+              <span>{c.name}</span>
+              <span>{c.expiry}</span>
+            </span>
+          </div>
+          <div className="row">
+            <button type="button" className="btn sm outline" onClick={() => setOpen(true)}>{t('card.replace')}</button>
+            <button type="button" className="btn sm ghost danger-text" onClick={remove} disabled={busy}>{t('card.remove')}</button>
+          </div>
+        </>
+      ) : (
+        <button type="button" className="btn" style={{ alignSelf: 'flex-start' }} onClick={() => setOpen(true)}>
+          <Icon name="plus" size={18} /> {t('card.add')}
+        </button>
+      )}
+      <p className="xs muted">{t('card.safety')}</p>
+      {open && (
+        <Modal title={c ? t('card.replace') : t('card.add')} onClose={() => setOpen(false)}>
+          <CardForm value={card} onChange={setCard} allowSaved={false} />
+          {err && (
+            <div className="note danger" role="alert">
+              {err}
+            </div>
+          )}
+          <button type="button" className="btn lg" onClick={save} disabled={busy}>
+            {t('card.save')}
+          </button>
+        </Modal>
+      )}
+    </section>
   );
 }
 
@@ -304,6 +394,7 @@ export function Account() {
       )}
 
       {(me.role === 'tourist' || me.role === 'guide') && <MyTrips guide={me.role === 'guide'} />}
+      {(me.role === 'tourist' || me.role === 'guide') && <PaymentCard />}
 
       {me.role === 'guide' && <CashPayments />}
       {me.role === 'guide' && <Promotion />}
@@ -729,12 +820,15 @@ function MyTrips({ guide }: { guide: boolean }) {
 
 /* ---------- New guides: set up the profile in three short steps ---------- */
 
+const GUIDE_LIMITS = { languages: 5, specialities: 6, places: 12 }; // same as the server
+
 export function GuideSetup() {
   const { t, me, meta, refreshMe, toast, errorText } = useApp();
   const fmt = useFmt();
   const g = me?.guide;
   const [step, setStep] = useState(0);
   const [tried, setTried] = useState<Record<number, boolean>>({});
+  const [dirty, setDirty] = useState<Record<string, boolean>>({});
   const [err, setErr] = useState<string | null>(null);
   const { busy, run } = useBusy();
   const [f, setF] = useState(() => ({
@@ -752,14 +846,18 @@ export function GuideSetup() {
   if (!meta) return <Loading />;
   // Editing later opens the same steps with everything already filled in.
   const editing = !!g?.profileComplete;
-  const up = (p: Partial<typeof f>) => setF((x) => ({ ...x, ...p }));
+  // Each change marks its field, so problems show while typing instead of only on Next.
+  const up = (p: Partial<typeof f>) => {
+    setF((x) => ({ ...x, ...p }));
+    setDirty((d) => ({ ...d, ...Object.fromEntries(Object.keys(p).map((k) => [k === 'pricePerDay' ? 'price' : k, true])) }));
+  };
   const STEPS = [
     { img: 'arch.jpg', check: () => ({ headline: f.headline.trim().length < 5 ? t('setup.v_headline') : '', bio: f.bio.trim().length < 30 ? t('setup.v_bio', { count: Math.max(0, 30 - f.bio.trim().length) }) : '' }) },
     { img: 'skyline.jpg', check: () => ({ cities: f.cities.length ? '' : t('v.cities') }) },
     { img: 'gate.jpg', check: () => ({ languages: f.languages.length ? '' : t('v.languages'), price: Number(f.pricePerDay) >= 10 && Number(f.pricePerDay) <= 1000 ? '' : t('setup.v_price') }) },
   ];
   const errs: Record<string, string> = STEPS[step].check();
-  const show = (k: string) => (tried[step] ? errs[k] || undefined : undefined);
+  const show = (k: string) => (tried[step] || dirty[k] ? errs[k] || undefined : undefined);
   const langCodes = f.languages.map((l) => l.code);
   const last = STEPS.length - 1;
   const toTop = () => window.scrollTo({ top: 0 });
@@ -840,9 +938,10 @@ export function GuideSetup() {
                 value={f.places.map(String)}
                 onChange={(v) => up({ places: v.map(Number) })}
                 render={(id) => fmt.place(Number(id))}
+                max={GUIDE_LIMITS.places}
               />
             )}
-            <ToggleGroup label={t('field.specialities')} options={meta.interests} value={f.specialities} onChange={(specialities) => up({ specialities })} render={(i) => t('interest.' + i)} />
+            <ToggleGroup max={GUIDE_LIMITS.specialities} label={t('field.specialities')} options={meta.interests} value={f.specialities} onChange={(specialities) => up({ specialities })} render={(i) => t('interest.' + i)} />
           </div>
         )}
         {step === 2 && (
@@ -864,7 +963,7 @@ export function GuideSetup() {
                   </button>
                 </div>
               ))}
-              <select className="select" value="" aria-label={t('editor.add_language')} onChange={(e) => e.target.value && up({ languages: [...f.languages, { code: e.target.value, level: 'good' }] })}>
+              <select className="select" value="" aria-label={t('editor.add_language')} disabled={f.languages.length >= GUIDE_LIMITS.languages} onChange={(e) => e.target.value && up({ languages: [...f.languages, { code: e.target.value, level: 'good' }] })}>
                 <option value="">{t('editor.add_language')}</option>
                 {meta.languages.filter((c: string) => !langCodes.includes(c)).map((c: string) => (
                   <option key={c} value={c}>
@@ -872,12 +971,13 @@ export function GuideSetup() {
                   </option>
                 ))}
               </select>
+              {f.languages.length >= GUIDE_LIMITS.languages && <LimitNote max={GUIDE_LIMITS.languages} />}
               {show('languages') && <span className="err small">{show('languages')}</span>}
             </div>
             <Field label={t('field.pricePerDay')} hint={show('price') ? undefined : t('editor.price_hint', { pct: Math.round(meta.feeRate * 100) })} error={show('price')}>
               <div className="price-input">
                 <span className="bold">$</span>
-                <input inputMode="numeric" value={f.pricePerDay} onChange={(e) => up({ pricePerDay: e.target.value.replace(/\D/g, '') })} aria-label={t('field.pricePerDay')} />
+                <input inputMode="numeric" value={f.pricePerDay} onChange={(e) => up({ pricePerDay: e.target.value.replace(/\D/g, '').slice(0, 4) })} aria-label={t('field.pricePerDay')} />
                 <span className="small muted">{t('common.per_day')}</span>
               </div>
             </Field>

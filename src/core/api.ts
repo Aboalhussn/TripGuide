@@ -71,7 +71,8 @@ function cardBrand(d: string) {
   if (/^(5[1-5]|2[2-7])/.test(d)) return 'Mastercard';
   return 'Card';
 }
-function chargeCard(ctx: Ctx, u: User, card: any, amount: number, purpose: 'booking' | 'subscription' | 'promotion', refId: number) {
+// Checks a card typed in by the user. Only brand, last 4, name and expiry are ever kept.
+function checkCard(ctx: Ctx, card: any) {
   const digits = String(card?.number || '').replace(/[\s-]/g, '');
   if (!/^\d{12,19}$/.test(digits) || !luhn(digits)) throw bad('card_invalid');
   const name = String(card?.name || '').trim();
@@ -83,10 +84,29 @@ function chargeCard(ctx: Ctx, u: User, card: any, amount: number, purpose: 'book
   if (lastDay.toISOString().slice(0, 10) < ctx.today) throw bad('card_expired');
   if (!/^\d{3,4}$/.test(String(card?.cvc || ''))) throw bad('card_cvc_invalid');
   if (digits === TEST_CARDS.declined.replace(/\s/g, '')) throw new ApiError(402, 'card_declined');
-  const p = { id: nextId(ctx.data, 'payments'), userId: u.id, purpose, refId, amount: money(amount), brand: cardBrand(digits), last4: digits.slice(-4), status: 'succeeded' as const, createdAt: ctx.nowIso };
+  return { brand: cardBrand(digits), last4: digits.slice(-4), name, expiry: `${em[1]}/${em[2]}` };
+}
+
+function cardExpired(ctx: Ctx, expiry: string) {
+  const [m, y] = expiry.split('/').map(Number);
+  return new Date(Date.UTC(2000 + y, m, 0)).toISOString().slice(0, 10) < ctx.today;
+}
+
+function chargeCard(ctx: Ctx, u: User, card: any, amount: number, purpose: 'booking' | 'subscription' | 'promotion', refId: number) {
+  let used;
+  if (card?.saved) {
+    // Paying with the card saved in the profile.
+    if (!u.savedCard) throw bad('card_invalid');
+    if (cardExpired(ctx, u.savedCard.expiry)) throw bad('card_expired');
+    used = u.savedCard;
+  } else used = checkCard(ctx, card);
+  const p = { id: nextId(ctx.data, 'payments'), userId: u.id, purpose, refId, amount: money(amount), brand: used.brand, last4: used.last4, status: 'succeeded' as const, createdAt: ctx.nowIso };
   ctx.data.payments.push(p);
   return p;
 }
+// The app shows the same limits and locks extra choices once a limit is reached.
+const TRIP_LIMITS = { cities: 4, places: 6, languages: 3, interests: 5, people: 10 };
+const GUIDE_LIMITS = { languages: 5, specialities: 6, places: 12 };
 const MAX_PHOTOS = 12; // tour photos on a guide's profile
 const subActive = (ctx: Ctx, g: GuideProfile) => !!g.subscriptionUntil && g.subscriptionUntil > ctx.nowIso;
 const promoActive = (ctx: Ctx, g: GuideProfile) => !!g.promotedUntil && g.promotedUntil > ctx.nowIso;
@@ -94,10 +114,11 @@ const promoActive = (ctx: Ctx, g: GuideProfile) => !!g.promotedUntil && g.promot
 // Older saved data (and the browser demo's stored copy) predates payment methods.
 function normalize(data: Data) {
   if (!data.payments) data.payments = [];
-  if (!data.platform) data.platform = { guideSubscriptionPrice: settings.guideSubscriptionPrice, subscriptionDays: settings.subscriptionDays, promotionPrice: settings.promotionPrice, promotionDays: settings.promotionDays };
+  if (!data.platform) data.platform = { guideSubscriptionPrice: settings.guideSubscriptionPrice, subscriptionDays: settings.subscriptionDays, promotionPrice: settings.promotionPrice, promotionDays: settings.promotionDays, iqdPerUsd: settings.iqdPerUsd };
   if (data.seq.payments === undefined) data.seq.payments = 0;
   if (data.platform.promotionPrice === undefined) data.platform.promotionPrice = settings.promotionPrice;
   if (data.platform.promotionDays === undefined) data.platform.promotionDays = settings.promotionDays;
+  if (data.platform.iqdPerUsd === undefined) data.platform.iqdPerUsd = settings.iqdPerUsd;
   for (const g of data.guides) {
     if (g.acceptsCash === undefined) g.acceptsCash = false;
     if (g.subscriptionUntil === undefined) g.subscriptionUntil = null;
@@ -202,6 +223,7 @@ function bookingView(ctx: Ctx, b: Booking) {
 // ---------- validation of shared inputs ----------
 function validLanguages(v: unknown) {
   if (!Array.isArray(v) || !v.length) throw bad('field_required', { field: 'languages' });
+  if (v.length > GUIDE_LIMITS.languages) throw bad('field_too_long', { field: 'languages', max: GUIDE_LIMITS.languages });
   return v.map((l: any) => {
     if (!LANGUAGES.includes(l?.code) || !LANGUAGE_LEVELS.includes(l?.level)) throw bad('field_invalid', { field: 'languages' });
     return { code: l.code, level: l.level };
@@ -236,7 +258,7 @@ route('GET', '/meta', (ctx) => ({
     guideSubscriptionPrice: ctx.data.platform.guideSubscriptionPrice,
     subscriptionDays: ctx.data.platform.subscriptionDays,
   },
-  iqdPerUsd: settings.iqdPerUsd,
+  iqdPerUsd: ctx.data.platform.iqdPerUsd,
   confirmWindowHours: settings.confirmWindowHours,
   demoPhoneCode: settings.demoPhoneCode,
   demoLogins: settings.showDemoLogins ? { ...DEMO_ACCOUNTS, password: DEMO_PASSWORD } : null,
@@ -328,6 +350,7 @@ function meView(ctx: Ctx, u: User) {
     name: u.name,
     email: u.email,
     phone: u.phone,
+    savedCard: u.savedCard || null,
     gender: u.gender,
     status: u.status,
     unreadNotifications,
@@ -361,6 +384,20 @@ function imageData(v: unknown, field: string, max: number) {
   if (img.length > max) throw bad('photo_too_big', { field });
   return img;
 }
+
+// A payment card kept in the profile, for tourists and guides alike.
+route('PUT', '/me/card', (ctx, _p, req) => {
+  const u = needActive(ctx);
+  if (u.role === 'admin') throw forbidden();
+  u.savedCard = checkCard(ctx, req.body || {});
+  return meView(ctx, u);
+});
+
+route('DELETE', '/me/card', (ctx) => {
+  const u = need(ctx);
+  u.savedCard = null;
+  return meView(ctx, u);
+});
 
 // Guides add one photo from their tours straight from the + button.
 route('POST', '/guide/photos', (ctx, _p, req) => {
@@ -453,8 +490,31 @@ route('GET', '/guides/:id', (ctx, p) => {
     booked: bookedDates(ctx.data, id),
     stats,
     reviews,
+    forMe: ctx.user?.role === 'tourist' ? withGuide(ctx, ctx.user, id) : null,
   };
 });
+
+// What a tourist already has going with this guide, so "Hire" goes to the right place
+// instead of asking for the whole trip again.
+function withGuide(ctx: Ctx, u: User, guideId: number) {
+  const booking = ctx.data.bookings
+    .filter((b) => b.touristId === u.id && b.guideId === guideId && ['awaiting_guide', 'confirmed'].includes(b.status))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+  const offer = ctx.data.offers
+    .filter((o) => o.guideId === guideId && o.status === 'pending')
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt)) // the newest offer first
+    .map((o) => ({ o, r: ctx.data.requests.find((r) => r.id === o.requestId)! }))
+    .find(({ r }) => r && r.touristId === u.id && r.status === 'open');
+  const openRequests = ctx.data.requests
+    .filter((r) => r.touristId === u.id && r.status === 'open' && (r.directGuideId === null || r.directGuideId === guideId))
+    .filter((r) => !ctx.data.offers.some((o) => o.requestId === r.id && o.guideId === guideId && ['pending', 'awarded', 'accepted'].includes(o.status)))
+    .map((r) => ({ id: r.id, title: r.title, startDate: r.startDate, endDate: r.endDate, invited: r.invited.includes(guideId) || r.directGuideId === guideId }));
+  return {
+    booking: booking ? { id: booking.id, status: booking.status, title: booking.title } : null,
+    offer: offer ? { id: offer.o.id, requestId: offer.r.id, price: offer.o.price, title: offer.r.title } : null,
+    openRequests,
+  };
+}
 
 route('PUT', '/guide/profile', (ctx, _p, req) => {
   const u = needActive(ctx, 'guide');
@@ -468,10 +528,11 @@ route('PUT', '/guide/profile', (ctx, _p, req) => {
   if (b.acceptsCash !== undefined) g.acceptsCash = !!b.acceptsCash;
   if (b.cities !== undefined) g.cities = strList(b.cities, 'cities', CITIES.map((c) => c.slug), 1, 8);
   if (b.languages !== undefined) g.languages = validLanguages(b.languages);
-  if (b.specialities !== undefined) g.specialities = strList(b.specialities, 'specialities', INTERESTS, 0, 10);
+  if (b.specialities !== undefined) g.specialities = strList(b.specialities, 'specialities', INTERESTS, 0, GUIDE_LIMITS.specialities);
   if (b.places !== undefined) {
     const ids = Array.isArray(b.places) ? [...new Set(b.places.map(Number))] : [];
     for (const id of ids) if (!PLACES.some((x) => x.id === id)) throw bad('field_invalid', { field: 'places' });
+    if (ids.length > GUIDE_LIMITS.places) throw bad('field_too_long', { field: 'places', max: GUIDE_LIMITS.places });
     g.places = ids as number[];
   }
   if (b.blockedDates !== undefined) {
@@ -565,8 +626,9 @@ function parseRequestBody(ctx: Ctx, b: any) {
   if (startDate < ctx.today) throw bad('date_past');
   if (endDate < startDate) throw bad('dates_order');
   if (daysInclusive(startDate, endDate) > 30) throw bad('trip_too_long');
-  const cities = strList(b.cities, 'cities', CITIES.map((c) => c.slug), 1, 8);
+  const cities = strList(b.cities, 'cities', CITIES.map((c) => c.slug), 1, TRIP_LIMITS.cities);
   const places = (Array.isArray(b.places) ? b.places.map(Number) : []).filter((id: number) => PLACES.some((p) => p.id === id));
+  if (places.length > TRIP_LIMITS.places) throw bad('field_too_long', { field: 'places', max: TRIP_LIMITS.places });
   const budgetMin = num(b.budgetMin, 'budgetMin', 0, 100000);
   const budgetMax = num(b.budgetMax, 'budgetMax', 10, 100000);
   if (budgetMax < budgetMin) throw bad('budget_order');
@@ -577,9 +639,9 @@ function parseRequestBody(ctx: Ctx, b: any) {
     places,
     startDate,
     endDate,
-    groupSize: num(b.groupSize, 'groupSize', 1, 50, true),
-    languages: strList(b.languages, 'languages', LANGUAGES, 1, 5),
-    interests: strList(b.interests, 'interests', INTERESTS, 0, 10),
+    groupSize: num(b.groupSize, 'groupSize', 1, TRIP_LIMITS.people, true),
+    languages: strList(b.languages, 'languages', LANGUAGES, 1, TRIP_LIMITS.languages),
+    interests: strList(b.interests, 'interests', INTERESTS, 0, TRIP_LIMITS.interests),
     budgetMin,
     budgetMax,
     urgent: !!b.urgent,
@@ -658,7 +720,13 @@ route('GET', '/requests/:id', (ctx, p) => {
   if (u.role === 'guide' && r.directGuideId !== null && r.directGuideId !== u.id) throw notFound();
   const all = ctx.data.offers.filter((o) => o.requestId === r.id && o.status !== 'withdrawn');
   const booking = ctx.data.bookings.filter((b) => b.requestId === r.id).sort((a, b) => b.id - a.id)[0];
-  const base = { ...requestSummary(ctx, r), booking: booking && (isOwner || u.role === 'admin' || booking.guideId === u.id) ? { id: booking.id, status: booking.status, guideId: booking.guideId } : null };
+  const base = {
+    ...requestSummary(ctx, r),
+    booking:
+      booking && (isOwner || u.role === 'admin' || booking.guideId === u.id)
+        ? { id: booking.id, status: booking.status, guideId: booking.guideId, guideName: publicUser(userById(ctx.data, booking.guideId)!).name, total: booking.total, confirmBy: booking.confirmBy }
+        : null,
+  };
   if (isOwner || u.role === 'admin') {
     return { ...base, offers: all.map((o) => offerView(ctx, o)), invitedGuides: r.invited };
   }
@@ -907,6 +975,7 @@ route('POST', '/bookings/:id/cancel', (ctx, p, req) => {
   const u = participant(ctx, b);
   if (u.role === 'admin') throw forbidden();
   const asGuide = u.id === b.guideId;
+  const wasAwaiting = b.status === 'awaiting_guide';
   if (b.status === 'awaiting_guide') {
     if (asGuide) throw conflict('use_decline');
   } else if (b.status === 'confirmed') {
@@ -922,6 +991,10 @@ route('POST', '/bookings/:id/cancel', (ctx, p, req) => {
   if (asGuide) {
     reopenRequest(ctx, b.requestId);
     notify(ctx, b.touristId, 'booking_cancelled_by_guide', { name: u.name, title: b.title, amount: b.total }, `/requests/${b.requestId}`);
+  } else if (wasAwaiting) {
+    // Changed their mind before the guide confirmed: the trip opens again so they can hire someone else.
+    reopenRequest(ctx, b.requestId);
+    notify(ctx, b.guideId, 'booking_cancelled_by_tourist', { name: publicUser(u).name, title: b.title }, `/bookings/${b.id}`);
   } else {
     const r = findRequest(ctx.data, b.requestId);
     r.status = 'closed';
@@ -1244,6 +1317,7 @@ route('GET', '/dashboard', (ctx) => {
     activePromotions: ctx.data.guides.filter((g) => promoActive(ctx, g)).length,
     promotionPrice: ctx.data.platform.promotionPrice,
     promotionDays: ctx.data.platform.promotionDays,
+    iqdPerUsd: ctx.data.platform.iqdPerUsd,
   };
 });
 
@@ -1297,6 +1371,7 @@ route('PUT', '/admin/settings', (ctx, _p, req) => {
   if (b.subscriptionDays !== undefined) ctx.data.platform.subscriptionDays = num(b.subscriptionDays, 'subscriptionDays', 1, 366, true);
   if (b.promotionPrice !== undefined) ctx.data.platform.promotionPrice = num(b.promotionPrice, 'promotionPrice', 0, 1000);
   if (b.promotionDays !== undefined) ctx.data.platform.promotionDays = num(b.promotionDays, 'promotionDays', 1, 366, true);
+  if (b.iqdPerUsd !== undefined) ctx.data.platform.iqdPerUsd = num(b.iqdPerUsd, 'iqdPerUsd', 100, 100000, true);
   return { ...ctx.data.platform, activeSubscriptions: ctx.data.guides.filter((g) => subActive(ctx, g)).length };
 });
 

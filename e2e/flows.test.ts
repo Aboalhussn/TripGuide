@@ -94,8 +94,10 @@ test('tourist posts a trip, a guide offers, the tourist chats, hires, pays day b
   await tourist.getByRole('button', { name: 'Back', exact: true }).last().click();
   assert.equal(await tourist.getByLabel('Day 1', { exact: true }).inputValue(), 'Malwiya at sunrise');
   await tourist.getByRole('button', { name: 'Next' }).click();
-  await tourist.getByLabel('From (USD)').fill('80');
-  await tourist.getByLabel('To (USD)').fill('150');
+  // The budget is per day; the whole-trip total is worked out live.
+  await tourist.getByLabel('From, per day (USD)').fill('30');
+  await tourist.getByLabel('To, per day (USD)').fill('50');
+  await tourist.locator('.trip-total').getByText('$90–$150').waitFor();
   await tourist.getByText('Your day plan is included').waitFor();
   await shot(tourist, 'e2e-post');
   await tourist.getByRole('button', { name: 'Post request' }).click();
@@ -620,4 +622,100 @@ test('home: pulling down at the top spins the logo bird and refreshes', async ()
   assert.equal(await p.evaluate(`!!document.querySelector('.ptr-body > *').__old`), false);
   await p.getByRole('heading', { name: 'Top guides' }).waitFor();
   await p.context().close();
+});
+
+async function callApi(page: Page, method: string, path: string, body?: any, token?: string) {
+  return page.evaluate(
+    async ([method, path, body, token]) => {
+      const r = await fetch('/api' + path, { method, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: body ? JSON.stringify(body) : undefined });
+      return r.json();
+    },
+    [method, path, body, token] as const,
+  );
+}
+
+test('hire flow: Hire in chat opens the hire sheet; then the trip clearly shows who was hired; cancelling opens the offers again', async () => {
+  const p = await open();
+  // A fresh tourist with a fresh trip and two offers, so earlier tests can't get in the way.
+  const email = `hire${Date.now()}@example.com`;
+  const reg = await callApi(p, 'POST', '/auth/register', { role: 'tourist', name: 'Rana Test', email, password: 'Strong#Pass9', country: 'Jordan', gender: 'f' });
+  const meta = await callApi(p, 'GET', '/meta');
+  const day = (n: number) => new Date(Date.parse(meta.today + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10);
+  const trip = await callApi(p, 'POST', '/requests', { title: 'Old Baghdad in two days', cities: ['baghdad'], startDate: day(40), endDate: day(41), groupSize: 2, languages: ['en'], interests: [], budgetMin: 60, budgetMax: 200 }, reg.token);
+  for (const [who, price] of [['ali@tripguide.demo', 120], ['layla@tripguide.demo', 100]] as const) {
+    const g = await callApi(p, 'POST', '/auth/login', { email: who, password: 'Demo@1234' });
+    await callApi(p, 'POST', `/requests/${trip.id}/offers`, { price, plan: [{ title: 'Old souqs' }, { title: 'Museum day' }], message: 'Happy to show you around.' }, g.token);
+  }
+  await p.evaluate((tk) => localStorage.setItem('tg.token', tk), reg.token);
+  await p.reload();
+
+  // Save a card in the profile: the hire sheet then uses it without typing.
+  await go(p, '/profile');
+  await p.getByRole('button', { name: 'Add a card' }).click();
+  await p.getByRole('dialog').getByRole('button', { name: 'Use test card' }).click();
+  await p.getByRole('dialog').getByRole('button', { name: 'Save card' }).click();
+  await p.getByText('Card saved').first().waitFor();
+  await p.locator('.pay-card-visual').getByText('•••• •••• •••• 4242').waitFor();
+
+  // Chat with Ali from his offer; the chat's Hire opens the hire sheet straight away.
+  await go(p, `/requests/${trip.id}`);
+  await p.locator('article', { hasText: '$120' }).getByRole('button', { name: 'Chat' }).click();
+  await p.locator('.chat-head').getByRole('link', { name: 'Hire' }).click();
+  const sheet = p.getByRole('dialog');
+  await sheet.getByText('•••• 4242').waitFor();
+  await sheet.locator('input[type=checkbox]').last().check();
+  await sheet.getByRole('button', { name: /Pay \$120 into holding/ }).click();
+  await p.waitForFunction(() => /^#\/bookings\/\d+/.test(location.hash));
+
+  await go(p, `/requests/${trip.id}`);
+  await p.locator('.hired-card').getByText(/You hired Ali/).waitFor();
+  await p.getByText(/You've hired Ali\. To choose this guide instead, cancel that hire first\./).first().waitFor();
+  // Ali's page no longer starts a new trip.
+  await p.locator('.hired-card').getByRole('link', { name: 'See the booking' }).waitFor();
+  // Change of mind: cancel, and the offers open again.
+  await p.getByRole('button', { name: /Changed your mind/ }).click();
+  await p.getByRole('alertdialog').getByRole('button', { name: 'Cancel hire' }).click();
+  await p.getByText('Hire cancelled').first().waitFor();
+  await p.getByRole('button', { name: /Hire for \$100/ }).waitFor();
+  // A guide with no offer on this trip: Hire lets you send the trip you already posted.
+  await go(p, '/guides/2');
+  await p.getByRole('link', { name: 'Hire Zainab' }).click();
+  await p.getByText('Already posted your trip? Send it to Zainab').waitFor();
+  await p.locator('.send-trip', { hasText: 'Old Baghdad in two days' }).getByRole('button', { name: 'Send to Zainab' }).first().click();
+  await p.getByText('Sent to Zainab. Their offer will show on your trip.').first().waitFor();
+  await p.waitForFunction((id) => location.hash === `#/requests/${id}`, trip.id);
+  await p.context().close();
+});
+
+test('strict limits: languages lock at 3, people stop at 10; the admin sets the dinar rate', async () => {
+  const p = await open();
+  await login(p, 'tourist@tripguide.demo');
+  await go(p, '/post');
+  await p.getByLabel('Title').fill('Family trip north');
+  for (const c of ['Erbil', 'Mosul', 'Baghdad', 'Babylon']) await p.getByRole('button', { name: c, exact: true }).click();
+  await p.getByText('You can choose up to 4. Remove one to pick another.').waitFor();
+  assert.equal(await p.getByRole('button', { name: 'Najaf', exact: true }).isDisabled(), true);
+  await p.getByRole('button', { name: 'Next' }).click();
+  for (let i = 0; i < 12; i++) await p.getByRole('button', { name: 'One more', exact: true }).click({ timeout: 2000 }).catch(() => {});
+  await p.getByText('A trip can have up to 10 people.').waitFor();
+  assert.equal(await p.getByRole('button', { name: 'One more', exact: true }).isDisabled(), true);
+  await p.getByRole('button', { name: 'Next' }).click();
+  await p.getByRole('button', { name: 'Arabic', exact: true }).click();
+  await p.getByRole('button', { name: /More languages/ }).click();
+  await p.getByRole('button', { name: 'Kurdish', exact: true }).click();
+  await p.getByText('You can choose up to 3. Remove one to pick another.').waitFor();
+  assert.equal(await p.getByRole('button', { name: 'French', exact: true }).isDisabled(), true);
+  // Removing one unlocks the rest.
+  await p.getByRole('button', { name: 'Kurdish', exact: true }).last().click();
+  assert.equal(await p.getByRole('button', { name: 'French', exact: true }).isDisabled(), false);
+  await p.context().close();
+
+  const a = await open();
+  await login(a, 'admin@tripguide.demo');
+  await go(a, '/admin/pricing');
+  await a.getByLabel('Dinars for 1 US dollar').fill('1500');
+  await a.getByText('$100 is shown as about 150,000 IQD.').waitFor();
+  await a.getByRole('heading', { name: 'Dollar to dinar rate' }).locator('..').getByRole('button', { name: 'Save' }).click();
+  await a.getByText('Saved').first().waitFor();
+  await a.context().close();
 });

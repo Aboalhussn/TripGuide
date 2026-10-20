@@ -14,6 +14,7 @@ type AppState = {
   lang: Lang;
   setLang(l: Lang): void;
   refreshMe(): Promise<void>;
+  refreshMeta(): Promise<void>;
   signIn(token: string, me: Me): void;
   signOut(): Promise<void>;
   toast(text: string, kind?: 'ok' | 'error'): void;
@@ -135,6 +136,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       lang,
       setLang: setLangState,
       refreshMe,
+      refreshMeta: () => api('GET', '/meta').then(setMeta),
       signIn(token, user) {
         setToken(token);
         setMe(user);

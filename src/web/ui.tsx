@@ -258,27 +258,44 @@ export function Field({ label, hint, error, children }: { label: React.ReactNode
   );
 }
 
-export function ToggleGroup<T extends string>({ options, value, onChange, label, render }: { options: T[]; value: T[]; onChange(v: T[]): void; label: string; render(o: T): string }) {
+/** Shown the moment a pick limit is reached; the other options lock until one is removed. */
+export function LimitNote({ max }: { max: number }) {
+  const { t } = useApp();
+  return (
+    <span className="limit-note" role="status">
+      <Icon name="info" size={15} /> {t('v.max_pick', { count: max })}
+    </span>
+  );
+}
+
+export function ToggleGroup<T extends string>({ options, value, onChange, label, render, max }: { options: T[]; value: T[]; onChange(v: T[]): void; label: string; render(o: T): string; max?: number }) {
+  const full = max !== undefined && value.length >= max;
   return (
     <div className="stack" style={{ gap: 6 }}>
       <span className="small" style={{ fontWeight: 500 }} id={'tg-' + label}>
-        {label}
+        {label} {max !== undefined && <span className="muted" style={{ fontWeight: 400 }}>({value.length}/{max})</span>}
       </span>
       <div className="chips" role="group" aria-labelledby={'tg-' + label}>
-        {options.map((o) => (
-          <button key={o} type="button" className="toggle-chip" aria-pressed={value.includes(o)} onClick={() => onChange(value.includes(o) ? value.filter((x) => x !== o) : [...value, o])}>
-            {render(o)}
-          </button>
-        ))}
+        {options.map((o) => {
+          const on = value.includes(o);
+          const locked = full && !on;
+          return (
+            <button key={o} type="button" className={'toggle-chip' + (locked ? ' locked' : '')} aria-pressed={on} disabled={locked} onClick={() => onChange(on ? value.filter((x) => x !== o) : [...value, o])}>
+              {render(o)}
+            </button>
+          );
+        })}
       </div>
+      {full && <LimitNote max={max!} />}
     </div>
   );
 }
 
-export function Stepper({ value, onChange, min = 1, max = 50, label }: { value: number; onChange(n: number): void; min?: number; max?: number; label: string }) {
+export function Stepper({ value, onChange, min = 1, max = 50, label, maxNote }: { value: number; onChange(n: number): void; min?: number; max?: number; label: string; maxNote?: string }) {
   const { t } = useApp();
   const fmt = useFmt();
   return (
+    <div className="stack" style={{ gap: 6 }}>
     <div className="stepper">
       <span>{label}</span>
       <div className="row" style={{ gap: 14, flexWrap: 'nowrap' }}>
@@ -292,6 +309,8 @@ export function Stepper({ value, onChange, min = 1, max = 50, label }: { value: 
           +
         </button>
       </div>
+    </div>
+      {value >= max && maxNote && <span className="limit-note" role="status"><Icon name="info" size={15} /> {maxNote}</span>}
     </div>
   );
 }
@@ -360,6 +379,12 @@ export function OfferStatus({ status }: { status: string }) {
   return <span className={'pill ' + (cls[status] || '')}>{t('offer.status.' + status)}</span>;
 }
 
+/** Trip budgets are kept as whole-trip totals and shown per day, which is how guides price. */
+export function perDayRange(r: any, fmt: any) {
+  const days = r.days || Math.round((Date.parse(r.endDate) - Date.parse(r.startDate)) / 86400000) + 1 || 1;
+  return `${fmt.usd(Math.round(r.budgetMin / days))}–${fmt.usd(Math.round(r.budgetMax / days))}${fmt.perDaySuffix}`;
+}
+
 export function RequestFacts({ r }: { r: any }) {
   const { t } = useApp();
   const fmt = useFmt();
@@ -376,7 +401,7 @@ export function RequestFacts({ r }: { r: any }) {
       </span>
       <span className="chip lang">{fmt.list(r.languages.map(fmt.language))}</span>
       <span className="chip">
-        {fmt.usd(r.budgetMin)}–{fmt.usd(r.budgetMax)}
+        {perDayRange(r, fmt)}
       </span>
     </div>
   );
@@ -448,12 +473,29 @@ export function useBusy() {
 }
 
 // ---------- payments ----------
-export type CardValue = { number: string; name: string; expiry: string; cvc: string };
+export type CardValue = { number: string; name: string; expiry: string; cvc: string; saved?: boolean };
 export const emptyCard: CardValue = { number: '', name: '', expiry: '', cvc: '' };
 
+/** A saved card shown as brand, dots and the last four digits. */
+export function SavedCardChip({ card }: { card: { brand: string; last4: string; name: string; expiry: string } }) {
+  const { t } = useApp();
+  return (
+    <span className="saved-card" dir="ltr">
+      <span className="sc-brand">{card.brand}</span>
+      <span className="sc-num">•••• {card.last4}</span>
+      <span className="sc-exp">{t('pay.expires', { date: card.expiry })}</span>
+    </span>
+  );
+}
+
 /** Card entry. Payments are simulated (sandbox) until a real gateway is connected. */
-export function CardForm({ value, onChange }: { value: CardValue; onChange(v: CardValue): void }) {
-  const { t, meta } = useApp();
+export function CardForm({ value, onChange, allowSaved = true }: { value: CardValue; onChange(v: CardValue): void; allowSaved?: boolean }) {
+  const { t, meta, me } = useApp();
+  const saved = allowSaved ? me?.savedCard : null;
+  // With a card saved in the profile, it is picked by default and no typing is needed.
+  useEffect(() => {
+    if (saved && value.saved === undefined) onChange({ ...value, saved: true });
+  }, [saved?.last4]);
   const set = (k: keyof CardValue, v: string) => onChange({ ...value, [k]: v });
   const fmtNum = (s: string) => s.replace(/\D/g, '').slice(0, 19).replace(/(\d{4})(?=\d)/g, '$1 ');
   const fmtExp = (s: string) => {
@@ -461,8 +503,28 @@ export function CardForm({ value, onChange }: { value: CardValue; onChange(v: Ca
     return d.length > 2 ? d.slice(0, 2) + '/' + d.slice(2) : d;
   };
   const sandbox = !!meta?.payments?.cardSandbox;
+  if (saved && value.saved)
+    return (
+      <div className="card stack card-form" style={{ gap: 10 }}>
+        <strong className="row" style={{ gap: 8 }}>
+          <Icon name="wallet" size={18} /> {t('pay.card_details')}
+        </strong>
+        <div className="saved-card-row">
+          <SavedCardChip card={saved} />
+          <span className="pill sky">{t('pay.saved_selected')}</span>
+        </div>
+        <button type="button" className="linkish small" style={{ alignSelf: 'flex-start' }} onClick={() => onChange({ ...emptyCard, saved: false })}>
+          {t('pay.use_other')}
+        </button>
+      </div>
+    );
   return (
     <div className="card stack card-form" style={{ gap: 12 }}>
+      {saved && (
+        <button type="button" className="linkish small" style={{ alignSelf: 'flex-start' }} onClick={() => onChange({ ...emptyCard, saved: true })}>
+          {t('pay.use_saved', { last4: saved.last4 })}
+        </button>
+      )}
       <div className="between">
         <strong className="row" style={{ gap: 8 }}>
           <Icon name="wallet" size={18} /> {t('pay.card_details')}
@@ -637,8 +699,10 @@ export function DateRangePicker({ start, end, today, maxDays = 30, onChange, lab
 }
 
 /** Arabic and English up front; every other language behind "More languages". */
-export function LanguagePick({ all, value, onChange, label, render, error }: { all: string[]; value: string[]; onChange(v: string[]): void; label: string; render(code: string): string; error?: string }) {
+export function LanguagePick({ all, value, onChange, label, render, error, max }: { all: string[]; value: string[]; onChange(v: string[]): void; label: string; render(code: string): string; error?: string; max?: number }) {
   const { t } = useApp();
+  const full = max !== undefined && value.length >= max;
+  const lock = (c: string) => full && !value.includes(c);
   const main = ['ar', 'en'].filter((c) => all.includes(c));
   const extra = all.filter((c) => !main.includes(c));
   const pickedExtra = value.filter((c) => extra.includes(c));
@@ -651,7 +715,7 @@ export function LanguagePick({ all, value, onChange, label, render, error }: { a
       </span>
       <div className="chips" role="group" aria-labelledby="lp-label">
         {main.map((c) => (
-          <button key={c} type="button" className="toggle-chip" aria-pressed={value.includes(c)} onClick={() => toggle(c)}>
+          <button key={c} type="button" className={'toggle-chip' + (lock(c) ? ' locked' : '')} aria-pressed={value.includes(c)} disabled={lock(c)} onClick={() => toggle(c)}>
             {render(c)}
           </button>
         ))}
@@ -668,12 +732,13 @@ export function LanguagePick({ all, value, onChange, label, render, error }: { a
       {more && (
         <div className="chips more-panel" role="group" aria-label={t('lp.more')}>
           {extra.map((c) => (
-            <button key={c} type="button" className="toggle-chip" aria-pressed={value.includes(c)} onClick={() => toggle(c)}>
+            <button key={c} type="button" className={'toggle-chip' + (lock(c) ? ' locked' : '')} aria-pressed={value.includes(c)} disabled={lock(c)} onClick={() => toggle(c)}>
               {render(c)}
             </button>
           ))}
         </div>
       )}
+      {full && <LimitNote max={max!} />}
       {error && <span className="err">{error}</span>}
     </div>
   );
