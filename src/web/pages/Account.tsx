@@ -4,7 +4,7 @@ import { useApp, useLoad } from '../lib/app';
 import { useFmt } from '../lib/format';
 import { Link, navigate } from '../lib/router';
 import { asset, photoSrc } from '../assets';
-import { Avatar, CardForm, Field, Icon, Loading, Modal, Money, MonthCalendar, PageHead, ToggleGroup, VerifiedBadge, emptyCard, useBusy } from '../ui';
+import { Avatar, BookingStatus, CardForm, Field, Icon, Loading, Modal, Money, MonthCalendar, PageHead, ToggleGroup, VerifiedBadge, emptyCard, useBusy } from '../ui';
 import type { CardValue } from '../ui';
 
 function goNext(query: Record<string, string>) {
@@ -206,6 +206,8 @@ export function Account() {
         </div>
       )}
 
+      {(me.role === 'tourist' || me.role === 'guide') && <MyTrips guide={me.role === 'guide'} />}
+
       {me.role === 'guide' && <CashPayments />}
 
       <div className="cards">
@@ -215,13 +217,9 @@ export function Account() {
           </Link>
         )}
         <Link to="/notifications" className="card link row">
-          <Icon name="bell" /> <strong>{t('notifications.title')}</strong>
+          <Icon name="bell" /> <strong style={{ flex: 1 }}>{t('notifications.title')}</strong>
+          {me.unreadNotifications > 0 && <span className="pill gold">{me.unreadNotifications}</span>}
         </Link>
-        {me.role === 'tourist' && (
-          <Link to="/requests" className="card link row">
-            <Icon name="list" /> <strong>{t('nav.my_requests')}</strong>
-          </Link>
-        )}
         {me.role === 'admin' && (
           <Link to="/" className="card link row">
             <Icon name="shield" /> <strong>{t('nav.admin')}</strong>
@@ -619,6 +617,67 @@ function CashPayments() {
             {s.price > 0 ? t('sub.pay', { price: fmt.usd(s.price) }) : t('sub.activate')}
           </button>
         </Modal>
+      )}
+    </section>
+  );
+}
+
+/** Trips (tourist) or tours (guide), shown inside the profile instead of a separate tab. */
+function MyTrips({ guide }: { guide: boolean }) {
+  const { t } = useApp();
+  const fmt = useFmt();
+  const res = useLoad(() => api('GET', '/bookings'), []);
+  const list: any[] = res.data?.bookings || [];
+  const active = list.filter((b) => ['awaiting_guide', 'confirmed', 'disputed'].includes(b.status)).sort((a, b) => a.startDate.localeCompare(b.startDate));
+  const past = list.filter((b) => !['awaiting_guide', 'confirmed', 'disputed'].includes(b.status));
+  return (
+    <section className="stack" aria-labelledby="my-trips">
+      <div className="between">
+        <h2 id="my-trips">{guide ? t('profile.my_tours') : t('profile.my_trips')}</h2>
+        {list.length > 0 && (
+          <Link to="/bookings" className="small" style={{ fontWeight: 600 }}>
+            {t('profile.see_all', { count: list.length })}
+          </Link>
+        )}
+      </div>
+      {!res.data ? (
+        <div className="skeleton" style={{ height: 120 }} />
+      ) : active.length === 0 ? (
+        <div className="card stack" style={{ gap: 8 }}>
+          <span className="small muted">{guide ? t('profile.no_tours') : t('profile.no_trips')}</span>
+          {!guide && (
+            <Link to="/post" className="btn sm" style={{ alignSelf: 'flex-start' }}>
+              {t('home.cta_post')}
+            </Link>
+          )}
+          {past.length > 0 && <span className="xs muted">{t('profile.past_n', { count: past.length })}</span>}
+        </div>
+      ) : (
+        <div className="card flush">
+          {active.slice(0, 4).map((b) => {
+            const other = guide ? b.tourist : b.guide;
+            return (
+              <Link key={b.id} to={`/bookings/${b.id}`} className="list-item">
+                <span className="avatar av-2" style={{ width: 44, height: 44 }} aria-hidden="true">
+                  <Icon name="calendar" size={20} />
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <strong style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.title}</strong>
+                  <span className="xs muted">
+                    {fmt.range(b.startDate, b.endDate)} · {other.name}
+                  </span>
+                </span>
+                <BookingStatus status={b.status} />
+              </Link>
+            );
+          })}
+        </div>
+      )}
+      {!guide && (
+        <Link to="/requests" className="card link row">
+          <Icon name="list" /> <strong style={{ flex: 1 }}>{t('nav.my_requests')}</strong>
+          <Icon name="next" size={18} className="flip" />
+        </Link>
       )}
     </section>
   );

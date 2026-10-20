@@ -69,6 +69,11 @@ test('tourist posts a trip, a guide offers, the tourist chats, hires, pays day b
   await tourist.getByRole('button', { name: 'Samarra', exact: true }).click();
   await tourist.getByRole('button', { name: 'Baghdad', exact: true }).click();
   await tourist.getByRole('button', { name: '+ Malwiya Minaret' }).click();
+  // Dates come from the brand date picker: pick the 3-day range again to exercise it.
+  await tourist.locator('#pf-dates').click();
+  await tourist.getByRole('dialog').getByRole('button', { name: 'Done' }).click();
+  // Interests live behind "Customize further".
+  await tourist.getByRole('button', { name: /Customize further/ }).click();
   await tourist.getByRole('button', { name: 'Photography' }).click();
   await tourist.getByLabel('From (USD)').fill('80');
   await tourist.getByLabel('To (USD)').fill('150');
@@ -320,5 +325,31 @@ test('cash: a subscribed guide takes cash, the tourist books paying cash', async
   await t.getByRole('button', { name: 'Book and pay cash' }).click();
   await t.getByText('Cash to the guide').waitFor();
   await noSideScroll(t, 'cash booking');
+});
+
+test('a guide opens "Send offer" from the dashboard and gets the offer form (not an error page)', async () => {
+  const g = await open();
+  await login(g, 'ali@tripguide.demo');
+  await go(g, '/requests');
+  await g.getByRole('link', { name: 'Send offer' }).first().click();
+  await g.getByRole('heading', { name: 'Send an offer' }).waitFor();
+  assert.ok(g.url().includes('#offer'));
+  await g.getByRole('button', { name: 'Send offer' }).click();
+  await g.getByText('Give this day a short title.').first().waitFor();
+});
+
+test('post page: problems show while typing, before pressing the button', async () => {
+  const t = await open();
+  await login(t, 'tourist@tripguide.demo');
+  await go(t, '/post');
+  await t.getByLabel('Title').fill('Bab');
+  await t.getByLabel('Title').blur();
+  await t.getByText('Add 2 more characters.').waitFor();
+  await t.locator('#pf-budgetMin').fill('200');
+  await t.locator('#pf-budgetMax').fill('90');
+  await t.getByText("The budget's upper value must be at least the lower one.").waitFor();
+  await t.getByRole('button', { name: /More languages/ }).click();
+  await t.getByRole('button', { name: 'Kurdish', exact: true }).click();
+  await noSideScroll(t, 'post page');
 });
 

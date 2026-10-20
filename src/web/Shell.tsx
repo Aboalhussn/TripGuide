@@ -25,14 +25,14 @@ export function Shell({ path, children }: { path: string; children: React.ReactN
       { to: '/guides', label: t('nav.guides'), icon: 'search' },
       { to: '/post', label: t('nav.post'), icon: 'plus', primary: true },
       { to: '/messages', label: t('nav.messages'), icon: 'chat', badge: me?.unreadMessages },
-      { to: '/bookings', label: t('nav.trips'), icon: 'calendar', match: ['/bookings', '/requests'] },
+      { to: '/profile', label: t('nav.profile'), icon: 'user', badge: me?.unreadNotifications, match: ['/profile', '/bookings', '/requests', '/wallet', '/notifications'] },
     ],
     guide: [
       { to: '/', label: t('nav.home'), icon: 'home' },
       { to: '/requests', label: t('nav.requests'), icon: 'list' },
       { to: '/offers', label: t('nav.offers'), icon: 'offer' },
       { to: '/messages', label: t('nav.messages'), icon: 'chat', badge: me?.unreadMessages },
-      { to: '/bookings', label: t('nav.tours'), icon: 'calendar' },
+      { to: '/profile', label: t('nav.profile'), icon: 'user', badge: me?.unreadNotifications, match: ['/profile', '/bookings', '/wallet', '/notifications'] },
     ],
     admin: [
       { to: '/', label: t('nav.admin'), icon: 'home' },

@@ -1,16 +1,34 @@
 // A small hash router: works on any static host and inside the single-file demo.
 import React, { useEffect, useState } from 'react';
 
+// "#/requests/80#offer": the part after a second # is an anchor inside the page, not part of the route.
 function current() {
-  const h = window.location.hash.replace(/^#/, '') || '/';
+  const raw = window.location.hash.replace(/^#/, '') || '/';
+  const [h, anchor = ''] = raw.split('#');
   const [path, qs = ''] = h.split('?');
-  return { path: path || '/', query: Object.fromEntries(new URLSearchParams(qs)) as Record<string, string> };
+  return { path: path || '/', query: Object.fromEntries(new URLSearchParams(qs)) as Record<string, string>, anchor };
+}
+
+function scrollToAnchor(anchor: string) {
+  if (!anchor) return;
+  let tries = 0;
+  const go = () => {
+    const el = document.getElementById(anchor);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    else if (tries++ < 20) window.setTimeout(go, 100);
+  };
+  window.setTimeout(go, 50);
 }
 
 export function useLocation() {
   const [loc, setLoc] = useState(current);
   useEffect(() => {
-    const on = () => setLoc(current());
+    const on = () => {
+      const next = current();
+      setLoc(next);
+      scrollToAnchor(next.anchor);
+    };
+    scrollToAnchor(loc.anchor);
     window.addEventListener('hashchange', on);
     return () => window.removeEventListener('hashchange', on);
   }, []);

@@ -341,6 +341,7 @@ export function RequestFeedCard({ r }: { r: any }) {
         {r.invitedMe && <span className="pill sky">{t('request.invited_you')}</span>}
         {r.directGuideId === me?.id && <span className="pill navy">{t('request.direct_you')}</span>}
         {r.femaleGuide && <span className="pill">{t('request.female_pref')}</span>}
+        {r.busyForMe && !r.myOffer && <span className="pill danger">{t('request.busy_pill')}</span>}
         <span className="xs muted" style={{ marginInlineStart: 'auto' }}>
           {fmt.ago(r.createdAt)}
         </span>
@@ -368,6 +369,10 @@ export function RequestFeedCard({ r }: { r: any }) {
         {r.myOffer ? (
           <Link to={`/requests/${r.id}`} className="btn sm ghost">
             {t('request.your_offer', { amount: fmt.usd(r.myOffer.price) })}
+          </Link>
+        ) : r.busyForMe ? (
+          <Link to={`/requests/${r.id}`} className="btn sm ghost">
+            {t('request.view')}
           </Link>
         ) : (
           <Link to={`/requests/${r.id}#offer`} className="btn sm">

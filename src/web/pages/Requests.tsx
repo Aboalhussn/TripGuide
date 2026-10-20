@@ -4,7 +4,7 @@ import { useApp, useLoad } from '../lib/app';
 import { useFmt } from '../lib/format';
 import { Link, navigate } from '../lib/router';
 import { RequestFeedCard } from './Home';
-import { Avatar, Empty, ErrorState, Field, GuideCard, Icon, Loading, Modal, Money, OfferStatus, PageHead, Rating, RequestFacts, RequestStatus, Star, Stepper, ToggleGroup, VerifiedBadge, useBusy, CardForm, PayMethodPicker, emptyCard } from '../ui';
+import { Avatar, Empty, ErrorState, Field, GuideCard, Icon, Loading, Modal, Money, OfferStatus, PageHead, Rating, RequestFacts, RequestStatus, Star, Stepper, ToggleGroup, VerifiedBadge, useBusy, CardForm, PayMethodPicker, emptyCard, DateRangePicker, LanguagePick } from '../ui';
 import type { CardValue } from '../ui';
 
 function addDays(date: string, n: number) {
@@ -39,6 +39,10 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
   });
   const [placeQuery, setPlaceQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [tried, setTried] = useState(false);
+  const [extra, setExtra] = useState(false);
+  const touch = (k: string) => setTouched((x) => (x[k] ? x : { ...x, [k]: true }));
   const { busy, run } = useBusy();
   const g = direct.data;
 
@@ -50,6 +54,24 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
   const days = f.startDate && f.endDate && f.endDate >= f.startDate ? daysBetween(f.startDate, f.endDate) : 0;
   const placesInCities = meta.places.filter((p: any) => f.cities.includes(p.city) && !f.places.includes(p.id) && (!placeQuery || fmt.place(p.id).toLowerCase().includes(placeQuery.toLowerCase())));
   const suggested = g && days ? g.pricePerDay * days : null;
+
+  // Live checks: each problem shows as soon as the field is touched, and all of them on submit.
+  const errors: Record<string, string> = {};
+  const tl = f.title.trim().length;
+  if (tl < 5) errors.title = tl === 0 ? t('v.title_required') : t('v.title_min', { count: 5 - tl });
+  if (!f.cities.length) errors.cities = t('v.cities');
+  if (!f.startDate || !f.endDate) errors.dates = t('err.dates_required');
+  else if (f.startDate < today) errors.dates = t('err.date_past');
+  else if (f.endDate < f.startDate) errors.dates = t('err.dates_order');
+  else if (days > 30) errors.dates = t('err.trip_too_long');
+  if (!f.languages.length) errors.languages = t('v.languages');
+  const bMin = f.budgetMin === '' ? null : Number(f.budgetMin);
+  const bMax = f.budgetMax === '' ? null : Number(f.budgetMax);
+  if (bMax === null) errors.budgetMax = t('v.budget_max');
+  else if (bMax < 10) errors.budgetMax = t('v.budget_low', { amount: fmt.usd(10) });
+  else if (bMin !== null && bMax < bMin) errors.budgetMax = t('err.budget_order');
+  if (bMin === null) errors.budgetMin = t('v.budget_min');
+  const show = (k: string) => (tried || touched[k] ? errors[k] : undefined);
 
   if (!me) {
     return (
@@ -81,8 +103,14 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!f.cities.length) return setError(t('err.field_required', { field: t('field.cities') }));
-    if (f.budgetMin === '' || f.budgetMax === '') return setError(t('err.field_required', { field: t('field.budgetMax') }));
+    setTried(true);
+    const first = Object.keys(errors)[0];
+    if (first) {
+      const el = document.getElementById('pf-' + first);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el?.focus({ preventScroll: true });
+      return;
+    }
     run(async () => {
       try {
         const r = await api('POST', '/requests', { ...f, budgetMin: Number(f.budgetMin), budgetMax: Number(f.budgetMax), directGuideId: g ? g.id : undefined });
@@ -113,10 +141,13 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
       <form onSubmit={submit} className="stack-lg" noValidate>
         <fieldset className="stack">
           <legend>{t('post.where_when')}</legend>
-          <Field label={t('field.title')} hint={t('post.title_hint')}>
-            <input className="input" value={f.title} onChange={(e) => up({ title: e.target.value })} maxLength={90} required />
+          <Field label={t('field.title')} hint={show('title') ? undefined : t('post.title_hint')} error={show('title')}>
+            <input id="pf-title" className="input" value={f.title} onBlur={() => f.title && touch('title')} onChange={(e) => { up({ title: e.target.value }); if (e.target.value.trim().length >= 5) touch('title'); }} maxLength={90} required />
           </Field>
-          <ToggleGroup label={t('field.cities')} options={meta.cities.map((c: any) => c.slug)} value={f.cities} onChange={(cities) => up({ cities, places: f.places.filter((id) => cities.includes(meta.places.find((p: any) => p.id === id)?.city)) })} render={fmt.city} />
+          <div id="pf-cities" tabIndex={-1} className="stack" style={{ gap: 6 }}>
+            <ToggleGroup label={t('field.cities')} options={meta.cities.map((c: any) => c.slug)} value={f.cities} onChange={(cities) => { touch('cities'); up({ cities, places: f.places.filter((id) => cities.includes(meta.places.find((p: any) => p.id === id)?.city)) }); }} render={fmt.city} />
+            {show('cities') && <span className="err small">{show('cities')}</span>}
+          </div>
           {f.cities.length > 0 && (
             <div className="stack" style={{ gap: 6 }}>
               <span className="small" style={{ fontWeight: 500 }}>
@@ -142,21 +173,16 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
               {placesInCities.length > 10 && <input className="input" placeholder={t('post.find_place')} value={placeQuery} onChange={(e) => setPlaceQuery(e.target.value)} />}
             </div>
           )}
-          <div className="grid-2">
-            <Field label={t('field.from')}>
-              <input className="input" type="date" min={today} value={f.startDate} onChange={(e) => up({ startDate: e.target.value, endDate: f.endDate < e.target.value ? e.target.value : f.endDate })} required />
-            </Field>
-            <Field label={t('field.to')}>
-              <input className="input" type="date" min={f.startDate || today} value={f.endDate} onChange={(e) => up({ endDate: e.target.value })} required />
-            </Field>
-          </div>
-          {days > 0 && <p className="small muted">{t('post.days', { count: days })}</p>}
+          <DateRangePicker id="pf-dates" label={t('post.dates')} start={f.startDate} end={f.endDate} today={today} error={show('dates')} onChange={(startDate, endDate) => { touch('dates'); up({ startDate, endDate }); }} />
+          {days > 0 && !errors.dates && <p className="small muted">{t('post.days', { count: days })}</p>}
         </fieldset>
 
         <fieldset className="stack">
           <legend>{t('post.who')}</legend>
           <Stepper label={t('field.groupSize')} value={f.groupSize} onChange={(groupSize) => up({ groupSize })} />
-          <ToggleGroup label={t('post.guide_speaks')} options={meta.languages} value={f.languages} onChange={(languages) => up({ languages })} render={fmt.language} />
+          <div id="pf-languages" tabIndex={-1}>
+            <LanguagePick label={t('post.guide_speaks')} all={meta.languages} value={f.languages} onChange={(languages) => { touch('languages'); up({ languages }); }} render={fmt.language} error={show('languages')} />
+          </div>
           {!g && (
             <label className="check">
               <input type="checkbox" checked={f.femaleGuide} onChange={(e) => up({ femaleGuide: e.target.checked })} />
@@ -165,22 +191,15 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
           )}
         </fieldset>
 
-        <fieldset className="stack">
-          <legend>{t('post.into')}</legend>
-          <ToggleGroup label={t('field.interests')} options={meta.interests} value={f.interests} onChange={(interests) => up({ interests })} render={(i) => t('interest.' + i)} />
-          <Field label={t('post.anything_else')}>
-            <textarea className="textarea" rows={4} value={f.description} onChange={(e) => up({ description: e.target.value })} maxLength={2000} placeholder={t('post.anything_placeholder')} />
-          </Field>
-        </fieldset>
 
         <fieldset className="stack">
           <legend>{t('post.budget')}</legend>
           <div className="grid-2">
-            <Field label={t('field.budgetMin')}>
-              <input className="input" inputMode="numeric" value={f.budgetMin} onChange={(e) => up({ budgetMin: e.target.value.replace(/\D/g, '') })} placeholder="$" />
+            <Field label={t('field.budgetMin')} error={show('budgetMin')}>
+              <input id="pf-budgetMin" className="input ltr" inputMode="numeric" value={f.budgetMin} onBlur={() => touch('budgetMin')} onChange={(e) => { up({ budgetMin: e.target.value.replace(/\D/g, '') }); touch('budgetMin'); }} placeholder="$" />
             </Field>
-            <Field label={t('field.budgetMax')}>
-              <input className="input" inputMode="numeric" value={f.budgetMax} onChange={(e) => up({ budgetMax: e.target.value.replace(/\D/g, '') })} placeholder="$" />
+            <Field label={t('field.budgetMax')} error={show('budgetMax')}>
+              <input id="pf-budgetMax" className="input ltr" inputMode="numeric" value={f.budgetMax} onBlur={() => touch('budgetMax')} onChange={(e) => { up({ budgetMax: e.target.value.replace(/\D/g, '') }); if (e.target.value.length >= 2) touch('budgetMax'); }} placeholder="$" />
             </Field>
           </div>
           {f.budgetMax !== '' && (
@@ -204,7 +223,30 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
           )}
         </fieldset>
 
+        {extra || f.interests.length || f.description ? (
+          <fieldset className="stack">
+            <legend>{t('post.into')}</legend>
+            <ToggleGroup label={t('field.interests')} options={meta.interests} value={f.interests} onChange={(interests) => up({ interests })} render={(i) => t('interest.' + i)} />
+            <Field label={t('post.anything_else')}>
+              <textarea className="textarea" rows={4} value={f.description} onChange={(e) => up({ description: e.target.value })} maxLength={2000} placeholder={t('post.anything_placeholder')} />
+            </Field>
+          </fieldset>
+        ) : (
+          <button type="button" className="disclosure" aria-expanded={false} onClick={() => setExtra(true)}>
+            <span className="stack" style={{ gap: 2, textAlign: 'start' }}>
+              <span>{t('post.customize')}</span>
+              <span className="hint">{t('post.customize_hint')}</span>
+            </span>
+            <Icon name="plus" size={20} />
+          </button>
+        )}
+
         <div className="note">{g ? t('post.privacy_direct', { name: g.name.split(' ')[0] }) : t('post.privacy')}</div>
+        {tried && Object.keys(errors).length > 0 && (
+          <div className="note danger" role="alert">
+            {t('v.fix_n', { count: Object.keys(errors).length })}
+          </div>
+        )}
         {error && (
           <div className="note danger" role="alert">
             {error}
@@ -801,6 +843,14 @@ function GuideRequestView({ r, reload }: { r: any; reload(): void }) {
                   </div>
                 )}
               </div>
+            ) : r.status === 'open' && r.busyForMe && !mine ? (
+              <div className="card attention stack">
+                <strong>{t('offer.busy_title')}</strong>
+                <p className="small">{t('offer.busy_text')}</p>
+                <Link to="/bookings" className="btn sm outline" style={{ alignSelf: 'flex-start' }}>
+                  {t('offer.busy_see_trips')}
+                </Link>
+              </div>
             ) : r.status === 'open' ? (
               <OfferForm r={r} existing={mine && mine.status === 'pending' ? mine : null} onDone={() => { setEditing(false); reload(); }} onCancel={mine ? () => setEditing(false) : undefined} />
             ) : (
@@ -848,10 +898,27 @@ function OfferForm({ r, existing, onDone, onCancel }: { r: any; existing: any; o
   const [busy, setBusy] = useState(false);
   const p = Number(price) || 0;
   const fee = Math.round(p * meta.feeRate * 100) / 100;
+  // Live checks: each field shows its problem once touched, all of them on submit.
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [tried, setTried] = useState(false);
+  const touch = (k: string) => setTouched((x) => (x[k] ? x : { ...x, [k]: true }));
+  const errors: Record<string, string> = {};
+  if (p < 10) errors.price = t('v.price_min', { amount: fmt.usd(10) });
+  plan.forEach((d, i) => {
+    if ((d.title || '').trim().length < 2) errors['day' + i] = t('v.day_title');
+  });
+  if (message.trim().length < 10) errors.message = t('v.message_min', { count: 10 - message.trim().length });
+  const show = (k: string) => (tried || touched[k] ? errors[k] : undefined);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr(null);
+    setTried(true);
+    const first = Object.keys(errors)[0];
+    if (first) {
+      document.getElementById('of-' + first)?.focus();
+      return;
+    }
     setBusy(true);
     try {
       const body = { price: p, plan, includes, message };
@@ -873,9 +940,10 @@ function OfferForm({ r, existing, onDone, onCancel }: { r: any; existing: any; o
         <legend>{t('offer.your_price')}</legend>
         <label className="price-input">
           <span style={{ fontSize: 20, fontWeight: 700 }}>$</span>
-          <input inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value.replace(/[^\d.]/g, ''))} aria-label={t('offer.price_label')} />
+          <input id="of-price" inputMode="decimal" value={price} onChange={(e) => { setPrice(e.target.value.replace(/[^\d.]/g, '')); touch('price'); }} aria-label={t('offer.price_label')} aria-invalid={!!show('price')} />
           <span className="small muted">{t('offer.whole_trip')}</span>
         </label>
+        {show('price') && <span className="err" role="alert">{show('price')}</span>}
         <div className="note" style={{ lineHeight: 1.7 }}>
           <div className="between">
             <span>{t('offer.tourist_pays')}</span>
@@ -902,8 +970,8 @@ function OfferForm({ r, existing, onDone, onCancel }: { r: any; existing: any; o
             <strong className="small">
               {t('offer.day_n', { count: i + 1 })}, {fmt.dateLong(d)}
             </strong>
-            <Field label={t('field.title')}>
-              <input className="input" value={plan[i]?.title || ''} onChange={(e) => setPlan(plan.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)))} maxLength={80} placeholder={t('offer.day_title_ph')} />
+            <Field label={t('field.title')} error={show('day' + i)}>
+              <input id={'of-day' + i} className="input" value={plan[i]?.title || ''} onBlur={() => touch('day' + i)} onChange={(e) => { setPlan(plan.map((x, j) => (j === i ? { ...x, title: e.target.value } : x))); if (e.target.value.trim().length >= 2) touch('day' + i); }} maxLength={80} placeholder={t('offer.day_title_ph')} />
             </Field>
             <Field label={t('offer.what_we_do')}>
               <textarea className="textarea" rows={3} value={plan[i]?.details || ''} onChange={(e) => setPlan(plan.map((x, j) => (j === i ? { ...x, details: e.target.value } : x)))} maxLength={600} />
@@ -914,8 +982,8 @@ function OfferForm({ r, existing, onDone, onCancel }: { r: any; existing: any; o
 
       <ToggleGroup label={t('offer.included')} options={meta.includes} value={includes} onChange={setIncludes} render={(x) => t('include.' + x)} />
 
-      <Field label={t('offer.message_to', { name: r.tourist.name.split(' ')[0] })} hint={t('offer.message_hint')}>
-        <textarea className="textarea" rows={4} value={message} onChange={(e) => setMessage(e.target.value)} maxLength={2000} />
+      <Field label={t('offer.message_to', { name: r.tourist.name.split(' ')[0] })} hint={t('offer.message_hint')} error={show('message')}>
+        <textarea id="of-message" className="textarea" rows={4} value={message} onBlur={() => touch('message')} onChange={(e) => setMessage(e.target.value)} maxLength={2000} />
       </Field>
       {err && (
         <div className="note danger" role="alert">

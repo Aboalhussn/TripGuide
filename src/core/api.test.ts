@@ -309,3 +309,29 @@ test('subscription expires and cash closes again', () => {
   assert.equal(me.guide.subscriptionActive, false);
   assert.equal(me.guide.cashOpen, false);
 });
+
+test('one trip a day: no offers on booked days, and confirming withdraws overlapping offers', () => {
+  const s = setup();
+  const tt = s.login(DEMO_ACCOUNTS.tourist);
+  const other = s.login('marco@tripguide.demo');
+  const ali = s.login('ali@tripguide.demo');
+  const r1 = s.ok('POST', '/requests', tripBody(s.today()), tt);
+  const r2 = s.ok('POST', '/requests', tripBody(s.today(), { title: 'Same days, other tourist' }), other);
+  const r3 = s.ok('POST', '/requests', tripBody(s.today(), { title: 'Overlaps by one day', startDate: addDays(s.today(), 4), endDate: addDays(s.today(), 5) }), other);
+  const offer = (r: any) => s.ok('POST', `/requests/${r.id}/offers`, { price: 90, plan: Array.from({ length: r.days }, (_, i) => ({ title: 'Day ' + (i + 1) + ' walk' })), message: 'Happy to show you around.' }, ali);
+  const o1 = offer(r1);
+  const o2 = offer(r2);
+  const o3 = offer(r3);
+  const b = s.ok('POST', `/offers/${o1.id}/hire`, { confirmPayment: true, method: 'card', card: CARD }, tt);
+  s.ok('POST', `/bookings/${b.id}/confirm`, null, ali);
+  const mine = s.ok('GET', '/offers/mine', null, ali).offers;
+  assert.equal(mine.find((o: any) => o.id === o2.id).status, 'withdrawn');
+  assert.equal(mine.find((o: any) => o.id === o3.id).status, 'withdrawn');
+  // A new request on a booked day is marked busy and refuses an offer.
+  const r4 = s.ok('POST', '/requests', tripBody(s.today(), { title: 'Day four only', startDate: addDays(s.today(), 4), endDate: addDays(s.today(), 4) }), other);
+  assert.equal(s.ok('GET', `/requests/${r4.id}`, null, ali).busyForMe, true);
+  assert.equal(s.call('POST', `/requests/${r4.id}/offers`, { price: 50, plan: [{ title: 'One day walk' }], message: 'Happy to show you around.' }, ali).body.error, 'busy_those_days');
+  // The day after the trip is free.
+  const r5 = s.ok('POST', '/requests', tripBody(s.today(), { title: 'Next free day', startDate: addDays(s.today(), 5), endDate: addDays(s.today(), 5) }), other);
+  assert.equal(s.ok('GET', `/requests/${r5.id}`, null, ali).busyForMe, false);
+});

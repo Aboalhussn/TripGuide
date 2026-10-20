@@ -513,3 +513,161 @@ export function PayMethodPicker({ value, onChange, cashAllowed, cashHint, cardHi
     </fieldset>
   );
 }
+
+// ---------- date range picker (brand colours, English dates and digits) ----------
+const EN_DATE = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+const EN_MONTH = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+const isoDay = (y: number, m: number, d: number) => `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+const addIsoDays = (iso: string, n: number) => new Date(Date.parse(iso + 'T12:00:00Z') + n * 86400_000).toISOString().slice(0, 10);
+export const enDate = (iso: string) => EN_DATE.format(new Date(iso + 'T12:00:00Z'));
+
+/** Pick a start and end day on one calendar. Tap a start, then an end. */
+export function DateRangePicker({ start, end, today, maxDays = 30, onChange, label, error, id }: { start: string; end: string; today: string; maxDays?: number; onChange(start: string, end: string): void; label: string; error?: string; id?: string }) {
+  const { t } = useApp();
+  const [open, setOpen] = useState(false);
+  const [a, setA] = useState(start);
+  const [b, setB] = useState(end);
+  const [view, setView] = useState((start || today).slice(0, 7));
+  const days = a && b ? Math.round((Date.parse(b) - Date.parse(a)) / 86400_000) + 1 : 0;
+  const openSheet = () => {
+    setA(start);
+    setB(end);
+    setView((start || today).slice(0, 7));
+    setOpen(true);
+  };
+  const pick = (iso: string) => {
+    if (!a || b) {
+      setA(iso);
+      setB('');
+    } else if (iso < a) {
+      setA(iso);
+    } else setB(iso);
+  };
+  const [vy, vm] = view.split('-').map(Number);
+  const first = new Date(Date.UTC(vy, vm - 1, 1));
+  const lead = first.getUTCDay();
+  const daysIn = new Date(Date.UTC(vy, vm, 0)).getUTCDate();
+  const limit = a && !b ? addIsoDays(a, maxDays - 1) : '';
+  const shift = (n: number) => {
+    const d = new Date(Date.UTC(vy, vm - 1 + n, 1));
+    setView(d.toISOString().slice(0, 7));
+  };
+  const canPrev = view > today.slice(0, 7);
+  const cells: React.ReactNode[] = [];
+  for (let i = 0; i < lead; i++) cells.push(<span key={'e' + i} />);
+  for (let d = 1; d <= daysIn; d++) {
+    const iso = isoDay(vy, vm - 1, d);
+    const past = iso < today;
+    const tooFar = !!limit && iso > limit;
+    const isStart = iso === a;
+    const isEnd = iso === b;
+    const inRange = !!a && !!b && iso > a && iso < b;
+    const cls = 'rp-d' + (isStart ? ' start' : '') + (isEnd ? ' end' : '') + (inRange ? ' in' : '') + (a && b && a !== b && isStart ? ' has-end' : '') + (iso === today ? ' today' : '');
+    cells.push(
+      <button key={iso} type="button" className={cls} disabled={past || tooFar} aria-pressed={isStart || isEnd || inRange} aria-label={enDate(iso)} onClick={() => pick(iso)}>
+        <span>{d}</span>
+      </button>,
+    );
+  }
+  return (
+    <div className="field">
+      <span className="label-like" id={(id || 'rp') + '-label'}>
+        {label}
+      </span>
+      <button type="button" id={id} className={'rp-trigger' + (error ? ' invalid' : '')} aria-haspopup="dialog" aria-labelledby={(id || 'rp') + '-label'} aria-invalid={!!error} onClick={openSheet} dir="ltr">
+        <Icon name="calendar" size={20} />
+        <span className="rp-dates">
+          <span>{start ? enDate(start) : t('dp.start')}</span>
+          <span className="rp-arrow" aria-hidden="true">→</span>
+          <span>{end ? enDate(end) : t('dp.end')}</span>
+        </span>
+      </button>
+      {error && <span className="err">{error}</span>}
+      {open && (
+        <Modal title={t('dp.title')} onClose={() => setOpen(false)}>
+          <div className="rp" dir="ltr">
+            <div className="rp-head">
+              <button type="button" className="icon-btn" disabled={!canPrev} onClick={() => shift(-1)} aria-label={t('dp.prev')}>
+                <Icon name="back" />
+              </button>
+              <strong>{EN_MONTH.format(first)}</strong>
+              <button type="button" className="icon-btn" onClick={() => shift(1)} aria-label={t('dp.next')}>
+                <Icon name="next" />
+              </button>
+            </div>
+            <div className="rp-grid">
+              {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((n) => (
+                <span key={n} className="rp-dow">
+                  {n}
+                </span>
+              ))}
+              {cells}
+            </div>
+          </div>
+          <div className="rp-summary" dir="ltr">
+            {a ? (
+              <>
+                <strong>{enDate(a)}</strong> → <strong>{b ? enDate(b) : '…'}</strong>
+                {b && <span className="muted"> · {days} {days === 1 ? 'day' : 'days'}</span>}
+              </>
+            ) : (
+              <span className="muted">{t('dp.hint_start')}</span>
+            )}
+            {a && !b && <div className="xs muted">{t('dp.hint_end', { count: maxDays })}</div>}
+          </div>
+          <div className="row" style={{ flexWrap: 'nowrap' }}>
+            <button type="button" className="btn ghost" style={{ flex: 1 }} onClick={() => { setA(''); setB(''); }}>
+              {t('dp.clear')}
+            </button>
+            <button type="button" className="btn" style={{ flex: 1.6 }} disabled={!a} onClick={() => { onChange(a, b || a); setOpen(false); }}>
+              {t('dp.done')}
+            </button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+/** Arabic and English up front; every other language behind "More languages". */
+export function LanguagePick({ all, value, onChange, label, render, error }: { all: string[]; value: string[]; onChange(v: string[]): void; label: string; render(code: string): string; error?: string }) {
+  const { t } = useApp();
+  const main = ['ar', 'en'].filter((c) => all.includes(c));
+  const extra = all.filter((c) => !main.includes(c));
+  const pickedExtra = value.filter((c) => extra.includes(c));
+  const [more, setMore] = useState(false);
+  const toggle = (c: string) => onChange(value.includes(c) ? value.filter((x) => x !== c) : [...value, c]);
+  return (
+    <div className="stack" style={{ gap: 6 }}>
+      <span className="small" style={{ fontWeight: 500 }} id="lp-label">
+        {label}
+      </span>
+      <div className="chips" role="group" aria-labelledby="lp-label">
+        {main.map((c) => (
+          <button key={c} type="button" className="toggle-chip" aria-pressed={value.includes(c)} onClick={() => toggle(c)}>
+            {render(c)}
+          </button>
+        ))}
+        {!more &&
+          pickedExtra.map((c) => (
+            <button key={c} type="button" className="toggle-chip" aria-pressed onClick={() => toggle(c)} aria-label={t('common.remove_x', { name: render(c) })}>
+              {render(c)} ×
+            </button>
+          ))}
+        <button type="button" className="toggle-chip more-chip" aria-expanded={more} onClick={() => setMore(!more)}>
+          {more ? t('lp.fewer') : t('lp.more')} <Icon name={more ? 'close' : 'plus'} size={14} />
+        </button>
+      </div>
+      {more && (
+        <div className="chips more-panel" role="group" aria-label={t('lp.more')}>
+          {extra.map((c) => (
+            <button key={c} type="button" className="toggle-chip" aria-pressed={value.includes(c)} onClick={() => toggle(c)}>
+              {render(c)}
+            </button>
+          ))}
+        </div>
+      )}
+      {error && <span className="err">{error}</span>}
+    </div>
+  );
+}

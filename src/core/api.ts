@@ -160,6 +160,8 @@ function requestSummary(ctx: Ctx, r: TripRequest) {
     offersCount: offers.length,
     avgOffer: offers.length ? Math.round(offers.reduce((a, o) => a + o.price, 0) / offers.length) : null,
     directGuide: r.directGuideId ? publicUser(userById(ctx.data, r.directGuideId)!) : null,
+    // One trip a day: a guide already booked on any of these days can't offer.
+    busyForMe: ctx.user?.role === 'guide' ? !isAvailable(ctx.data, guideOf(ctx.data, ctx.user.id)!, r.startDate, r.endDate) : false,
   };
 }
 
@@ -666,6 +668,7 @@ route('POST', '/requests/:id/offers', (ctx, p, req) => {
   if (r.directGuideId !== null && r.directGuideId !== u.id) throw notFound();
   if (r.status !== 'open') throw conflict('request_not_open');
   if (ctx.data.offers.some((o) => o.requestId === r.id && o.guideId === u.id && ['pending', 'awarded', 'accepted'].includes(o.status))) throw conflict('offer_exists');
+  if (!isAvailable(ctx.data, g, r.startDate, r.endDate)) throw conflict('busy_those_days');
   const fields = parseOffer(req.body || {}, daysInclusive(r.startDate, r.endDate));
   const o: Offer = { id: nextId(ctx.data, 'offers'), requestId: r.id, guideId: u.id, ...fields, status: 'pending', shortlisted: false, createdAt: ctx.nowIso, updatedAt: ctx.nowIso };
   ctx.data.offers.push(o);
@@ -815,6 +818,15 @@ route('POST', '/bookings/:id/confirm', (ctx, p) => {
     notify(ctx, other.guideId, 'offer_not_selected', { title: r.title }, `/requests/${r.id}`);
   }
   notify(ctx, b.touristId, 'booking_confirmed', { name: u.name, title: b.title }, `/bookings/${b.id}`);
+  // One trip a day: the guide's other open offers on any of these days are withdrawn.
+  for (const other of ctx.data.offers.filter((x) => x.guideId === u.id && x.id !== o.id && x.status === 'pending')) {
+    const rr = ctx.data.requests.find((q) => q.id === other.requestId);
+    if (rr && rr.startDate <= b.endDate && b.startDate <= rr.endDate) {
+      other.status = 'withdrawn';
+      other.updatedAt = ctx.nowIso;
+      notify(ctx, rr.touristId, 'offer_withdrawn_busy', { name: u.name, title: rr.title }, `/requests/${rr.id}`);
+    }
+  }
   return bookingView(ctx, b);
 });
 
