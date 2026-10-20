@@ -1,0 +1,8 @@
+node_modules/
+dist/
+data/
+*.log
+.DS_Store
+# Thmanyah font files: the licence does not allow redistributing them. See README.
+public/fonts/*.woff2
+public/fonts/*.otf

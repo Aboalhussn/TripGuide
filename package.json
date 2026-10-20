@@ -1,0 +1,33 @@
+{
+  "name": "tripguide",
+  "private": true,
+  "version": "0.1.0",
+  "description": "A marketplace that connects tourists in Iraq with local guides: post a trip, compare offers, hire, pay day by day.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node scripts/build.mjs && node dist/server.mjs",
+    "build": "node scripts/build.mjs",
+    "build:demo": "node scripts/build.mjs --demo",
+    "dev": "node scripts/build.mjs && node scripts/dev.mjs",
+    "reset": "node scripts/reset.mjs",
+    "test": "tsx --test src/core/api.test.ts",
+    "e2e": "tsx --test e2e/flows.test.ts",
+    "check": "tsc --noEmit -p tsconfig.json && tsx scripts/check-strings.ts"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.56.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "esbuild": "^0.28.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}

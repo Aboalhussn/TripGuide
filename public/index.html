@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#053F5C" />
+  <meta name="description" content="%DESCRIPTION%" />
+  <title>%NAME%</title>
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="preload" href="/fonts/thmanyahsans-Regular.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="/fonts/thmanyahsans-Black.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="stylesheet" href="/assets/app.css" />
+  <script>
+    // Set direction before the app loads, so Arabic doesn't flash left-to-right.
+    try { var l = localStorage.getItem('tg.lang') || ((navigator.language || '').indexOf('ar') === 0 ? 'ar' : 'en'); document.documentElement.lang = l; document.documentElement.dir = l === 'ar' ? 'rtl' : 'ltr'; } catch (e) {}
+  </script>
+</head>
+<body>
+  <a class="sr-only" href="#main">Skip to content</a>
+  <div id="root"></div>
+  <noscript>%NAME% needs JavaScript to run.</noscript>
+  <script src="/assets/app.js" defer></script>
+</body>
+</html>
