@@ -76,7 +76,7 @@ async function buildDemo() {
 <html lang="en" dir="ltr">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
 <meta name="theme-color" content="#053F5C" />
 <title>${name} demo</title>
 <link rel="icon" href="${icon}" />

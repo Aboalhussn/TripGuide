@@ -46,7 +46,46 @@ export function Thread({ id }: { id: string }) {
   const res = useLoad(() => api('GET', `/threads/${id}`), [id]);
   const [text, setText] = useState('');
   const logRef = useRef<HTMLDivElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
   const { busy, run } = useBusy();
+
+  // Phone layout: the screen is locked; the header stays on top, the messages scroll between,
+  // and the message box sits at the bottom, rising above the keyboard only while typing.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.add('chat-lock');
+    const vv = window.visualViewport;
+    const fit = () => {
+      const el = boxRef.current;
+      if (!el || !vv) return;
+      if (window.innerWidth >= 960) {
+        el.style.height = el.style.transform = ''; // desktop keeps the normal page layout
+        return;
+      }
+      el.style.height = vv.height + 'px';
+      el.style.transform = vv.offsetTop ? `translateY(${vv.offsetTop}px)` : '';
+      // Keep the newest messages in view when the keyboard opens, if you were reading the end.
+      requestAnimationFrame(() => {
+        const log = logRef.current;
+        if (log && atEnd) log.scrollTop = log.scrollHeight;
+      });
+    };
+    let atEnd = true;
+    const log = logRef.current;
+    const track = () => {
+      if (log) atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 80;
+    };
+    log?.addEventListener('scroll', track, { passive: true });
+    fit();
+    vv?.addEventListener('resize', fit);
+    vv?.addEventListener('scroll', fit);
+    return () => {
+      root.classList.remove('chat-lock');
+      log?.removeEventListener('scroll', track);
+      vv?.removeEventListener('resize', fit);
+      vv?.removeEventListener('scroll', fit);
+    };
+  }, [res.data ? 1 : 0]);
 
   // Poll for new messages while the conversation is open.
   useEffect(() => {
@@ -76,8 +115,8 @@ export function Thread({ id }: { id: string }) {
   };
   let lastDay = '';
   return (
-    <div className="chat">
-      <div className="row" style={{ gap: 10, flexWrap: 'nowrap', padding: '8px 16px', background: 'var(--surface)', borderBottom: '1px solid var(--line)' }}>
+    <div className="chat" ref={boxRef}>
+      <div className="row chat-head" style={{ gap: 10, flexWrap: 'nowrap', padding: '8px 16px', background: 'var(--surface)', borderBottom: '1px solid var(--line)' }}>
         <button type="button" className="back icon-btn" aria-label={t('common.back')} onClick={() => navigate('/messages')}>
           <Icon name="back" />
         </button>
@@ -90,7 +129,7 @@ export function Thread({ id }: { id: string }) {
         </div>
       </div>
       {th.request && (
-        <div className="row" style={{ gap: 10, flexWrap: 'nowrap', padding: '10px 16px', background: 'var(--sky-soft)', borderBottom: '1px solid var(--line-strong)' }}>
+        <div className="row chat-head" style={{ gap: 10, flexWrap: 'nowrap', padding: '10px 16px', background: 'var(--sky-soft)', borderBottom: '1px solid var(--line-strong)' }}>
           <div style={{ flex: 1, minWidth: 0 }} className="small">
             <div className="bold" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               <bdi>{th.request.title}</bdi>

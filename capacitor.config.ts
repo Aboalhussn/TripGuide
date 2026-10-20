@@ -27,7 +27,8 @@ const config: CapacitorConfig = {
       overlaysWebView: false,
     },
     Keyboard: {
-      resize: 'body',
+      // The whole app view shrinks above the keyboard, so the chat box sits right on top of it.
+      resize: 'native',
     },
   },
 };

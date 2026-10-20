@@ -420,3 +420,39 @@ test('home has no search bar or shortcut row; signing out asks first; admin open
   assert.equal(await h.locator('.tabbar a[aria-current="page"]').innerText(), 'Home');
   await h.context().close();
 });
+
+test('an open chat fills the phone screen: no tab bar, header pinned on top, message box pinned at the bottom', async () => {
+  const p = await open();
+  await login(p, 'tourist@tripguide.demo');
+  await go(p, '/messages');
+  await p.locator('a[href*="#/messages/"]').first().click();
+  await p.waitForFunction(() => /^#\/messages\/\d+/.test(location.hash));
+  await p.locator('.chat-form textarea').waitFor();
+  assert.equal(await p.locator('.tabbar').count(), 0);
+  const edges = () =>
+    p.evaluate(() => ({
+      head: Math.round(document.querySelector('.chat-head')!.getBoundingClientRect().top),
+      form: Math.round(document.querySelector('.chat-form')!.getBoundingClientRect().bottom),
+      h: window.innerHeight,
+    }));
+  let e = await edges();
+  assert.equal(e.head, 0);
+  assert.equal(e.form, e.h);
+  // Scrolling the messages moves neither the header nor the message box.
+  await p.locator('.chat-log').evaluate((el) => (el.scrollTop = 0));
+  await p.mouse.wheel(0, 2000);
+  e = await edges();
+  assert.equal(e.head, 0);
+  assert.equal(e.form, e.h);
+  // The keyboard opening (the screen getting shorter) lifts the message box right above it.
+  await p.setViewportSize({ width: 390, height: 520 });
+  await p.waitForTimeout(200);
+  e = await edges();
+  assert.equal(e.head, 0);
+  assert.equal(e.form, 520);
+  // Leaving the chat brings the tab bar back.
+  await p.setViewportSize({ width: 390, height: 844 });
+  await go(p, '/messages');
+  await p.locator('.tabbar').waitFor();
+  await p.context().close();
+});

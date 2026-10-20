@@ -11,6 +11,8 @@ export function Shell({ path, children }: { path: string; children: React.ReactN
   const { me, t, lang } = useApp();
   // Sign-in and sign-up are full-screen: no bottom tab bar.
   const bare = path === '/login' || path === '/register';
+  // An open conversation fills the phone screen like a chat app: no bottom tab bar.
+  const chat = /^\/messages\/[^/]+$/.test(path);
   const role = me?.role || 'guest';
 
   const items: Record<string, NavItem[]> = {
@@ -114,10 +116,10 @@ export function Shell({ path, children }: { path: string; children: React.ReactN
           </div>
         </div>
       </header>
-      <main className={'main' + (bare ? ' bare' : '')} id="main">
+      <main className={'main' + (bare ? ' bare' : '') + (chat ? ' chat-open' : '')} id="main">
         {children}
       </main>
-      {!bare && <nav className="tabbar" aria-label={t('nav.main')}>
+      {!bare && !chat && <nav className="tabbar" aria-label={t('nav.main')}>
         {items[role].map((it) => (
           <Link key={it.to} to={it.to} aria-current={activeTab === it.to ? 'page' : undefined}>
             {it.primary ? (
