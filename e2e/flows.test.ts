@@ -26,7 +26,7 @@ before(async () => {
     }
     await new Promise((r) => setTimeout(r, 100));
   }
-  browser = await chromium.launch();
+  browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
 });
 
 after(async () => {
@@ -113,7 +113,11 @@ test('tourist posts a trip, a guide offers, the tourist chats, hires, pays day b
   await tourist.getByText('Yes, 6 am works.').waitFor({ timeout: 8000 });
   await tourist.goto(requestUrl);
   await tourist.getByRole('button', { name: 'Hire for $120' }).click();
+  // Card is the default payment method; the card form runs in test mode.
   await tourist.getByLabel('Card number').fill('4242 4242 4242 4242');
+  await tourist.getByLabel('Name on card').fill('Test Tourist');
+  await tourist.getByLabel('Expiry (MM/YY)').fill('1230');
+  await tourist.getByLabel('CVC').fill('123');
   await tourist.getByLabel(/I understand the money is held/).check();
   await tourist.getByRole('button', { name: 'Pay $120 into holding' }).click();
   await tourist.getByText(/has 48 hours to confirm/).waitFor();
@@ -233,7 +237,8 @@ test('a report goes to the admin, who refunds the tourist', async () => {
   await login(admin, 'admin@tripguide.demo');
   await go(admin, '/admin/reports');
   const card = admin.locator('article', { hasText: 'cash by transfer' });
-  await card.getByRole('button', { name: 'Refund tourist' }).click();
+  await card.getByText('Refund tourist').click();
+  await card.getByRole('button', { name: 'Resolve report' }).click();
   await admin.getByText('Report resolved').waitFor();
 
   await marco.reload();
@@ -290,3 +295,30 @@ test('every main screen works in Arabic, right to left, on a phone and on a desk
   await p.getByRole('heading', { name: 'انشر رحلتك، ودَع المرشدين العراقيين يرسلون عروضهم.' }).waitFor();
   await shot(p, 'e2e-home-ar');
 });
+
+test('cash: a subscribed guide takes cash, the tourist books paying cash', async () => {
+  // Zainab subscribes (the demo seeds some guides already subscribed; renewing works the same way).
+  const z = await open();
+  await login(z, 'guide@tripguide.demo');
+  await go(z, '/profile');
+  await z.getByRole('heading', { name: 'Account' }).waitFor();
+  await z.getByText('Cash payments').first().waitFor();
+  await z.getByRole('button', { name: /^(Subscribe|Renew) for/ }).click();
+  await z.getByRole('button', { name: 'Use test card' }).click();
+  await z.getByRole('button', { name: /^Pay \$/ }).click();
+  await z.getByText('Subscribed. Tourists can now pay you in cash.').waitFor();
+  await noSideScroll(z, 'guide account');
+
+  const t = await open();
+  await login(t, 'tourist@tripguide.demo');
+  await go(t, '/requests/74');
+  const offer = t.locator('article', { hasText: 'Zainab' }).first();
+  await offer.getByRole('button', { name: /^Hire/ }).click();
+  await t.getByText('Cash', { exact: true }).click();
+  await t.getByText('How cash works').waitFor();
+  await t.getByLabel('I will pay the guide in cash at the end of each day.').check();
+  await t.getByRole('button', { name: 'Book and pay cash' }).click();
+  await t.getByText('Cash to the guide').waitFor();
+  await noSideScroll(t, 'cash booking');
+});
+

@@ -425,6 +425,7 @@ export function AdminHome() {
           </div>
         )}
       </section>
+      <SubscriptionSettings price={x.subscriptionPrice} days={x.subscriptionDays} active={x.activeSubscriptions} onSaved={d.reload} />
       <section className="stack" style={{ gap: 10 }}>
         <h2>{t('admin.platform')}</h2>
         <div className="stat-grid">
@@ -444,5 +445,51 @@ export function AdminHome() {
         </div>
       </section>
     </div>
+  );
+}
+
+/** Admin: price of the guide subscription that unlocks cash bookings. */
+function SubscriptionSettings({ price, days, active, onSaved }: { price: number; days: number; active: number; onSaved(): void }) {
+  const { t } = useApp();
+  const [p, setP] = React.useState(String(price));
+  const [dd, setDd] = React.useState(String(days));
+  const [busy, setBusy] = React.useState(false);
+  const [msg, setMsg] = React.useState<string | null>(null);
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setMsg(null);
+    try {
+      await api('PUT', '/admin/settings', { guideSubscriptionPrice: Number(p), subscriptionDays: Number(dd) });
+      setMsg(t('common.saved'));
+      onSaved();
+    } catch {
+      setMsg(t('err.server_error'));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <form className="card stack" onSubmit={save} aria-labelledby="subs-title">
+      <div className="between">
+        <h2 id="subs-title" style={{ fontSize: 20 }}>{t('admin.subs_title')}</h2>
+        <span className="pill sky">{t('admin.subs_active', { count: active })}</span>
+      </div>
+      <p className="small muted">{t('admin.subs_text')}</p>
+      <div className="grid-2" style={{ gap: 12 }}>
+        <label className="stack" style={{ gap: 6 }}>
+          <span className="label-sm">{t('admin.subs_price')}</span>
+          <input className="input ltr" inputMode="decimal" value={p} onChange={(e) => setP(e.target.value.replace(/[^\d.]/g, ''))} />
+        </label>
+        <label className="stack" style={{ gap: 6 }}>
+          <span className="label-sm">{t('admin.subs_days')}</span>
+          <input className="input ltr" inputMode="numeric" value={dd} onChange={(e) => setDd(e.target.value.replace(/\D/g, ''))} />
+        </label>
+      </div>
+      <div className="row">
+        <button className="btn" disabled={busy}>{t('common.save')}</button>
+        {msg && <span className="small muted" role="status">{msg}</span>}
+      </div>
+    </form>
   );
 }

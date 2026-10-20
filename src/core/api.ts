@@ -1,10 +1,10 @@
 // The whole marketplace: every rule lives here, and the same code runs on the server and in the browser demo.
 import { settings } from '../config/brand';
 import { AVATAR_COLORS, CITIES, GUIDE_RATING_KEYS, INCLUDES, INTERESTS, LANGUAGES, LANGUAGE_LEVELS, PHOTO_LIBRARY, PLACES, TOURIST_RATING_KEYS } from './catalog';
-import type { ApiRequest, ApiResponse, Booking, Data, GuideProfile, Milestone, Offer, Platform, Role, TripRequest, User } from './types';
+import type { ApiRequest, ApiResponse, Booking, Data, GuideProfile, Milestone, Offer, PaymentMethod, Platform, Role, TripRequest, User } from './types';
 import { DEMO_ACCOUNTS, DEMO_PASSWORD } from './seed';
 import { ApiError, addDays, bad, conflict, dateRange, daysInclusive, forbidden, iraqDate, isDate, money, nextId, notFound, num, optStr, str, strList } from './util';
-import { bookedDates, bookingMoney, guideCard, guideStats, isAvailable, publicUser, reviewView, reviewVisible, touristStats } from './views';
+import { bookedDates, bookingMoney, cashOpen, guideCard, guideStats, isAvailable, publicUser, reviewView, reviewVisible, touristStats } from './views';
 
 type Ctx = { data: Data; p: Platform; user: User | null; now: Date; nowIso: string; today: string };
 type Handler = (ctx: Ctx, params: Record<string, string>, req: ApiRequest) => any;
@@ -52,6 +52,58 @@ function notifyAdmins(ctx: Ctx, type: string, params: Record<string, string | nu
   for (const a of ctx.data.users.filter((u) => u.role === 'admin')) notify(ctx, a.id, type, params, link);
 }
 
+// ---------- payments ----------
+// Card payments are simulated (sandbox) until a real Iraqi gateway is connected:
+// swap chargeCard() for the gateway call and keep the same return shape.
+export const TEST_CARDS = { ok: '4242 4242 4242 4242', declined: '4000 0000 0000 0002' };
+
+function luhn(d: string) {
+  let sum = 0;
+  for (let i = 0; i < d.length; i++) {
+    let n = Number(d[d.length - 1 - i]);
+    if (i % 2 === 1) { n *= 2; if (n > 9) n -= 9; }
+    sum += n;
+  }
+  return sum % 10 === 0;
+}
+function cardBrand(d: string) {
+  if (/^4/.test(d)) return 'Visa';
+  if (/^(5[1-5]|2[2-7])/.test(d)) return 'Mastercard';
+  return 'Card';
+}
+function chargeCard(ctx: Ctx, u: User, card: any, amount: number, purpose: 'booking' | 'subscription', refId: number) {
+  const digits = String(card?.number || '').replace(/[\s-]/g, '');
+  if (!/^\d{12,19}$/.test(digits) || !luhn(digits)) throw bad('card_invalid');
+  const name = String(card?.name || '').trim();
+  if (name.length < 2) throw bad('card_name_required');
+  const exp = String(card?.expiry || '').replace(/\s/g, '');
+  const em = exp.match(/^(\d{2})\/?(\d{2})$/);
+  if (!em || Number(em[1]) < 1 || Number(em[1]) > 12) throw bad('card_expiry_invalid');
+  const lastDay = new Date(Date.UTC(2000 + Number(em[2]), Number(em[1]), 0));
+  if (lastDay.toISOString().slice(0, 10) < ctx.today) throw bad('card_expired');
+  if (!/^\d{3,4}$/.test(String(card?.cvc || ''))) throw bad('card_cvc_invalid');
+  if (digits === TEST_CARDS.declined.replace(/\s/g, '')) throw new ApiError(402, 'card_declined');
+  const p = { id: nextId(ctx.data, 'payments'), userId: u.id, purpose, refId, amount: money(amount), brand: cardBrand(digits), last4: digits.slice(-4), status: 'succeeded' as const, createdAt: ctx.nowIso };
+  ctx.data.payments.push(p);
+  return p;
+}
+const subActive = (ctx: Ctx, g: GuideProfile) => !!g.subscriptionUntil && g.subscriptionUntil > ctx.nowIso;
+
+// Older saved data (and the browser demo's stored copy) predates payment methods.
+function normalize(data: Data) {
+  if (!data.payments) data.payments = [];
+  if (!data.platform) data.platform = { guideSubscriptionPrice: settings.guideSubscriptionPrice, subscriptionDays: settings.subscriptionDays };
+  if (data.seq.payments === undefined) data.seq.payments = 0;
+  for (const g of data.guides) {
+    if (g.acceptsCash === undefined) g.acceptsCash = false;
+    if (g.subscriptionUntil === undefined) g.subscriptionUntil = null;
+  }
+  for (const b of data.bookings) {
+    if (!b.paymentMethod) b.paymentMethod = 'card';
+    if (b.cardLast4 === undefined) b.cardLast4 = '';
+  }
+}
+
 // ---------- lifecycle sweeps (run before every request) ----------
 function sweep(ctx: Ctx) {
   for (const b of ctx.data.bookings) {
@@ -67,9 +119,10 @@ function sweep(ctx: Ctx) {
   }
 }
 
+// Returns held card money; unpaid cash days simply fall away.
 function refundHeld(ctx: Ctx, b: Booking) {
-  for (const m of ctx.data.milestones.filter((m) => m.bookingId === b.id && (m.status === 'held' || m.status === 'release_requested'))) {
-    m.status = 'refunded';
+  for (const m of ctx.data.milestones.filter((m) => m.bookingId === b.id && (m.status === 'held' || m.status === 'release_requested' || m.status === 'cash_due'))) {
+    m.status = m.status === 'cash_due' ? 'void' : 'refunded';
     m.settledAt = ctx.nowIso;
   }
 }
@@ -83,8 +136,8 @@ function reopenRequest(ctx: Ctx, requestId: number) {
 
 function checkComplete(ctx: Ctx, b: Booking) {
   const ms = ctx.data.milestones.filter((m) => m.bookingId === b.id);
-  if (ms.some((m) => m.status === 'held' || m.status === 'release_requested')) return;
-  if (ms.some((m) => m.status === 'released')) {
+  if (ms.some((m) => m.status === 'held' || m.status === 'release_requested' || m.status === 'cash_due')) return;
+  if (ms.some((m) => m.status === 'released' || m.status === 'cash_paid')) {
     b.status = 'completed';
     b.completedAt = ctx.nowIso;
     notify(ctx, b.touristId, 'review_prompt', { title: b.title }, `/bookings/${b.id}`);
@@ -168,6 +221,13 @@ route('GET', '/meta', (ctx) => ({
   touristRatingKeys: TOURIST_RATING_KEYS,
   photoLibrary: PHOTO_LIBRARY,
   feeRate: settings.feeRate,
+  payments: {
+    methods: ['card', 'cash'],
+    cardSandbox: true,
+    testCards: TEST_CARDS,
+    guideSubscriptionPrice: ctx.data.platform.guideSubscriptionPrice,
+    subscriptionDays: ctx.data.platform.subscriptionDays,
+  },
   iqdPerUsd: settings.iqdPerUsd,
   confirmWindowHours: settings.confirmWindowHours,
   demoPhoneCode: settings.demoPhoneCode,
@@ -223,6 +283,8 @@ route('POST', '/auth/register', (ctx, _p, req) => {
       verificationNote: '',
       verificationDocs: [],
       verificationRequestedAt: null,
+      acceptsCash: false,
+      subscriptionUntil: null,
     });
   }
   const token = ctx.p.randomToken();
@@ -259,7 +321,7 @@ function meView(ctx: Ctx, u: User) {
     status: u.status,
     unreadNotifications,
     unreadMessages,
-    guide: g ? { ...g, profileComplete: !!(g.headline && g.bio && g.cities.length) } : null,
+    guide: g ? { ...g, profileComplete: !!(g.headline && g.bio && g.cities.length), subscriptionActive: subActive(ctx, g), cashOpen: cashOpen(g, ctx.now) } : null,
   };
 }
 
@@ -371,6 +433,7 @@ route('PUT', '/guide/profile', (ctx, _p, req) => {
   if (b.bio !== undefined) g.bio = str(b.bio, 'bio', 30, 1500);
   if (b.bioAr !== undefined) g.bioAr = optStr(b.bioAr, 'bioAr', 1500);
   if (b.pricePerDay !== undefined) g.pricePerDay = num(b.pricePerDay, 'pricePerDay', 10, 1000, true);
+  if (b.acceptsCash !== undefined) g.acceptsCash = !!b.acceptsCash;
   if (b.cities !== undefined) g.cities = strList(b.cities, 'cities', CITIES.map((c) => c.slug), 1, 8);
   if (b.languages !== undefined) g.languages = validLanguages(b.languages);
   if (b.specialities !== undefined) g.specialities = strList(b.specialities, 'specialities', INTERESTS, 0, 10);
@@ -394,6 +457,26 @@ route('PUT', '/guide/profile', (ctx, _p, req) => {
     });
   }
   return meView(ctx, u);
+});
+
+// Guides subscribe (price set by the admin) to take cash bookings; card bookings carry the usual fee instead.
+route('GET', '/guide/subscription', (ctx) => {
+  const u = need(ctx, 'guide');
+  const g = guideOf(ctx.data, u.id)!;
+  const history = ctx.data.payments.filter((p) => p.purpose === 'subscription' && p.userId === u.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return { price: ctx.data.platform.guideSubscriptionPrice, days: ctx.data.platform.subscriptionDays, until: g.subscriptionUntil, active: subActive(ctx, g), acceptsCash: g.acceptsCash, history };
+});
+
+route('POST', '/guide/subscription', (ctx, _p, req) => {
+  const u = needActive(ctx, 'guide');
+  const g = guideOf(ctx.data, u.id)!;
+  const { guideSubscriptionPrice: price, subscriptionDays: days } = ctx.data.platform;
+  if (price > 0) chargeCard(ctx, u, req.body?.card, price, 'subscription', u.id);
+  const from = subActive(ctx, g) ? new Date(g.subscriptionUntil!) : ctx.now;
+  g.subscriptionUntil = new Date(from.getTime() + days * 86400_000).toISOString();
+  if (req.body?.acceptCash !== false) g.acceptsCash = true;
+  notify(ctx, u.id, 'subscription_active', { until: g.subscriptionUntil.slice(0, 10) }, '/profile/guide');
+  return { price, days, until: g.subscriptionUntil, active: true, acceptsCash: g.acceptsCash };
 });
 
 route('POST', '/guide/verification', (ctx, _p, req) => {
@@ -646,11 +729,15 @@ route('POST', '/offers/:id/hire', (ctx, p, req) => {
   if (r.touristId !== u.id) throw notFound();
   if (r.status !== 'open' || o.status !== 'pending') throw conflict('cannot_hire');
   if (req.body?.confirmPayment !== true) throw bad('payment_confirm_required');
+  const method: PaymentMethod = req.body?.method === 'cash' ? 'cash' : 'card';
   const guideUser = userById(ctx.data, o.guideId)!;
   if (guideUser.status !== 'active') throw conflict('guide_unavailable');
   const g = guideOf(ctx.data, o.guideId)!;
   if (!isAvailable(ctx.data, g, r.startDate, r.endDate)) throw conflict('guide_busy');
-  u.paymentVerified = true;
+  if (method === 'cash' && !cashOpen(g, ctx.now)) throw conflict('cash_not_accepted');
+  const bookingId = ctx.data.seq.bookings + 1;
+  const charge = method === 'card' ? chargeCard(ctx, u, req.body?.card, o.price, 'booking', bookingId) : null;
+  if (charge) u.paymentVerified = true;
 
   const b: Booking = {
     id: nextId(ctx.data, 'bookings'),
@@ -663,7 +750,9 @@ route('POST', '/offers/:id/hire', (ctx, p, req) => {
     endDate: r.endDate,
     groupSize: r.groupSize,
     total: o.price,
-    feeRate: settings.feeRate,
+    feeRate: method === 'card' ? settings.feeRate : 0,
+    paymentMethod: method,
+    cardLast4: charge ? charge.last4 : '',
     status: 'awaiting_guide',
     statusBeforeDispute: null,
     createdAt: ctx.nowIso,
@@ -679,12 +768,12 @@ route('POST', '/offers/:id/hire', (ctx, p, req) => {
   const each = Math.floor((o.price / days.length) * 100) / 100;
   days.forEach((date, i) => {
     const amount = i === days.length - 1 ? money(o.price - each * (days.length - 1)) : each;
-    const m: Milestone = { id: nextId(ctx.data, 'milestones'), bookingId: b.id, index: i, date, title: o.plan[i]?.title || `Day ${i + 1}`, amount, status: 'held', fundedAt: ctx.nowIso, settledAt: null };
+    const m: Milestone = { id: nextId(ctx.data, 'milestones'), bookingId: b.id, index: i, date, title: o.plan[i]?.title || `Day ${i + 1}`, amount, status: method === 'cash' ? 'cash_due' : 'held', fundedAt: ctx.nowIso, settledAt: null };
     ctx.data.milestones.push(m);
   });
   o.status = 'awarded';
   r.status = 'awarded';
-  notify(ctx, o.guideId, 'hired', { name: publicUser(u).name, title: r.title, price: o.price }, `/bookings/${b.id}`);
+  notify(ctx, o.guideId, method === 'cash' ? 'hired_cash' : 'hired', { name: publicUser(u).name, title: r.title, price: o.price }, `/bookings/${b.id}`);
   return bookingView(ctx, b);
 });
 
@@ -811,6 +900,22 @@ route('POST', '/milestones/:id/refund', (ctx, p) => {
   m.status = 'refunded';
   m.settledAt = ctx.nowIso;
   notify(ctx, b.touristId, 'payment_refunded', { name: u.name, title: b.title, amount: m.amount, day: m.index + 1 }, `/bookings/${b.id}`);
+  checkComplete(ctx, b);
+  return bookingView(ctx, b);
+});
+
+// Cash bookings: the guide confirms each day's cash once they have it in hand.
+route('POST', '/milestones/:id/cash-received', (ctx, p) => {
+  const u = needActive(ctx, 'guide');
+  const { m, b } = findMilestone(ctx, idOf(p.id));
+  if (b.guideId !== u.id) throw notFound();
+  if (b.paymentMethod !== 'cash') throw conflict('not_cash_booking');
+  if (b.status !== 'confirmed') throw conflict('booking_state');
+  if (m.status !== 'cash_due') throw conflict('milestone_state');
+  if (m.date > ctx.today) throw conflict('day_not_reached');
+  m.status = 'cash_paid';
+  m.settledAt = ctx.nowIso;
+  notify(ctx, b.touristId, 'cash_confirmed', { name: u.name, title: b.title, amount: m.amount, day: m.index + 1 }, `/bookings/${b.id}`);
   checkComplete(ctx, b);
   return bookingView(ctx, b);
 });
@@ -979,12 +1084,21 @@ route('GET', '/wallet', (ctx) => {
       const b = bookings.find((x) => x.id === m.bookingId)!;
       const base = { bookingId: b.id, title: b.title, day: m.index + 1 };
       const out: any[] = [];
+      if (b.paymentMethod === 'cash') {
+        if (m.status === 'cash_paid') out.push({ ...base, kind: 'cash', amount: u.role === 'guide' ? m.amount : -m.amount, at: m.settledAt });
+        return out;
+      }
       if (u.role === 'tourist') out.push({ ...base, kind: 'paid_in', amount: -m.amount, at: m.fundedAt });
       if (m.status === 'released') out.push({ ...base, kind: 'released', amount: u.role === 'guide' ? money(m.amount * (1 - b.feeRate)) : m.amount, fee: money(m.amount * b.feeRate), at: m.settledAt });
       if (m.status === 'refunded') out.push({ ...base, kind: 'refunded', amount: u.role === 'tourist' ? m.amount : 0, at: m.settledAt });
       return out;
     })
     .filter((x) => u.role === 'tourist' || x.kind !== 'refunded')
+    .concat(
+      ctx.data.payments
+        .filter((p) => p.purpose === 'subscription' && p.userId === u.id)
+        .map((p) => ({ bookingId: null, title: '', day: 0, kind: 'subscription', amount: -p.amount, at: p.createdAt })),
+    )
     .sort((a, b) => String(b.at).localeCompare(String(a.at)));
   return {
     role: u.role,
@@ -992,6 +1106,8 @@ route('GET', '/wallet', (ctx) => {
     released: u.role === 'guide' ? sum(['released'], true) : sum(['released']),
     refunded: sum(['refunded']),
     fees: u.role === 'guide' ? money(sum(['released']) - sum(['released'], true)) : 0,
+    cashPaid: sum(['cash_paid']),
+    cashDue: sum(['cash_due']),
     thisMonth:
       u.role === 'guide'
         ? money(ms.filter((m) => m.status === 'released' && (m.settledAt || '').slice(0, 7) === month).reduce((a, m) => a + m.amount * (1 - bookings.find((b) => b.id === m.bookingId)!.feeRate), 0))
@@ -1052,7 +1168,23 @@ route('GET', '/dashboard', (ctx) => {
     openRequests: ctx.data.requests.filter((r) => r.status === 'open').length,
     activeBookings: ctx.data.bookings.filter((b) => ['awaiting_guide', 'confirmed', 'disputed'].includes(b.status)).length,
     heldTotal: money(ctx.data.milestones.filter((m) => m.status === 'held' || m.status === 'release_requested').reduce((a, m) => a + m.amount, 0)),
+    activeSubscriptions: ctx.data.guides.filter((g) => subActive(ctx, g)).length,
+    subscriptionPrice: ctx.data.platform.guideSubscriptionPrice,
+    subscriptionDays: ctx.data.platform.subscriptionDays,
   };
+});
+
+route('GET', '/admin/settings', (ctx) => {
+  need(ctx, 'admin');
+  return { ...ctx.data.platform, activeSubscriptions: ctx.data.guides.filter((g) => subActive(ctx, g)).length };
+});
+
+route('PUT', '/admin/settings', (ctx, _p, req) => {
+  need(ctx, 'admin');
+  const b = req.body || {};
+  if (b.guideSubscriptionPrice !== undefined) ctx.data.platform.guideSubscriptionPrice = num(b.guideSubscriptionPrice, 'guideSubscriptionPrice', 0, 500);
+  if (b.subscriptionDays !== undefined) ctx.data.platform.subscriptionDays = num(b.subscriptionDays, 'subscriptionDays', 1, 366, true);
+  return { ...ctx.data.platform, activeSubscriptions: ctx.data.guides.filter((g) => subActive(ctx, g)).length };
 });
 
 // ---------- admin ----------
@@ -1115,8 +1247,9 @@ route('POST', '/admin/reports/:id/resolve', (ctx, p, req) => {
   b.status = b.statusBeforeDispute || 'confirmed';
   b.statusBeforeDispute = null;
   if (action === 'refund' || action === 'release') {
-    for (const m of ctx.data.milestones.filter((m) => m.bookingId === b.id && (m.status === 'held' || m.status === 'release_requested'))) {
-      m.status = action === 'refund' ? 'refunded' : 'released';
+    for (const m of ctx.data.milestones.filter((m) => m.bookingId === b.id && ['held', 'release_requested', 'cash_due'].includes(m.status))) {
+      if (m.status === 'cash_due') m.status = action === 'refund' ? 'void' : 'cash_paid';
+      else m.status = action === 'refund' ? 'refunded' : 'released';
       m.settledAt = ctx.nowIso;
     }
     if (b.status === 'awaiting_guide') {
@@ -1159,6 +1292,7 @@ route('POST', '/admin/users/:id/status', (ctx, p, req) => {
 
 // =====================================================================
 export function createApi(data: Data, platform: Platform, onChange: (data: Data) => void = () => {}) {
+  normalize(data);
   return function handle(req: ApiRequest): ApiResponse {
     const now = platform.now();
     const session = req.token ? data.sessions.find((s) => s.token === req.token) : undefined;

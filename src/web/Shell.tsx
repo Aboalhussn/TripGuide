@@ -9,7 +9,7 @@ import { Icon } from './ui';
 type NavItem = { to: string; label: string; icon: string; badge?: number; primary?: boolean; match?: string[] };
 
 export function Shell({ path, children }: { path: string; children: React.ReactNode }) {
-  const { me, t, lang, setLang, ask } = useApp();
+  const { me, t, lang, ask } = useApp();
   const role = me?.role || 'guest';
 
   const items: Record<string, NavItem[]> = {
@@ -103,9 +103,6 @@ export function Shell({ path, children }: { path: string; children: React.ReactN
             ))}
           </nav>
           <div className="top-actions">
-            <button type="button" className="lang-btn" lang={lang === 'ar' ? 'en' : 'ar'} onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')}>
-              {lang === 'ar' ? 'English' : 'عربي'}
-            </button>
             {me && (
               <Link to="/notifications" className="icon-btn" aria-label={t('nav.notifications_n', { count: me.unreadNotifications })}>
                 <Icon name="bell" />

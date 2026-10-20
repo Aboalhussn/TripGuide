@@ -91,9 +91,24 @@ function serveStatic(req: http.IncomingMessage, res: http.ServerResponse, pathna
   fs.createReadStream(file).pipe(res);
 }
 
+// The Android and iOS apps call the API from their own origin.
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'capacitor://localhost,https://localhost,http://localhost').split(',').map((s) => s.trim());
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url || '/', 'http://local');
   if (!url.pathname.startsWith('/api/')) return serveStatic(req, res, url.pathname);
+  const origin = req.headers.origin;
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    res.setHeader('access-control-allow-origin', origin);
+    res.setHeader('vary', 'origin');
+    res.setHeader('access-control-allow-headers', 'content-type, authorization');
+    res.setHeader('access-control-allow-methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('access-control-max-age', '86400');
+  }
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204);
+    return res.end();
+  }
 
   const chunks: Buffer[] = [];
   let size = 0;

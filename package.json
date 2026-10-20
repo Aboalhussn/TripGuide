@@ -15,18 +15,33 @@
     "reset": "node scripts/reset.mjs",
     "test": "tsx --test src/core/api.test.ts",
     "e2e": "tsx --test e2e/flows.test.ts",
-    "check": "tsc --noEmit -p tsconfig.json && tsx scripts/check-strings.ts"
+    "check": "tsc --noEmit -p tsconfig.json && tsx scripts/check-strings.ts",
+    "build:app": "node scripts/build.mjs --app",
+    "cap:sync": "node scripts/build.mjs --app && cap sync",
+    "android": "node scripts/build.mjs --app && cap sync android && cap open android",
+    "ios": "node scripts/build.mjs --app && cap sync ios && cap open ios",
+    "apk": "node scripts/build.mjs --app && cap sync android && cd android && ./gradlew assembleDebug",
+    "assets": "capacitor-assets generate --android --ios --iconBackgroundColor \"#053F5C\" --splashBackgroundColor \"#FFFFFF\""
   },
   "dependencies": {
+    "@capacitor/app": "^7.1.2",
+    "@capacitor/core": "^7.6.9",
+    "@capacitor/keyboard": "^7.0.6",
+    "@capacitor/splash-screen": "^7.0.5",
+    "@capacitor/status-bar": "^7.0.6",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
-    "playwright": "^1.56.0",
+    "@capacitor/android": "^7.6.9",
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^7.6.9",
+    "@capacitor/ios": "^7.6.9",
     "@types/node": "^22.0.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "esbuild": "^0.28.0",
+    "playwright": "^1.56.0",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0"
   }

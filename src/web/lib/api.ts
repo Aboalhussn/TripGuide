@@ -14,6 +14,8 @@ declare global {
   }
 }
 
+// Empty for the web app (same server). The phone apps are built with API_URL pointing at your server.
+const API_BASE: string = process.env.TG_API_BASE || '';
 const TOKEN_KEY = 'tg.token';
 let memoryToken: string | null = null;
 
@@ -48,7 +50,7 @@ export async function api<T = any>(method: string, path: string, body?: unknown,
   const qs = new URLSearchParams(q).toString();
   let res: Response;
   try {
-    res = await fetch('/api' + path + (qs ? '?' + qs : ''), {
+    res = await fetch(API_BASE + '/api' + path + (qs ? '?' + qs : ''), {
       method,
       headers: { 'content-type': 'application/json', ...(token ? { authorization: 'Bearer ' + token } : {}) },
       body: body === undefined ? undefined : JSON.stringify(body),

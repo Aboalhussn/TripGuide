@@ -301,6 +301,7 @@ export function GuideCard({ g, compact = false }: { g: any; compact?: boolean })
             <strong style={{ fontSize: 17 }}>{g.name}</strong>
             {g.stats.verified && <VerifiedBadge />}
             {g.stats.topGuide && <span className="pill gold">{t('badge.top')}</span>}
+            {g.acceptsCash && <span className="pill">{t('badge.cash')}</span>}
           </div>
           <div className="small muted" style={{ marginTop: 3 }}>
             {fmt.pick(g.headline, g.headlineAr)}
@@ -437,4 +438,78 @@ export function useBusy() {
     }
   };
   return { busy, run };
+}
+
+// ---------- payments ----------
+export type CardValue = { number: string; name: string; expiry: string; cvc: string };
+export const emptyCard: CardValue = { number: '', name: '', expiry: '', cvc: '' };
+
+/** Card entry. Payments are simulated (sandbox) until a real gateway is connected. */
+export function CardForm({ value, onChange }: { value: CardValue; onChange(v: CardValue): void }) {
+  const { t, meta } = useApp();
+  const set = (k: keyof CardValue, v: string) => onChange({ ...value, [k]: v });
+  const fmtNum = (s: string) => s.replace(/\D/g, '').slice(0, 19).replace(/(\d{4})(?=\d)/g, '$1 ');
+  const fmtExp = (s: string) => {
+    const d = s.replace(/\D/g, '').slice(0, 4);
+    return d.length > 2 ? d.slice(0, 2) + '/' + d.slice(2) : d;
+  };
+  const sandbox = !!meta?.payments?.cardSandbox;
+  return (
+    <div className="card stack card-form" style={{ gap: 12 }}>
+      <div className="between">
+        <strong className="row" style={{ gap: 8 }}>
+          <Icon name="wallet" size={18} /> {t('pay.card_details')}
+        </strong>
+        {sandbox && <span className="pill gold">{t('pay.sandbox')}</span>}
+      </div>
+      <Field label={t('pay.card_number')}>
+        <input className="input ltr" inputMode="numeric" autoComplete="cc-number" placeholder="4242 4242 4242 4242" value={value.number} onChange={(e) => set('number', fmtNum(e.target.value))} />
+      </Field>
+      <Field label={t('pay.card_name')}>
+        <input className="input ltr" autoComplete="cc-name" value={value.name} onChange={(e) => set('name', e.target.value.slice(0, 60))} />
+      </Field>
+      <div className="grid-2" style={{ gap: 12 }}>
+        <Field label={t('pay.expiry')}>
+          <input className="input ltr" inputMode="numeric" autoComplete="cc-exp" placeholder="MM/YY" value={value.expiry} onChange={(e) => set('expiry', fmtExp(e.target.value))} />
+        </Field>
+        <Field label={t('pay.cvc')}>
+          <input className="input ltr" inputMode="numeric" autoComplete="cc-csc" placeholder="123" value={value.cvc} onChange={(e) => set('cvc', e.target.value.replace(/\D/g, '').slice(0, 4))} />
+        </Field>
+      </div>
+      {sandbox && (
+        <div className="note small stack" style={{ gap: 6 }}>
+          <span>{t('pay.sandbox_note')}</span>
+          <button type="button" className="btn sm outline" style={{ alignSelf: 'flex-start' }} onClick={() => onChange({ number: meta.payments.testCards.ok, name: value.name || 'Test Card', expiry: '12/30', cvc: '123' })}>
+            {t('pay.use_test_card')}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Two big choices: card or cash. */
+export function PayMethodPicker({ value, onChange, cashAllowed, cashHint, cardHint }: { value: 'card' | 'cash'; onChange(v: 'card' | 'cash'): void; cashAllowed: boolean; cashHint: string; cardHint: string }) {
+  const { t } = useApp();
+  const opts: { key: 'card' | 'cash'; icon: string; title: string; text: string; disabled: boolean }[] = [
+    { key: 'card', icon: 'wallet', title: t('pay.card'), text: cardHint, disabled: false },
+    { key: 'cash', icon: 'money', title: t('pay.cash'), text: cashAllowed ? cashHint : t('pay.cash_unavailable'), disabled: !cashAllowed },
+  ];
+  return (
+    <fieldset className="pay-methods">
+      <legend className="label-sm">{t('pay.method')}</legend>
+      {opts.map((o) => (
+        <label key={o.key} className={'pay-opt' + (value === o.key ? ' on' : '') + (o.disabled ? ' off' : '')}>
+          <input type="radio" name="pay-method" value={o.key} checked={value === o.key} disabled={o.disabled} onChange={() => onChange(o.key)} />
+          <span className="pay-ic" aria-hidden="true">
+            <Icon name={o.icon} size={22} />
+          </span>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <strong style={{ display: 'block' }}>{o.title}</strong>
+            <span className="xs muted">{o.text}</span>
+          </span>
+        </label>
+      ))}
+    </fieldset>
+  );
 }

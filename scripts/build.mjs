@@ -6,6 +6,7 @@ import path from 'node:path';
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const r = (...p) => path.join(root, ...p);
 const demo = process.argv.includes('--demo');
+const nativeApp = process.argv.includes('--app');
 const watch = process.argv.includes('--watch');
 
 const brandSrc = fs.readFileSync(r('src/config/brand.ts'), 'utf8');
@@ -18,7 +19,7 @@ const web = {
   sourcemap: watch,
   jsx: 'automatic',
   target: ['es2020'],
-  define: { 'process.env.NODE_ENV': watch ? '"development"' : '"production"' },
+  define: { 'process.env.NODE_ENV': watch ? '"development"' : '"production"', 'process.env.TG_API_BASE': '""' },
   external: ['/fonts/*', '/img/*'],
   logLevel: 'warning',
 };
@@ -100,7 +101,26 @@ async function buildDemo() {
   console.log(`Built dist/demo/index.html (${(html.length / 1024 / 1024).toFixed(1)} MB)`);
 }
 
-if (demo) await buildDemo();
+// The web files for the Android and iOS apps (Capacitor copies dist/app into the native projects).
+// Without API_URL the app carries the demo data inside it and works offline.
+async function buildNativeApp() {
+  const apiUrl = (process.env.API_URL || '').replace(/\/+$/, '');
+  fs.rmSync(r('dist/app'), { recursive: true, force: true });
+  if (!apiUrl) {
+    await buildDemo();
+    fs.mkdirSync(r('dist/app'), { recursive: true });
+    fs.copyFileSync(r('dist/demo/index.html'), r('dist/app/index.html'));
+    console.log('Built dist/app with the demo data inside the app. Set API_URL=https://your-server to use a real server.');
+    return;
+  }
+  copyDir(r('public'), r('dist/app'), (f) => f === 'index.html');
+  fs.writeFileSync(r('dist/app/index.html'), fs.readFileSync(r('public/index.html'), 'utf8').replaceAll('%NAME%', name).replaceAll('%DESCRIPTION%', description));
+  await esbuild.build({ ...web, define: { ...web.define, 'process.env.TG_API_BASE': JSON.stringify(apiUrl) }, entryPoints: { app: r('src/web/main.tsx') }, outdir: r('dist/app/assets') });
+  console.log(`Built dist/app for the server at ${apiUrl}`);
+}
+
+if (nativeApp) await buildNativeApp();
+else if (demo) await buildDemo();
 else if (watch) {
   const ctx = await esbuild.context({ ...web, entryPoints: { app: r('src/web/main.tsx') }, outdir: r('dist/public/assets') });
   copyDir(r('public'), r('dist/public'), (f) => f === 'index.html');

@@ -106,6 +106,11 @@ export function isAvailable(data: Data, g: GuideProfile, start: string, end: str
   );
 }
 
+// A guide takes cash only while their subscription is active.
+export function cashOpen(g: GuideProfile, now: Date) {
+  return !!g.acceptsCash && !!g.subscriptionUntil && g.subscriptionUntil > now.toISOString();
+}
+
 export function guideCard(data: Data, g: GuideProfile, now: Date) {
   const u = data.users.find((x) => x.id === g.userId)!;
   const s = guideStats(data, g.userId, now);
@@ -118,6 +123,7 @@ export function guideCard(data: Data, g: GuideProfile, now: Date) {
     languages: g.languages,
     specialities: g.specialities,
     verification: g.verification,
+    acceptsCash: cashOpen(g, now),
     cover: g.photos[0]?.img || null,
     stats: {
       rating: s.rating,
@@ -155,11 +161,14 @@ export function bookingMoney(data: Data, b: Booking) {
   const ms = data.milestones.filter((m) => m.bookingId === b.id);
   const sum = (st: string[]) => money(ms.filter((m) => st.includes(m.status)).reduce((a, m) => a + m.amount, 0));
   return {
+    method: b.paymentMethod || 'card',
     total: b.total,
     held: sum(['held', 'release_requested']),
     released: sum(['released']),
     refunded: sum(['refunded']),
     fee: money(sum(['released']) * b.feeRate),
+    cashDue: sum(['cash_due']),
+    cashPaid: sum(['cash_paid']),
   };
 }
 

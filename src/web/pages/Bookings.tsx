@@ -59,10 +59,14 @@ export function BookingsList() {
                 <span>
                   {t('booking.total')} <strong>{fmt.usd(b.total)}</strong>
                 </span>
-                {b.money.held > 0 && (
-                  <span className="pill gold">
-                    {t('booking.held_short')} {fmt.usd(b.money.held)}
-                  </span>
+                {b.money.method === 'cash' ? (
+                  <span className="pill">{t('pay.cash')}</span>
+                ) : (
+                  b.money.held > 0 && (
+                    <span className="pill gold">
+                      {t('booking.held_short')} {fmt.usd(b.money.held)}
+                    </span>
+                  )
                 )}
               </div>
             </Link>
@@ -91,6 +95,8 @@ export function BookingDetail({ id }: { id: string }) {
   const started = today >= b.startDate;
   const pctReleased = b.total ? (b.money.released / b.total) * 100 : 0;
   const pctHeld = b.total ? (b.money.held / b.total) * 100 : 0;
+  const cash = b.money.method === 'cash';
+  const pctCash = b.total ? (b.money.cashPaid / b.total) * 100 : 0;
 
   const act = (path: string, ok: string) =>
     run(async () => {
@@ -154,7 +160,30 @@ export function BookingDetail({ id }: { id: string }) {
             </div>
           )}
 
-          <section aria-label={t('booking.payment')} className="card dark stack" style={{ padding: 18 }}>
+          {cash ? (
+            <section aria-label={t('booking.payment')} className="card dark stack" style={{ padding: 18 }}>
+              <div className="between" style={{ alignItems: 'baseline' }}>
+                <span className="muted row" style={{ gap: 6 }}>
+                  <Icon name="money" size={18} /> {t('pay.cash_booking')}
+                </span>
+                <strong style={{ fontSize: 26 }}>{fmt.usd(b.total)}</strong>
+              </div>
+              <div className="split-bar" role="img" aria-label={t('pay.cash_bar', { paid: fmt.usd(b.money.cashPaid), due: fmt.usd(b.money.cashDue) })}>
+                <div style={{ width: pctCash + '%', background: 'var(--sky)' }} />
+              </div>
+              <div className="between small" style={{ flexWrap: 'wrap' }}>
+                <span className="row" style={{ gap: 6 }}>
+                  <span className="swatch" style={{ background: 'var(--sky)' }} />
+                  {t('pay.cash_paid_sum', { amount: fmt.usd(b.money.cashPaid) })}
+                </span>
+                <span>{t('pay.cash_due_sum', { amount: fmt.usd(b.money.cashDue) })}</span>
+              </div>
+              <p className="xs muted" style={{ lineHeight: 1.5 }}>
+                {asGuide ? t('pay.cash_note_guide') : t('pay.cash_note_tourist', { name: first(other.name) })}
+              </p>
+            </section>
+          ) : (
+            <section aria-label={t('booking.payment')} className="card dark stack" style={{ padding: 18 }}>
             <div className="between" style={{ alignItems: 'baseline' }}>
               <span className="muted">{t('booking.total')}</span>
               <strong style={{ fontSize: 26 }}>{fmt.usd(b.total)}</strong>
@@ -178,24 +207,29 @@ export function BookingDetail({ id }: { id: string }) {
               {asGuide ? t('booking.money_note_guide', { pct: Math.round(b.feeRate * 100) }) : t('booking.money_note_tourist', { name: first(other.name) })}
             </p>
           </section>
+          )}
+          {!cash && b.cardLast4 && <p className="xs muted" style={{ marginTop: -6 }}>{t('pay.paid_with_card', { last4: b.cardLast4 })}</p>}
 
           <section className="stack">
             <h2>{t('booking.day_by_day')}</h2>
             <ol className="timeline">
               {b.milestones.map((m: any) => {
                 const isToday = m.date === today;
-                const done = m.status === 'released';
+                const done = m.status === 'released' || m.status === 'cash_paid';
                 const refunded = m.status === 'refunded';
                 const held = m.status === 'held' || m.status === 'release_requested';
                 const canRelease = asTourist && b.status === 'confirmed' && held;
                 const canAsk = asGuide && b.status === 'confirmed' && m.status === 'held' && m.date <= today;
                 const canRefund = asGuide && b.status === 'confirmed' && held;
+                const cashDue = m.status === 'cash_due';
+                const cashPaid = m.status === 'cash_paid';
+                const canCash = asGuide && b.status === 'confirmed' && cashDue && m.date <= today;
                 return (
                   <li key={m.id}>
                     <span className={'tl-mark' + (done ? ' done' : isToday && b.status === 'confirmed' ? ' now' : '')}>
                       {done ? <Icon name="check" size={16} stroke={2.6} /> : isToday && b.status === 'confirmed' ? <img src={asset('tg-mark.svg')} alt="" style={{ width: 20, height: 'auto' }} /> : null}
                     </span>
-                    <div className={'tl-body card stack' + (isToday && held ? ' highlight' : '')} style={{ gap: 6, padding: 14 }}>
+                    <div className={'tl-body card stack' + (isToday && (held || m.status === 'cash_due') ? ' highlight' : '')} style={{ gap: 6, padding: 14 }}>
                       <div className="between">
                         <strong>
                           {t('offer.day_n', { count: m.index + 1 })}, {isToday ? t('booking.today') : fmt.dateLong(m.date)}
@@ -204,7 +238,10 @@ export function BookingDetail({ id }: { id: string }) {
                       </div>
                       <div className="small muted">{m.title}</div>
                       <div className="row xs">
-                        {done && <span style={{ color: 'var(--teal-ink)', fontWeight: 500 }}>{t(asGuide ? 'booking.m.released_g' : 'booking.m.released_t', { name: first(other.name), when: fmt.ago(m.settledAt) })}</span>}
+                        {m.status === 'released' && <span style={{ color: 'var(--teal-ink)', fontWeight: 500 }}>{t(asGuide ? 'booking.m.released_g' : 'booking.m.released_t', { name: first(other.name), when: fmt.ago(m.settledAt) })}</span>}
+                        {cashPaid && <span style={{ color: 'var(--teal-ink)', fontWeight: 500 }}>{t('pay.m.cash_paid', { when: fmt.ago(m.settledAt) })}</span>}
+                        {cashDue && <span className="pill">{asGuide ? t('pay.m.cash_due_g') : t('pay.m.cash_due_t', { name: first(other.name) })}</span>}
+                        {m.status === 'void' && <span className="pill">{t('pay.m.void')}</span>}
                         {refunded && <span className="pill">{t('booking.m.refunded')}</span>}
                         {m.status === 'held' && <span className="pill gold">{t('booking.m.held')}</span>}
                         {m.status === 'release_requested' && (
@@ -214,6 +251,11 @@ export function BookingDetail({ id }: { id: string }) {
                           </>
                         )}
                       </div>
+                      {canCash && (
+                        <button type="button" className="btn sm" style={{ marginTop: 4 }} disabled={busy} onClick={async () => (await ask(t('pay.cash_received_confirm', { amount: fmt.usd(m.amount), name: first(other.name) }), t('pay.cash_received_btn', { amount: fmt.usd(m.amount) }))) && act(`/milestones/${m.id}/cash-received`, t('pay.cash_received_toast'))}>
+                          <Icon name="check" size={16} /> {t('pay.cash_received_btn', { amount: fmt.usd(m.amount) })}
+                        </button>
+                      )}
                       {canRelease && (
                         <button type="button" className="btn sm" style={{ marginTop: 4 }} disabled={busy} onClick={() => setReleaseFor(m)}>
                           {t('booking.release', { amount: fmt.usd(m.amount), name: first(other.name) })}
@@ -339,7 +381,7 @@ function CancelModal({ b, asGuide, onClose, onDone }: { b: any; asGuide: boolean
   };
   return (
     <Modal title={t('booking.cancel_title')} onClose={onClose}>
-      <p>{asGuide ? t('booking.cancel_text_g') : t('booking.cancel_text_t', { amount: fmt.usd(b.money.held) })}</p>
+      <p>{b.money.method === 'cash' ? t('pay.cancel_text_cash') : asGuide ? t('booking.cancel_text_g') : t('booking.cancel_text_t', { amount: fmt.usd(b.money.held) })}</p>
       <Field label={t('booking.cancel_reason')}>
         <textarea className="textarea" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} />
       </Field>
@@ -438,6 +480,12 @@ export function Wallet() {
           <div style={{ fontSize: 26, fontWeight: 700 }}>{fmt.usd(w.released)}</div>
           {guide && <div className="xs muted">{t('wallet.fees_paid', { amount: fmt.usd(w.fees) })}</div>}
         </div>
+        {w.cashPaid > 0 && (
+          <div>
+            <div className="small muted">{guide ? t('wallet.cash_received') : t('wallet.cash_paid')}</div>
+            <div style={{ fontSize: 20, fontWeight: 700 }}>{fmt.usd(w.cashPaid)}</div>
+          </div>
+        )}
         <div>
           <div className="small muted">{guide ? t('wallet.held_guide') : t('wallet.held_tourist')}</div>
           <div style={{ fontSize: 26, fontWeight: 700, color: 'var(--gold)' }}>{fmt.usd(w.held)}</div>
@@ -460,14 +508,14 @@ export function Wallet() {
       {w.transactions.length === 0 && <p className="muted">{t('wallet.none')}</p>}
       <div className="card flush">
         {w.transactions.map((x: any, i: number) => (
-          <Link key={i} to={`/bookings/${x.bookingId}`} className="list-item">
+          <Link key={i} to={x.bookingId ? `/bookings/${x.bookingId}` : '/profile'} className="list-item">
             <span className={'avatar ' + (x.amount < 0 ? 'av-5' : 'av-2')} style={{ width: 40, height: 40 }} aria-hidden="true">
-              <Icon name={x.kind === 'released' ? 'check' : x.kind === 'refunded' ? 'back' : 'money'} size={18} />
+              <Icon name={x.kind === 'released' || x.kind === 'cash' ? 'check' : x.kind === 'refunded' ? 'back' : x.kind === 'subscription' ? 'shield' : 'money'} size={18} />
             </span>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div className="small bold">{t('wallet.kind.' + x.kind + (guide ? '_g' : ''), { day: x.day })}</div>
               <div className="xs muted" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {x.title}
+                {x.kind === 'subscription' ? t('wallet.subscription_sub') : x.title}
               </div>
             </div>
             <div style={{ textAlign: 'end' }}>

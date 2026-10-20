@@ -1,0 +1,55 @@
+# Builds the Android APK and checks the iOS app compiles, on every push to main or by hand.
+# Set the repository variable API_URL (Settings > Secrets and variables > Actions > Variables)
+# to your server's address; leave it empty to ship the demo data inside the app.
+name: Mobile apps
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['src/**', 'public/**', 'android/**', 'ios/**', 'assets/**', 'capacitor.config.ts', 'package.json', 'package-lock.json', '.github/workflows/mobile.yml']
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - run: npm run check && npm test
+      - name: Build web files for the app
+        run: npm run build:app
+        env:
+          API_URL: ${{ vars.API_URL }}
+      - run: npx cap sync android
+      - name: Build APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: trip-guide-android-debug
+          path: android/app/build/outputs/apk/debug/*.apk
+
+  ios:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build web files for the app
+        run: npm run build:app
+        env:
+          API_URL: ${{ vars.API_URL }}
+      - run: npx cap sync ios
+      - name: Compile for the iOS simulator (no signing needed)
+        run: xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build

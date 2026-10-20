@@ -16,8 +16,11 @@ export const brand = {
 
 // Business settings for the demo.
 export const settings = {
-  // Platform fee taken from the guide's side when a payment is released.
+  // Platform fee taken from the guide's side when a card payment is released.
   feeRate: 0.1,
+  // Starting price of the guide subscription that unlocks cash bookings (the admin can change it in the app).
+  guideSubscriptionPrice: 5,
+  subscriptionDays: 30,
   // Shown next to USD prices as a guide only.
   iqdPerUsd: 1310,
   // A guide must confirm a hire within this many hours, or the hire lapses and the money is returned.

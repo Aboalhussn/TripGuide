@@ -39,6 +39,8 @@ export function emptyData(now: Date): Data {
     notifications: [],
     reports: [],
     sessions: [],
+    payments: [],
+    platform: { guideSubscriptionPrice: settings.guideSubscriptionPrice, subscriptionDays: settings.subscriptionDays },
   };
 }
 
@@ -278,6 +280,9 @@ export function seed(platform: Platform): Data {
       blockedDates: [], verification: gs.verification, verificationNote: '',
       verificationDocs: gs.verification === 'none' ? [] : ['national-id-front.jpg', 'tourism-guide-licence.pdf'],
       verificationRequestedAt: gs.verification === 'none' ? null : ago(gs.verification === 'pending' ? 2 : 300),
+      // Some verified guides already subscribe and take cash.
+      acceptsCash: gs.verification === 'verified' && i % 2 === 0,
+      subscriptionUntil: gs.verification === 'verified' && i % 2 === 0 ? minsAfter(ago(0), 60 * 24 * 18) : null,
     });
   });
   const tourists: Record<string, User> = {};
@@ -309,7 +314,7 @@ export function seed(platform: Platform): Data {
   const makeBooking = (r: TripRequest, o: Offer, status: Booking['status'], createdAt: string, extra: Partial<Booking> = {}): Booking => {
     const b: Booking = {
       id: id('bookings'), requestId: r.id, offerId: o.id, touristId: r.touristId, guideId: o.guideId, title: r.title, startDate: r.startDate, endDate: r.endDate,
-      groupSize: r.groupSize, total: o.price, feeRate: settings.feeRate, status, statusBeforeDispute: null, createdAt,
+      groupSize: r.groupSize, total: o.price, feeRate: settings.feeRate, paymentMethod: 'card', cardLast4: '4242', status, statusBeforeDispute: null, createdAt,
       confirmBy: minsAfter(createdAt, settings.confirmWindowHours * 60), confirmedAt: status === 'awaiting_guide' ? null : minsAfter(createdAt, 90),
       completedAt: null, cancelledAt: null, cancelledBy: null, cancelReason: '', ...extra,
     };

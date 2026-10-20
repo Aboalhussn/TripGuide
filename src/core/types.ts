@@ -38,6 +38,8 @@ export interface GuideProfile {
   verificationNote: string;
   verificationDocs: string[];
   verificationRequestedAt: string | null;
+  acceptsCash: boolean; // offers cash payment (needs an active subscription)
+  subscriptionUntil: string | null; // ISO time the guide's subscription runs until
 }
 
 export interface City { slug: string; name: string; nameAr: string }
@@ -85,6 +87,8 @@ export interface Offer {
   updatedAt: string;
 }
 
+export type PaymentMethod = 'card' | 'cash';
+
 export type BookingStatus = 'awaiting_guide' | 'confirmed' | 'completed' | 'cancelled' | 'declined' | 'expired' | 'disputed';
 
 export interface Booking {
@@ -99,6 +103,8 @@ export interface Booking {
   groupSize: number;
   total: number;
   feeRate: number;
+  paymentMethod: PaymentMethod;
+  cardLast4: string;
   status: BookingStatus;
   statusBeforeDispute: BookingStatus | null;
   createdAt: string;
@@ -110,7 +116,9 @@ export interface Booking {
   cancelReason: string;
 }
 
-export type MilestoneStatus = 'held' | 'release_requested' | 'released' | 'refunded';
+// Card days: held -> (release_requested) -> released | refunded.
+// Cash days: cash_due -> cash_paid (the guide confirms they were paid) | void (trip cancelled).
+export type MilestoneStatus = 'held' | 'release_requested' | 'released' | 'refunded' | 'cash_due' | 'cash_paid' | 'void';
 
 export interface Milestone {
   id: number;
@@ -179,6 +187,23 @@ export interface Report {
   resolvedAt: string | null;
 }
 
+export interface CardPayment {
+  id: number;
+  userId: number;
+  purpose: 'booking' | 'subscription';
+  refId: number; // booking id, or the guide's user id for a subscription
+  amount: number;
+  brand: string;
+  last4: string;
+  status: 'succeeded';
+  createdAt: string;
+}
+
+export interface PlatformSettings {
+  guideSubscriptionPrice: number; // USD per period, set by the admin
+  subscriptionDays: number;
+}
+
 export interface Session { token: string; userId: number; createdAt: string }
 
 export interface Data {
@@ -199,6 +224,8 @@ export interface Data {
   notifications: Notification[];
   reports: Report[];
   sessions: Session[];
+  payments: CardPayment[];
+  platform: PlatformSettings;
 }
 
 // What the core needs from the platform it runs on (Node server or the in-browser demo).

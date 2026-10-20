@@ -4,7 +4,8 @@ import { useApp, useLoad } from '../lib/app';
 import { useFmt } from '../lib/format';
 import { Link, navigate } from '../lib/router';
 import { RequestFeedCard } from './Home';
-import { Avatar, Empty, ErrorState, Field, GuideCard, Icon, Loading, Modal, Money, OfferStatus, PageHead, Rating, RequestFacts, RequestStatus, Star, Stepper, ToggleGroup, VerifiedBadge, useBusy } from '../ui';
+import { Avatar, Empty, ErrorState, Field, GuideCard, Icon, Loading, Modal, Money, OfferStatus, PageHead, Rating, RequestFacts, RequestStatus, Star, Stepper, ToggleGroup, VerifiedBadge, useBusy, CardForm, PayMethodPicker, emptyCard } from '../ui';
+import type { CardValue } from '../ui';
 
 function addDays(date: string, n: number) {
   const d = new Date(date + 'T00:00:00Z');
@@ -617,21 +618,21 @@ function CompareModal({ offers, r, onClose, onHire }: { offers: any[]; r: any; o
 }
 
 function HireModal({ offer, r, onClose, onDone }: { offer: any; r: any; onClose(): void; onDone(b: any): void }) {
-  const { t, meta, me, errorText } = useApp();
+  const { t, meta, errorText } = useApp();
   const fmt = useFmt();
-  const [card, setCard] = useState(me.paymentVerified ? '4242 4242 4242 4242' : '');
+  const cashAllowed = !!offer.guide.acceptsCash;
+  const [method, setMethod] = useState<'card' | 'cash'>('card');
+  const [card, setCard] = useState<CardValue>(emptyCard);
   const [agree, setAgree] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const first = offer.guide.name.split(' ')[0];
   const go = async () => {
     setErr(null);
-    if (!/^\d{12,19}$/.test(card.replace(/\s/g, ''))) return setErr(t('err.card_invalid'));
     if (!agree) return setErr(t('hire.agree_needed'));
     setBusy(true);
     try {
-      if (!me.paymentVerified) await api('POST', '/me/verify-payment', { card });
-      onDone(await api('POST', `/offers/${offer.id}/hire`, { confirmPayment: true }));
+      onDone(await api('POST', `/offers/${offer.id}/hire`, { confirmPayment: true, method, card: method === 'card' ? card : undefined }));
     } catch (e) {
       setErr(errorText(e));
     } finally {
@@ -650,17 +651,31 @@ function HireModal({ offer, r, onClose, onDone }: { offer: any; r: any; onClose(
         </div>
         <hr className="divider" />
         <div className="between">
-          <strong>{t('hire.you_pay')}</strong>
+          <strong>{t('hire.total')}</strong>
           <Money usd={offer.price} iqd className="bold" />
         </div>
       </div>
-      <p className="small">{t('hire.explain', { name: first, hours: meta.confirmWindowHours })}</p>
-      <Field label={t('hire.card')} hint={t('hire.card_hint')}>
-        <input className="input ltr" inputMode="numeric" autoComplete="off" value={card} onChange={(e) => setCard(e.target.value.replace(/[^\d ]/g, '').slice(0, 23))} placeholder="4242 4242 4242 4242" />
-      </Field>
+      <PayMethodPicker
+        value={method}
+        onChange={(m) => { setMethod(m); setErr(null); }}
+        cashAllowed={cashAllowed}
+        cardHint={t('pay.card_hint')}
+        cashHint={t('pay.cash_hint', { name: first, perDay: fmt.usd(offer.perDay) })}
+      />
+      {method === 'card' ? (
+        <>
+          <p className="small">{t('hire.explain', { name: first, hours: meta.confirmWindowHours })}</p>
+          <CardForm value={card} onChange={setCard} />
+        </>
+      ) : (
+        <div className="note small stack" style={{ gap: 6 }}>
+          <strong>{t('pay.cash_how_title')}</strong>
+          <span>{t('pay.cash_how', { name: first, perDay: fmt.usd(offer.perDay), hours: meta.confirmWindowHours })}</span>
+        </div>
+      )}
       <label className="check small">
         <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
-        {t('hire.agree')}
+        {method === 'card' ? t('hire.agree') : t('hire.agree_cash')}
       </label>
       {err && (
         <div className="note danger" role="alert">
@@ -668,7 +683,7 @@ function HireModal({ offer, r, onClose, onDone }: { offer: any; r: any; onClose(
         </div>
       )}
       <button type="button" className="btn lg" onClick={go} disabled={busy}>
-        {t('hire.pay', { amount: fmt.usd(offer.price) })}
+        {method === 'card' ? t('hire.pay', { amount: fmt.usd(offer.price) }) : t('hire.book_cash')}
       </button>
     </Modal>
   );

@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../lib/api';
-import { useApp } from '../lib/app';
+import { useApp, useLoad } from '../lib/app';
 import { useFmt } from '../lib/format';
 import { Link, navigate } from '../lib/router';
 import { asset, photoSrc } from '../assets';
-import { Avatar, Field, Icon, Loading, Modal, MonthCalendar, PageHead, ToggleGroup, VerifiedBadge, useBusy } from '../ui';
+import { Avatar, CardForm, Field, Icon, Loading, Modal, Money, MonthCalendar, PageHead, ToggleGroup, VerifiedBadge, emptyCard, useBusy } from '../ui';
+import type { CardValue } from '../ui';
 
 function goNext(query: Record<string, string>) {
   const next = query.next && query.next.startsWith('/') ? query.next : '/';
@@ -12,7 +13,7 @@ function goNext(query: Record<string, string>) {
 }
 
 export function Login({ query }: { query: Record<string, string> }) {
-  const { t, signIn, meta, errorText } = useApp();
+  const { t, signIn, meta, errorText, lang, setLang } = useApp();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [err, setErr] = useState<string | null>(null);
@@ -34,6 +35,10 @@ export function Login({ query }: { query: Record<string, string> }) {
   const demo = meta?.demoLogins;
   return (
     <div className="page" style={{ maxWidth: 460, margin: '0 auto', width: '100%' }}>
+      <div className="seg lang-seg" role="group" aria-label={t('account.language')} style={{ gridTemplateColumns: '1fr 1fr', alignSelf: 'flex-end', width: 200 }}>
+        <button type="button" aria-pressed={lang === 'en'} onClick={() => setLang('en')}>English</button>
+        <button type="button" aria-pressed={lang === 'ar'} onClick={() => setLang('ar')} lang="ar">العربية</button>
+      </div>
       <div className="stack" style={{ gap: 6 }}>
         <h1>{t('auth.welcome_back')}</h1>
         <p className="muted">{t('auth.lede')}</p>
@@ -200,6 +205,8 @@ export function Account() {
           </div>
         </div>
       )}
+
+      {me.role === 'guide' && <CashPayments />}
 
       <div className="cards">
         {me.role !== 'admin' && (
@@ -538,5 +545,81 @@ export function GuideEditor() {
         )}
       </section>
     </div>
+  );
+}
+
+/** Guides: subscription that unlocks cash bookings, and the accept-cash switch. */
+function CashPayments() {
+  const { t, me, refreshMe, errorText, toast } = useApp();
+  const fmt = useFmt();
+  const res = useLoad(() => api('GET', '/guide/subscription'), []);
+  const [open, setOpen] = useState(false);
+  const [card, setCard] = useState<CardValue>(emptyCard);
+  const [err, setErr] = useState<string | null>(null);
+  const { busy, run } = useBusy();
+  const s = res.data;
+  if (!s) return <div className="skeleton" style={{ height: 150 }} />;
+  const toggle = (on: boolean) =>
+    run(async () => {
+      await api('PUT', '/guide/profile', { acceptsCash: on });
+      await refreshMe();
+      res.reload();
+    }, on ? t('sub.cash_on_toast') : t('sub.cash_off_toast'));
+  const subscribe = async () => {
+    setErr(null);
+    try {
+      await api('POST', '/guide/subscription', { card: s.price > 0 ? card : undefined });
+      setOpen(false);
+      setCard(emptyCard);
+      await refreshMe();
+      res.reload();
+      toast(t('sub.done_toast'));
+    } catch (e) {
+      setErr(errorText(e));
+    }
+  };
+  return (
+    <section className="card stack" aria-labelledby="cash-title">
+      <div className="between">
+        <strong id="cash-title" className="row" style={{ gap: 8 }}>
+          <Icon name="money" size={20} /> {t('sub.title')}
+        </strong>
+        {s.active ? <span className="pill sky">{t('sub.active')}</span> : <span className="pill">{t('sub.inactive')}</span>}
+      </div>
+      <p className="small muted">{t('sub.text', { price: fmt.usd(s.price), days: s.days })}</p>
+      {s.active ? (
+        <>
+          <p className="small">{t('sub.until', { date: fmt.dateLong(s.until.slice(0, 10)) })}</p>
+          <label className="check">
+            <input type="checkbox" checked={!!me.guide.acceptsCash} disabled={busy} onChange={(e) => toggle(e.target.checked)} />
+            {t('sub.accept_cash')}
+          </label>
+          <button type="button" className="btn sm outline" style={{ alignSelf: 'flex-start' }} onClick={() => setOpen(true)}>
+            {t('sub.renew', { price: fmt.usd(s.price) })}
+          </button>
+        </>
+      ) : (
+        <button type="button" className="btn" style={{ alignSelf: 'flex-start' }} onClick={() => setOpen(true)}>
+          {t('sub.subscribe', { price: fmt.usd(s.price) })}
+        </button>
+      )}
+      {open && (
+        <Modal title={t('sub.modal_title')} onClose={() => setOpen(false)}>
+          <div className="card between">
+            <span>{t('sub.period', { days: s.days })}</span>
+            <Money usd={s.price} className="bold" />
+          </div>
+          {s.price > 0 ? <CardForm value={card} onChange={setCard} /> : <p className="note small">{t('sub.free')}</p>}
+          {err && (
+            <div className="note danger" role="alert">
+              {err}
+            </div>
+          )}
+          <button type="button" className="btn lg" onClick={subscribe}>
+            {s.price > 0 ? t('sub.pay', { price: fmt.usd(s.price) }) : t('sub.activate')}
+          </button>
+        </Modal>
+      )}
+    </section>
   );
 }

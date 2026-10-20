@@ -28,6 +28,8 @@ function setup(start = new Date('2026-10-18T09:00:00Z')) {
   return { data, call, ok, login, advance, today };
 }
 
+const CARD = { number: '4242 4242 4242 4242', name: 'Test Tourist', expiry: '12/30', cvc: '123' };
+
 const tripBody = (today: string, extra: any = {}) => ({
   title: 'Two days of Baghdad history',
   cities: ['baghdad'],
@@ -93,7 +95,9 @@ test('full flow: post, offer, hire, confirm, release day by day, review both way
 
   // Hire: payment is held.
   assert.equal(s.call('POST', `/offers/${offer.id}/hire`, {}, tt).body.error, 'payment_confirm_required');
-  const booking = s.ok('POST', `/offers/${offer.id}/hire`, { confirmPayment: true }, tt);
+  const booking = s.ok('POST', `/offers/${offer.id}/hire`, { confirmPayment: true, method: 'card', card: CARD }, tt);
+  assert.equal(booking.paymentMethod, 'card');
+  assert.equal(booking.cardLast4, '4242');
   assert.equal(booking.status, 'awaiting_guide');
   assert.equal(booking.money.held, 90);
   assert.equal(booking.milestones.length, 2);
@@ -215,4 +219,93 @@ test('search filters: availability on dates excludes booked guides', () => {
   assert.ok(later.some((g: any) => g.name === 'Zainab Al-Rubaie'));
   const ar = s.ok('GET', '/guides', null, null, { lang: 'ur' }).guides;
   assert.deepEqual(ar.map((g: any) => g.name), ['Hussein Al-Musawi']);
+});
+
+// ---------- payment methods ----------
+function postAndOffer(s: ReturnType<typeof setup>, guideEmail = 'ali@tripguide.demo') {
+  const tt = s.login(DEMO_ACCOUNTS.tourist);
+  const req = s.ok('POST', '/requests', tripBody(s.today()), tt);
+  const g = s.login(guideEmail);
+  const offer = s.ok('POST', `/requests/${req.id}/offers`, { price: 90, plan: [{ title: 'Day one walk' }, { title: 'Day two walk' }], message: 'Happy to show you around.' }, g);
+  return { tt, g, req, offer };
+}
+
+test('card payment: bad, expired and declined cards are refused; nothing is booked', () => {
+  const s = setup();
+  const { tt, offer } = postAndOffer(s);
+  const hire = (card: any) => s.call('POST', `/offers/${offer.id}/hire`, { confirmPayment: true, method: 'card', card }, tt);
+  assert.equal(hire({ ...CARD, number: '4242 4242 4242 4241' }).body.error, 'card_invalid');
+  assert.equal(hire({ ...CARD, expiry: '01/20' }).body.error, 'card_expired');
+  assert.equal(hire({ ...CARD, cvc: '1' }).body.error, 'card_cvc_invalid');
+  assert.equal(hire({ ...CARD, name: '' }).body.error, 'card_name_required');
+  const declined = hire({ ...CARD, number: '4000 0000 0000 0002' });
+  assert.equal(declined.status, 402);
+  assert.equal(declined.body.error, 'card_declined');
+  assert.equal(s.ok('GET', `/requests/${offer.requestId}`, null, tt).status, 'open');
+  assert.equal(s.data.payments.filter((p) => p.purpose === 'booking').length, 0);
+});
+
+test('cash needs the guide to subscribe; then the guide confirms cash day by day', () => {
+  const s = setup();
+  const { tt, g, offer } = postAndOffer(s);
+  // Ali has no subscription yet, so cash is not offered.
+  s.ok('PUT', '/guide/profile', { acceptsCash: true }, g);
+  assert.equal(s.call('POST', `/offers/${offer.id}/hire`, { confirmPayment: true, method: 'cash' }, tt).body.error, 'cash_not_accepted');
+  // The admin sets the price; Ali subscribes by card.
+  const admin = s.login(DEMO_ACCOUNTS.admin);
+  assert.equal(s.ok('PUT', '/admin/settings', { guideSubscriptionPrice: 7, subscriptionDays: 30 }, admin).guideSubscriptionPrice, 7);
+  assert.equal(s.call('PUT', '/admin/settings', { guideSubscriptionPrice: 7 }, tt).status, 403);
+  assert.equal(s.call('POST', '/guide/subscription', { card: { ...CARD, number: '1234' } }, g).body.error, 'card_invalid');
+  const sub = s.ok('POST', '/guide/subscription', { card: CARD }, g);
+  assert.equal(sub.active, true);
+  assert.equal(s.ok('GET', '/guide/subscription', null, g).history[0].amount, 7);
+  assert.equal(s.ok('GET', '/me', null, g).guide.cashOpen, true);
+  // The tourist now sees "cash accepted" and hires paying cash.
+  const view = s.ok('GET', `/requests/${offer.requestId}`, null, tt);
+  assert.equal(view.offers.find((o: any) => o.id === offer.id).guide.acceptsCash, true);
+  const booking = s.ok('POST', `/offers/${offer.id}/hire`, { confirmPayment: true, method: 'cash' }, tt);
+  assert.equal(booking.paymentMethod, 'cash');
+  assert.equal(booking.feeRate, 0);
+  assert.equal(booking.money.held, 0);
+  assert.equal(booking.money.cashDue, 90);
+  const confirmed = s.ok('POST', `/bookings/${booking.id}/confirm`, null, g);
+  const [d1, d2] = confirmed.milestones;
+  assert.equal(d1.status, 'cash_due');
+  // Not before the day, and the tourist cannot mark it.
+  assert.equal(s.call('POST', `/milestones/${d1.id}/cash-received`, null, g).body.error, 'day_not_reached');
+  s.advance(24 * 3);
+  assert.equal(s.call('POST', `/milestones/${d1.id}/cash-received`, null, tt).status, 403);
+  assert.equal(s.call('POST', `/milestones/${d1.id}/release`, null, tt).body.error, 'milestone_state');
+  let b = s.ok('POST', `/milestones/${d1.id}/cash-received`, null, g);
+  assert.equal(b.money.cashPaid, 45);
+  assert.equal(b.status, 'confirmed');
+  s.advance(24);
+  b = s.ok('POST', `/milestones/${d2.id}/cash-received`, null, g);
+  assert.equal(b.status, 'completed');
+  const wallet = s.ok('GET', '/wallet', null, g);
+  assert.equal(wallet.cashPaid, 90);
+  assert.ok(wallet.transactions.some((x: any) => x.kind === 'subscription' && x.amount === -7));
+  assert.ok(wallet.transactions.some((x: any) => x.kind === 'cash' && x.amount === 45));
+});
+
+test('cancelling a cash booking voids the unpaid days', () => {
+  const s = setup();
+  const { tt, g, offer } = postAndOffer(s);
+  s.ok('POST', '/guide/subscription', { card: CARD }, g);
+  const booking = s.ok('POST', `/offers/${offer.id}/hire`, { confirmPayment: true, method: 'cash' }, tt);
+  const after = s.ok('POST', `/bookings/${booking.id}/cancel`, { reason: 'Plans changed' }, tt);
+  assert.equal(after.status, 'cancelled');
+  assert.ok(after.milestones.every((m: any) => m.status === 'void'));
+  assert.equal(after.money.cashDue, 0);
+});
+
+test('subscription expires and cash closes again', () => {
+  const s = setup();
+  const { g } = postAndOffer(s);
+  s.ok('POST', '/guide/subscription', { card: CARD }, g);
+  assert.equal(s.ok('GET', '/me', null, g).guide.cashOpen, true);
+  s.advance(24 * 31);
+  const me = s.ok('GET', '/me', null, g);
+  assert.equal(me.guide.subscriptionActive, false);
+  assert.equal(me.guide.cashOpen, false);
 });

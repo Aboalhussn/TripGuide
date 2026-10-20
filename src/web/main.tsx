@@ -5,6 +5,7 @@ import { AppProvider, useApp } from './lib/app';
 import { match, navigate, useLocation } from './lib/router';
 import { Shell } from './Shell';
 import { Loading } from './ui';
+import { initNative } from './lib/native';
 import { AdminHome, GuestHome, GuideHome, TouristHome } from './pages/Home';
 import { FindGuides, GuideProfile, TouristProfile } from './pages/Guides';
 import { MyOffers, PostRequest, RequestDetail, RequestsIndex } from './pages/Requests';
@@ -82,3 +83,5 @@ export function start() {
 }
 
 if (!(window as any).__TG_DEFER_START) start();
+
+initNative();
