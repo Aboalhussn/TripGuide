@@ -39,8 +39,8 @@ export function Shell({ path, children }: { path: string; children: React.ReactN
     ],
     admin: [
       { to: '/', label: t('nav.admin'), icon: 'home' },
-      { to: '/admin/verify', label: t('nav.verify'), icon: 'shield', match: ['/admin/verify'] },
-      { to: '/admin/reports', label: t('nav.reports'), icon: 'flag' },
+      { to: '/admin/verify', label: t('nav.verify'), icon: 'shield', match: ['/admin/verify', '/admin/reports'] },
+      { to: '/admin/stats', label: t('nav.stats'), icon: 'chart' },
       { to: '/admin/users', label: t('nav.users'), icon: 'users' },
       { to: '/profile', label: t('nav.profile'), icon: 'user', badge: me?.unreadNotifications },
     ],
@@ -69,6 +69,7 @@ export function Shell({ path, children }: { path: string; children: React.ReactN
       { to: '/', label: t('nav.admin'), icon: 'home' },
       { to: '/admin/verify', label: t('nav.verify'), icon: 'shield' },
       { to: '/admin/reports', label: t('nav.reports'), icon: 'flag' },
+      { to: '/admin/stats', label: t('nav.stats'), icon: 'chart' },
       { to: '/admin/users', label: t('nav.users'), icon: 'users' },
       { to: '/guides', label: t('nav.guides'), icon: 'search' },
     ],

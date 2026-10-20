@@ -66,6 +66,7 @@ export interface TripRequest {
   femaleGuide: boolean;
   status: RequestStatus;
   directGuideId: number | null; // set when the tourist hires a guide straight from their profile
+  plan: PlanDay[]; // the tourist's own day-by-day wishes (optional; empty when none)
   invited: number[];
   createdAt: string;
 }

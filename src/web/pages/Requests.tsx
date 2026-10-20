@@ -6,6 +6,7 @@ import { Link, navigate } from '../lib/router';
 import { RequestFeedCard } from './Home';
 import { Avatar, Empty, ErrorState, Field, GuideCard, Icon, Loading, Modal, Money, OfferStatus, PageHead, Rating, RequestFacts, RequestStatus, Star, Stepper, ToggleGroup, VerifiedBadge, useBusy, CardForm, PayMethodPicker, emptyCard, DateRangePicker, LanguagePick } from '../ui';
 import type { CardValue } from '../ui';
+import { IlloBudget, IlloPlan, IlloWhere, IlloWho } from '../illustrations';
 
 function addDays(date: string, n: number) {
   const d = new Date(date + 'T00:00:00Z');
@@ -41,7 +42,9 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [tried, setTried] = useState(false);
-  const [extra, setExtra] = useState(false);
+  const [step, setStep] = useState(0);
+  const [usePlan, setUsePlan] = useState(false);
+  const [plan, setPlan] = useState<{ title: string; details: string }[]>([]);
   const touch = (k: string) => setTouched((x) => (x[k] ? x : { ...x, [k]: true }));
   const { busy, run } = useBusy();
   const g = direct.data;
@@ -100,20 +103,58 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
     );
   }
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
+  // Four short steps instead of one long form. Each step checks only its own fields.
+  const STEPS = [
+    { key: 'where', fields: ['title', 'cities'], Illo: IlloWhere },
+    { key: 'who', fields: ['dates'], Illo: IlloWho },
+    { key: 'plan', fields: ['languages'], Illo: IlloPlan },
+    { key: 'budget', fields: ['budgetMin', 'budgetMax'], Illo: IlloBudget },
+  ];
+  const last = STEPS.length - 1;
+  const cur = STEPS[step];
+  const dayPlan = Array.from({ length: Math.min(days, 30) }, (_, i) => plan[i] || { title: '', details: '' });
+  const setDay = (i: number, patch: Partial<{ title: string; details: string }>) => setPlan(dayPlan.map((d, n) => (n === i ? { ...d, ...patch } : d)));
+  const toTop = () => document.querySelector('.post-wizard')?.scrollIntoView({ block: 'start' });
+  const firstError = (keys: string[]) => keys.find((k) => errors[k]);
+  const goNext = () => {
     setError(null);
-    setTried(true);
-    const first = Object.keys(errors)[0];
-    if (first) {
-      const el = document.getElementById('pf-' + first);
+    const bad = firstError(cur.fields);
+    if (bad) {
+      setTouched((x) => ({ ...x, ...Object.fromEntries(cur.fields.map((k) => [k, true])) }));
+      const el = document.getElementById('pf-' + bad);
       el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       el?.focus({ preventScroll: true });
       return;
     }
+    setStep(step + 1);
+    toTop();
+  };
+  const goBack = () => {
+    if (step === 0) return navigate(g ? `/guides/${g.id}` : '/');
+    setStep(step - 1);
+    toTop();
+  };
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (step < last) return goNext();
+    setError(null);
+    setTried(true);
+    const bad = firstError(Object.keys(errors));
+    if (bad) {
+      const at = STEPS.findIndex((st) => st.fields.includes(bad));
+      if (at !== step) setStep(at);
+      return;
+    }
     run(async () => {
       try {
-        const r = await api('POST', '/requests', { ...f, budgetMin: Number(f.budgetMin), budgetMax: Number(f.budgetMax), directGuideId: g ? g.id : undefined });
+        const r = await api('POST', '/requests', {
+          ...f,
+          budgetMin: Number(f.budgetMin),
+          budgetMax: Number(f.budgetMax),
+          plan: usePlan ? dayPlan.map((d) => ({ title: d.title.trim(), details: d.details.trim() })) : [],
+          directGuideId: g ? g.id : undefined,
+        });
         toast(g ? t('post.sent_direct', { name: g.name.split(' ')[0] }) : t('post.posted'));
         navigate(`/requests/${r.id}`, { replace: true });
       } catch (err) {
@@ -124,9 +165,29 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
   };
 
   return (
-    <div className="page" style={{ maxWidth: 720, margin: '0 auto', width: '100%' }}>
-      <PageHead title={g ? t('post.title_direct', { name: g.name.split(' ')[0] }) : t('post.title')} backTo="/" />
-      {g && (
+    <div className="page post-wizard" style={{ maxWidth: 640, margin: '0 auto', width: '100%' }}>
+      <div className="wiz-top">
+        <button type="button" className="back icon-btn" aria-label={step === 0 ? t('common.back') : t('post.prev')} onClick={goBack}>
+          <Icon name="back" />
+        </button>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="xs muted">{g ? t('post.title_direct', { name: g.name.split(' ')[0] }) : t('post.title')}</div>
+          <div className="small bold">{t('post.step_n', { n: step + 1, total: STEPS.length })}</div>
+        </div>
+      </div>
+      <div className="wiz-progress" role="progressbar" aria-valuemin={1} aria-valuemax={STEPS.length} aria-valuenow={step + 1} aria-label={t('post.step_n', { n: step + 1, total: STEPS.length })}>
+        {STEPS.map((st, i) => (
+          <i key={st.key} className={i <= step ? 'on' : ''} />
+        ))}
+      </div>
+
+      <section className="wiz-hero" key={cur.key}>
+        <cur.Illo />
+        <h1>{t(`post.s${step + 1}_title`)}</h1>
+        <p className="muted">{t(`post.s${step + 1}_text`)}</p>
+      </section>
+
+      {g && step === 0 && (
         <div className="card row" style={{ gap: 12, flexWrap: 'nowrap' }}>
           <Avatar user={g} size={48} />
           <div style={{ flex: 1 }}>
@@ -135,114 +196,137 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
               {g.stats.verified && <VerifiedBadge />}
             </div>
             <div className="small muted">{t('post.direct_note', { amount: fmt.usd(g.pricePerDay) })}</div>
+            <div className="xs muted" style={{ marginTop: 4 }}>{t('post.privacy_direct', { name: g.name.split(' ')[0] })}</div>
           </div>
         </div>
       )}
-      <form onSubmit={submit} className="stack-lg" noValidate>
-        <fieldset className="stack">
-          <legend>{t('post.where_when')}</legend>
-          <Field label={t('field.title')} hint={show('title') ? undefined : t('post.title_hint')} error={show('title')}>
-            <input id="pf-title" className="input" value={f.title} onBlur={() => f.title && touch('title')} onChange={(e) => { up({ title: e.target.value }); if (e.target.value.trim().length >= 5) touch('title'); }} maxLength={90} required />
-          </Field>
-          <div id="pf-cities" tabIndex={-1} className="stack" style={{ gap: 6 }}>
-            <ToggleGroup label={t('field.cities')} options={meta.cities.map((c: any) => c.slug)} value={f.cities} onChange={(cities) => { touch('cities'); up({ cities, places: f.places.filter((id) => cities.includes(meta.places.find((p: any) => p.id === id)?.city)) }); }} render={fmt.city} />
-            {show('cities') && <span className="err small">{show('cities')}</span>}
-          </div>
-          {f.cities.length > 0 && (
-            <div className="stack" style={{ gap: 6 }}>
-              <span className="small" style={{ fontWeight: 500 }}>
-                {t('post.places')} <span className="muted" style={{ fontWeight: 400 }}>{t('common.optional')}</span>
-              </span>
-              <div className="chips">
-                {f.places.map((id) => (
-                  <span key={id} className="chip lang" style={{ fontSize: 14 }}>
-                    {fmt.place(id)}
-                    <button type="button" aria-label={t('common.remove_x', { name: fmt.place(id) })} onClick={() => up({ places: f.places.filter((x) => x !== id) })} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 16, padding: '0 2px' }}>
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-              <div className="chips">
-                {placesInCities.slice(0, 10).map((p: any) => (
-                  <button key={p.id} type="button" className="toggle-chip" style={{ borderStyle: 'dashed' }} onClick={() => up({ places: [...f.places, p.id] })}>
-                    + {fmt.place(p.id)}
-                  </button>
-                ))}
-              </div>
-              {placesInCities.length > 10 && <input className="input" placeholder={t('post.find_place')} value={placeQuery} onChange={(e) => setPlaceQuery(e.target.value)} />}
+
+      <form onSubmit={submit} className="stack-lg wiz-body" noValidate>
+        {step === 0 && (
+          <div className="stack">
+            <Field label={t('field.title')} hint={show('title') ? undefined : t('post.title_hint')} error={show('title')}>
+              <input id="pf-title" className="input" value={f.title} onBlur={() => f.title && touch('title')} onChange={(e) => { up({ title: e.target.value }); if (e.target.value.trim().length >= 5) touch('title'); }} maxLength={90} required />
+            </Field>
+            <div id="pf-cities" tabIndex={-1} className="stack" style={{ gap: 6 }}>
+              <ToggleGroup label={t('field.cities')} options={meta.cities.map((c: any) => c.slug)} value={f.cities} onChange={(cities) => { touch('cities'); up({ cities, places: f.places.filter((id) => cities.includes(meta.places.find((p: any) => p.id === id)?.city)) }); }} render={fmt.city} />
+              {show('cities') && <span className="err small">{show('cities')}</span>}
             </div>
-          )}
-          <DateRangePicker id="pf-dates" label={t('post.dates')} start={f.startDate} end={f.endDate} today={today} error={show('dates')} onChange={(startDate, endDate) => { touch('dates'); up({ startDate, endDate }); }} />
-          {days > 0 && !errors.dates && <p className="small muted">{t('post.days', { count: days })}</p>}
-        </fieldset>
-
-        <fieldset className="stack">
-          <legend>{t('post.who')}</legend>
-          <Stepper label={t('field.groupSize')} value={f.groupSize} onChange={(groupSize) => up({ groupSize })} />
-          <div id="pf-languages" tabIndex={-1}>
-            <LanguagePick label={t('post.guide_speaks')} all={meta.languages} value={f.languages} onChange={(languages) => { touch('languages'); up({ languages }); }} render={fmt.language} error={show('languages')} />
+            {f.cities.length > 0 && (
+              <div className="stack" style={{ gap: 6 }}>
+                <span className="small" style={{ fontWeight: 500 }}>
+                  {t('post.places')} <span className="muted" style={{ fontWeight: 400 }}>{t('common.optional')}</span>
+                </span>
+                <div className="chips">
+                  {f.places.map((id) => (
+                    <span key={id} className="chip lang" style={{ fontSize: 14 }}>
+                      {fmt.place(id)}
+                      <button type="button" aria-label={t('common.remove_x', { name: fmt.place(id) })} onClick={() => up({ places: f.places.filter((x) => x !== id) })} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 16, padding: '0 2px' }}>
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <div className="chips">
+                  {placesInCities.slice(0, 10).map((p: any) => (
+                    <button key={p.id} type="button" className="toggle-chip" style={{ borderStyle: 'dashed' }} onClick={() => up({ places: [...f.places, p.id] })}>
+                      + {fmt.place(p.id)}
+                    </button>
+                  ))}
+                </div>
+                {placesInCities.length > 10 && <input className="input" placeholder={t('post.find_place')} value={placeQuery} onChange={(e) => setPlaceQuery(e.target.value)} />}
+              </div>
+            )}
           </div>
-          {!g && (
-            <label className="check">
-              <input type="checkbox" checked={f.femaleGuide} onChange={(e) => up({ femaleGuide: e.target.checked })} />
-              {t('post.female_guide')}
-            </label>
-          )}
-        </fieldset>
-
-
-        <fieldset className="stack">
-          <legend>{t('post.budget')}</legend>
-          <div className="grid-2">
-            <Field label={t('field.budgetMin')} error={show('budgetMin')}>
-              <input id="pf-budgetMin" className="input ltr" inputMode="numeric" value={f.budgetMin} onBlur={() => touch('budgetMin')} onChange={(e) => { up({ budgetMin: e.target.value.replace(/\D/g, '') }); touch('budgetMin'); }} placeholder="$" />
-            </Field>
-            <Field label={t('field.budgetMax')} error={show('budgetMax')}>
-              <input id="pf-budgetMax" className="input ltr" inputMode="numeric" value={f.budgetMax} onBlur={() => touch('budgetMax')} onChange={(e) => { up({ budgetMax: e.target.value.replace(/\D/g, '') }); if (e.target.value.length >= 2) touch('budgetMax'); }} placeholder="$" />
-            </Field>
-          </div>
-          {f.budgetMax !== '' && (
-            <p className="small muted">
-              {t('post.iqd', { min: fmt.iqd(Number(f.budgetMin || 0)), max: fmt.iqd(Number(f.budgetMax)) })}
-            </p>
-          )}
-          {suggested !== null && (
-            <p className="small muted">
-              {t('post.guide_rate', { name: g.name.split(' ')[0], amount: fmt.usd(suggested), count: days })}{' '}
-              <button type="button" className="linkish" onClick={() => up({ budgetMin: String(suggested), budgetMax: String(suggested) })}>
-                {t('post.use_rate')}
-              </button>
-            </p>
-          )}
-          {!g && (
-            <label className="check">
-              <input type="checkbox" checked={f.urgent} onChange={(e) => up({ urgent: e.target.checked })} />
-              {t('post.urgent')}
-            </label>
-          )}
-        </fieldset>
-
-        {extra || f.interests.length || f.description ? (
-          <fieldset className="stack">
-            <legend>{t('post.into')}</legend>
-            <ToggleGroup label={t('field.interests')} options={meta.interests} value={f.interests} onChange={(interests) => up({ interests })} render={(i) => t('interest.' + i)} />
-            <Field label={t('post.anything_else')}>
-              <textarea className="textarea" rows={4} value={f.description} onChange={(e) => up({ description: e.target.value })} maxLength={2000} placeholder={t('post.anything_placeholder')} />
-            </Field>
-          </fieldset>
-        ) : (
-          <button type="button" className="disclosure" aria-expanded={false} onClick={() => setExtra(true)}>
-            <span className="stack" style={{ gap: 2, textAlign: 'start' }}>
-              <span>{t('post.customize')}</span>
-              <span className="hint">{t('post.customize_hint')}</span>
-            </span>
-            <Icon name="plus" size={20} />
-          </button>
         )}
 
-        <div className="note">{g ? t('post.privacy_direct', { name: g.name.split(' ')[0] }) : t('post.privacy')}</div>
-        {tried && Object.keys(errors).length > 0 && (
+        {step === 1 && (
+          <div className="stack">
+            <Stepper label={t('field.groupSize')} value={f.groupSize} onChange={(groupSize) => up({ groupSize })} />
+            <DateRangePicker id="pf-dates" label={t('post.dates')} start={f.startDate} end={f.endDate} today={today} error={show('dates')} onChange={(startDate, endDate) => { touch('dates'); up({ startDate, endDate }); }} />
+            {days > 0 && !errors.dates && <p className="small muted">{t('post.days', { count: days })}</p>}
+            {!g && (
+              <label className="check">
+                <input type="checkbox" checked={f.femaleGuide} onChange={(e) => up({ femaleGuide: e.target.checked })} />
+                {t('post.female_guide')}
+              </label>
+            )}
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="stack-lg">
+            <div id="pf-languages" tabIndex={-1}>
+              <LanguagePick label={t('post.guide_speaks')} all={meta.languages} value={f.languages} onChange={(languages) => { touch('languages'); up({ languages }); }} render={fmt.language} error={show('languages')} />
+            </div>
+            <div className="stack" style={{ gap: 10 }}>
+              <label className="check">
+                <input type="checkbox" checked={usePlan} onChange={(e) => setUsePlan(e.target.checked)} />
+                <span>
+                  {t('post.my_plan')} <span className="muted small">{t('common.optional')}</span>
+                </span>
+              </label>
+              <p className="xs muted" style={{ marginTop: -4 }}>{t('post.my_plan_hint')}</p>
+              {usePlan && (
+                <ol className="plan-days">
+                  {dayPlan.map((d, i) => (
+                    <li key={i} className="card stack" style={{ gap: 8 }}>
+                      <span className="plan-day-n">
+                        {t('post.day_n', { n: i + 1 })} · {fmt.date(addDays(f.startDate, i), { weekday: 'short', day: 'numeric', month: 'short' })}
+                      </span>
+                      <input className="input" value={d.title} onChange={(e) => setDay(i, { title: e.target.value })} placeholder={t('post.day_title_ph')} aria-label={t('post.day_n', { n: i + 1 })} maxLength={80} />
+                      <textarea className="textarea" rows={2} value={d.details} onChange={(e) => setDay(i, { details: e.target.value })} placeholder={t('post.day_details_ph')} aria-label={t('post.day_details_ph')} maxLength={600} />
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+            <ToggleGroup label={t('field.interests')} options={meta.interests} value={f.interests} onChange={(interests) => up({ interests })} render={(i) => t('interest.' + i)} />
+            <Field label={t('post.anything_else')}>
+              <textarea className="textarea" rows={3} value={f.description} onChange={(e) => up({ description: e.target.value })} maxLength={2000} placeholder={t('post.anything_placeholder')} />
+            </Field>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="stack">
+            <div className="grid-2">
+              <Field label={t('field.budgetMin')} error={show('budgetMin')}>
+                <input id="pf-budgetMin" className="input ltr" inputMode="numeric" value={f.budgetMin} onBlur={() => touch('budgetMin')} onChange={(e) => { up({ budgetMin: e.target.value.replace(/\D/g, '') }); touch('budgetMin'); }} placeholder="$" />
+              </Field>
+              <Field label={t('field.budgetMax')} error={show('budgetMax')}>
+                <input id="pf-budgetMax" className="input ltr" inputMode="numeric" value={f.budgetMax} onBlur={() => touch('budgetMax')} onChange={(e) => { up({ budgetMax: e.target.value.replace(/\D/g, '') }); if (e.target.value.length >= 2) touch('budgetMax'); }} placeholder="$" />
+              </Field>
+            </div>
+            {f.budgetMax !== '' && <p className="small muted">{t('post.iqd', { min: fmt.iqd(Number(f.budgetMin || 0)), max: fmt.iqd(Number(f.budgetMax)) })}</p>}
+            {suggested !== null && (
+              <p className="small muted">
+                {t('post.guide_rate', { name: g.name.split(' ')[0], amount: fmt.usd(suggested), count: days })}{' '}
+                <button type="button" className="linkish" onClick={() => up({ budgetMin: String(suggested), budgetMax: String(suggested) })}>
+                  {t('post.use_rate')}
+                </button>
+              </p>
+            )}
+            {!g && (
+              <label className="check">
+                <input type="checkbox" checked={f.urgent} onChange={(e) => up({ urgent: e.target.checked })} />
+                {t('post.urgent')}
+              </label>
+            )}
+            <div className="card wiz-summary stack" style={{ gap: 6 }}>
+              <strong>{t('post.summary')}</strong>
+              <span className="bold"><bdi>{f.title}</bdi></span>
+              <span className="small muted">{f.cities.map(fmt.city).join('، ')}</span>
+              <span className="small muted">
+                {fmt.range(f.startDate, f.endDate)} · {t('post.days', { count: days })} · {t('request.people', { count: f.groupSize })}
+              </span>
+              <span className="small muted">{f.languages.map(fmt.language).join('، ')}</span>
+              {usePlan && dayPlan.some((d) => d.title) && <span className="small muted">{t('post.plan_added')}</span>}
+            </div>
+            <div className="note">{g ? t('post.privacy_direct', { name: g.name.split(' ')[0] }) : t('post.privacy')}</div>
+          </div>
+        )}
+
+        {tried && step === last && Object.keys(errors).length > 0 && (
           <div className="note danger" role="alert">
             {t('v.fix_n', { count: Object.keys(errors).length })}
           </div>
@@ -252,9 +336,16 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
             {error}
           </div>
         )}
-        <button type="submit" className="btn lg" disabled={busy}>
-          {g ? t('post.send_direct', { name: g.name.split(' ')[0] }) : t('post.submit')}
-        </button>
+        <div className="wiz-actions">
+          {step > 0 && (
+            <button type="button" className="btn lg ghost" onClick={goBack}>
+              {t('post.prev')}
+            </button>
+          )}
+          <button type="submit" className="btn lg" disabled={busy} style={{ flex: 1 }}>
+            {step < last ? t('post.next') : g ? t('post.send_direct', { name: g.name.split(' ')[0] }) : t('post.submit')}
+          </button>
+        </div>
       </form>
     </div>
   );
@@ -401,6 +492,22 @@ function RequestHeader({ r }: { r: any }) {
       )}
       {r.places.length > 0 && <p className="small">{t('request.wants_to_see', { places: fmt.list(r.places.map((p: number) => fmt.place(p))) })}</p>}
       {r.description && <p className="quote"><bdi>{r.description}</bdi></p>}
+      {r.plan?.length > 0 && (
+        <section className="stack" style={{ gap: 8 }} aria-label={t('request.tourist_plan')}>
+          <h2 style={{ fontSize: 18 }}>{t('request.tourist_plan')}</h2>
+          <ol className="plan-days">
+            {r.plan.map((d: any, i: number) =>
+              d.title || d.details ? (
+                <li key={i} className="card stack" style={{ gap: 4 }}>
+                  <span className="plan-day-n">{t('post.day_n', { n: i + 1 })} · {fmt.date(addDays(r.startDate, i), { weekday: 'short', day: 'numeric', month: 'short' })}</span>
+                  {d.title && <strong><bdi>{d.title}</bdi></strong>}
+                  {d.details && <span className="small muted"><bdi>{d.details}</bdi></span>}
+                </li>
+              ) : null,
+            )}
+          </ol>
+        </section>
+      )}
     </section>
   );
 }
@@ -891,7 +998,7 @@ function OfferForm({ r, existing, onDone, onCancel }: { r: any; existing: any; o
   const days = useMemo(() => Array.from({ length: r.days }, (_, i) => addDays(r.startDate, i)), [r.days, r.startDate]);
   const rate = me.guide?.pricePerDay || 40;
   const [price, setPrice] = useState(String(existing?.price ?? rate * r.days));
-  const [plan, setPlan] = useState<{ title: string; details: string }[]>(existing?.plan ?? days.map(() => ({ title: '', details: '' })));
+  const [plan, setPlan] = useState<{ title: string; details: string }[]>(existing?.plan ?? days.map((_, i) => ({ title: r.plan?.[i]?.title || '', details: r.plan?.[i]?.details || '' }))); // starts from the tourist's own plan, if any
   const [includes, setIncludes] = useState<string[]>(existing?.includes ?? ['transport']);
   const [message, setMessage] = useState(existing?.message ?? '');
   const [err, setErr] = useState<string | null>(null);

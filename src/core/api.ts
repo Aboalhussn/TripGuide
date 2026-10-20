@@ -102,6 +102,7 @@ function normalize(data: Data) {
     if (g.subscriptionUntil === undefined) g.subscriptionUntil = null;
     if (g.promotedUntil === undefined) g.promotedUntil = null;
   }
+  for (const r of data.requests) if (!r.plan) r.plan = [];
   for (const b of data.bookings) {
     if (!b.paymentMethod) b.paymentMethod = 'card';
     if (b.cardLast4 === undefined) b.cardLast4 = '';
@@ -560,7 +561,16 @@ function parseRequestBody(ctx: Ctx, b: any) {
     budgetMax,
     urgent: !!b.urgent,
     femaleGuide: !!b.femaleGuide,
+    plan: touristPlan(b.plan, daysInclusive(startDate, endDate)),
   };
+}
+
+// The tourist's own day plan is optional: days left blank are kept as blank, and no titles means no plan.
+function touristPlan(v: unknown, days: number) {
+  if (!Array.isArray(v) || v.length === 0) return [];
+  if (v.length > days) throw bad('plan_days', { days });
+  const plan = v.map((d: any, i: number) => ({ title: optStr(d?.title, `plan.${i}.title`, 80), details: optStr(d?.details, `plan.${i}.details`, 600) }));
+  return plan.some((d) => d.title || d.details) ? plan : [];
 }
 
 route('POST', '/requests', (ctx, _p, req) => {
@@ -1211,6 +1221,44 @@ route('GET', '/dashboard', (ctx) => {
     activePromotions: ctx.data.guides.filter((g) => promoActive(ctx, g)).length,
     promotionPrice: ctx.data.platform.promotionPrice,
     promotionDays: ctx.data.platform.promotionDays,
+  };
+});
+
+// City statistics for the admin: visitors (people on booked trips), trips, requests, guides and money.
+route('GET', '/admin/stats', (ctx) => {
+  need(ctx, 'admin');
+  const live = ctx.data.bookings.filter((b) => ['confirmed', 'completed', 'disputed', 'awaiting_guide'].includes(b.status));
+  const done = live.filter((b) => b.status === 'completed');
+  const reqOf = (b: Booking) => ctx.data.requests.find((r) => r.id === b.requestId);
+  const cities = CITIES.map((c) => {
+    const trips = live.filter((b) => reqOf(b)?.cities.includes(c.slug));
+    const guides = ctx.data.guides.filter((g) => g.cities.includes(c.slug) && userById(ctx.data, g.userId)!.status === 'active' && g.headline);
+    const revenue = trips.reduce((a, b) => a + b.total / Math.max(1, reqOf(b)!.cities.length), 0);
+    return {
+      slug: c.slug,
+      visitors: trips.reduce((a, b) => a + b.groupSize, 0),
+      trips: trips.length,
+      completed: trips.filter((b) => b.status === 'completed').length,
+      requests: ctx.data.requests.filter((r) => r.cities.includes(c.slug)).length,
+      openRequests: ctx.data.requests.filter((r) => r.status === 'open' && r.cities.includes(c.slug)).length,
+      guides: guides.length,
+      avgPrice: guides.length ? Math.round(guides.reduce((a, g) => a + g.pricePerDay, 0) / guides.length) : null,
+      revenue: money(revenue),
+    };
+  }).sort((a, b) => b.visitors - a.visitors || b.requests - a.requests);
+  const langs: Record<string, number> = {};
+  for (const r of ctx.data.requests) for (const l of r.languages) langs[l] = (langs[l] || 0) + 1;
+  return {
+    cities,
+    totals: {
+      visitors: live.reduce((a, b) => a + b.groupSize, 0),
+      trips: live.length,
+      completed: done.length,
+      avgGroup: live.length ? Math.round((live.reduce((a, b) => a + b.groupSize, 0) / live.length) * 10) / 10 : 0,
+      avgTripDays: live.length ? Math.round((live.reduce((a, b) => a + daysInclusive(b.startDate, b.endDate), 0) / live.length) * 10) / 10 : 0,
+      revenue: money(live.reduce((a, b) => a + b.total, 0)),
+    },
+    languages: Object.entries(langs).map(([code, count]) => ({ code, count })).sort((a, b) => b.count - a.count),
   };
 });
 

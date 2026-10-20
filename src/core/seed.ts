@@ -297,7 +297,7 @@ export function seed(platform: Platform): Data {
   const makeRequest = (tourist: User, f: Partial<TripRequest> & { title: string; cities: string[]; startDate: string; endDate: string }, createdAt: string): TripRequest => {
     const r: TripRequest = {
       id: id('requests'), touristId: tourist.id, description: '', places: [], groupSize: 2, languages: ['en'], interests: ['history'],
-      budgetMin: 50, budgetMax: 150, urgent: false, femaleGuide: false, status: 'open', directGuideId: null, invited: [], createdAt, ...f,
+      budgetMin: 50, budgetMax: 150, urgent: false, femaleGuide: false, status: 'open', directGuideId: null, invited: [], createdAt, ...f, plan: f.plan || [],
     };
     data.requests.push(r);
     return r;

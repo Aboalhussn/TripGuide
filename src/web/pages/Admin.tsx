@@ -3,7 +3,8 @@ import { api } from '../lib/api';
 import { useApp, useLoad } from '../lib/app';
 import { useFmt } from '../lib/format';
 import { Link } from '../lib/router';
-import { Avatar, Empty, ErrorState, Field, Loading, PageHead, useBusy } from '../ui';
+import { Avatar, Empty, ErrorState, Field, Icon, Loading, PageHead, useBusy } from '../ui';
+import { SubscriptionSettings } from './Home';
 
 function AdminTabs({ active }: { active: string }) {
   const { t } = useApp();
@@ -14,9 +15,6 @@ function AdminTabs({ active }: { active: string }) {
       </Link>
       <Link to="/admin/reports" aria-current={active === 'reports' ? 'page' : undefined}>
         {t('admin.reports')}
-      </Link>
-      <Link to="/admin/users" aria-current={active === 'users' ? 'page' : undefined}>
-        {t('admin.users')}
       </Link>
     </nav>
   );
@@ -268,8 +266,7 @@ export function AdminUsers() {
   };
   return (
     <div className="page">
-      <PageHead title={t('admin.title')} backTo="/" />
-      <AdminTabs active="users" />
+      <PageHead title={t('admin.users')} />
       <input className="input" type="search" placeholder={t('admin.search_users')} aria-label={t('admin.search_users')} value={q} onChange={(e) => setQ(e.target.value)} />
       <div className="row" style={{ gap: 8 }}>
         {filters.map((f) => (
@@ -309,6 +306,114 @@ export function AdminUsers() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ---------- City statistics ---------- */
+
+/** Visitors and activity per governorate, as bars. `limit` shows only the top cities (admin home). */
+export function CityStats({ limit, detailed = false }: { limit?: number; detailed?: boolean }) {
+  const { t } = useApp();
+  const fmt = useFmt();
+  const res = useLoad(() => api('GET', '/admin/stats'), []);
+  if (res.error) return <ErrorState error={res.error} onRetry={res.reload} />;
+  if (!res.data) return <div className="skeleton" style={{ height: 220 }} />;
+  const cities: any[] = limit ? res.data.cities.slice(0, limit) : res.data.cities;
+  const max = Math.max(1, ...res.data.cities.map((c: any) => c.visitors));
+  return (
+    <div className="card flush city-stats">
+      {cities.map((c, i) => (
+        <div key={c.slug} className="cs-row">
+          <div className="between" style={{ gap: 8 }}>
+            <strong className="row" style={{ gap: 8 }}>
+              <span className={'cs-rank' + (i === 0 ? ' top' : '')}>{fmt.num(i + 1)}</span>
+              {fmt.city(c.slug)}
+            </strong>
+            <span className="small">
+              <strong>{fmt.num(c.visitors)}</strong> <span className="muted">{t('stats.visitors_short')}</span>
+            </span>
+          </div>
+          <div className="cs-bar" aria-hidden="true">
+            <i style={{ width: `${Math.max(3, (c.visitors / max) * 100)}%` }} className={i === 0 ? 'top' : ''} />
+          </div>
+          <div className="cs-meta xs muted">
+            <span>{t('stats.trips_n', { count: c.trips })}</span>
+            <span>{t('stats.guides_n', { count: c.guides })}</span>
+            <span>{t('stats.requests_n', { count: c.requests })}</span>
+            {detailed && c.avgPrice !== null && <span>{t('stats.avg_price', { amount: fmt.usd(c.avgPrice) })}</span>}
+            {detailed && <span>{t('stats.revenue', { amount: fmt.usd(c.revenue) })}</span>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function AdminStats() {
+  const { t } = useApp();
+  const fmt = useFmt();
+  const res = useLoad(() => api('GET', '/admin/stats'), []);
+  if (res.error) return <ErrorState error={res.error} onRetry={res.reload} />;
+  if (!res.data) return <Loading />;
+  const x = res.data.totals;
+  const tiles = [
+    { label: t('stats.visitors'), value: fmt.num(x.visitors), icon: 'users', tone: 'sky' },
+    { label: t('stats.trips'), value: fmt.num(x.trips), icon: 'calendar', tone: 'teal' },
+    { label: t('stats.completed'), value: fmt.num(x.completed), icon: 'check', tone: 'green' },
+    { label: t('stats.revenue_total'), value: fmt.usd(x.revenue), icon: 'money', tone: 'navy' },
+    { label: t('stats.avg_group'), value: fmt.num(x.avgGroup), icon: 'user', tone: 'gold' },
+    { label: t('stats.avg_days'), value: fmt.num(x.avgTripDays), icon: 'clock', tone: 'rose' },
+  ];
+  const langMax = Math.max(1, ...res.data.languages.map((l: any) => l.count));
+  return (
+    <div className="page">
+      <PageHead title={t('stats.title')} />
+      <p className="muted small" style={{ marginTop: -12 }}>{t('stats.lede')}</p>
+      <div className="stat-tiles">
+        {tiles.map((s) => (
+          <div key={s.label} className={'stat-tile ' + s.tone}>
+            <span className="st-ico"><Icon name={s.icon} size={20} /></span>
+            <strong>{s.value}</strong>
+            <span>{s.label}</span>
+          </div>
+        ))}
+      </div>
+      <section className="stack" style={{ gap: 10 }}>
+        <h2 style={{ fontSize: 19 }}>{t('stats.by_city')}</h2>
+        <CityStats detailed />
+      </section>
+      <section className="stack" style={{ gap: 10 }}>
+        <h2 style={{ fontSize: 19 }}>{t('stats.languages')}</h2>
+        <div className="card stack" style={{ gap: 10 }}>
+          {res.data.languages.map((l: any) => (
+            <div key={l.code} className="stack" style={{ gap: 4 }}>
+              <div className="between small">
+                <span>{fmt.language(l.code)}</span>
+                <strong>{fmt.num(l.count)}</strong>
+              </div>
+              <div className="cs-bar" aria-hidden="true"><i style={{ width: `${(l.count / langMax) * 100}%` }} className="gold" /></div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/* ---------- Prices: guide subscription and featured guides ---------- */
+
+export function AdminPricing() {
+  const { t } = useApp();
+  const d = useLoad(() => api('GET', '/dashboard'), []);
+  if (d.error) return <ErrorState error={d.error} onRetry={d.reload} />;
+  if (!d.data) return <Loading />;
+  const x = d.data;
+  return (
+    <div className="page" style={{ maxWidth: 720, margin: '0 auto', width: '100%' }}>
+      <PageHead title={t('admin.pricing')} backTo="/" />
+      <SubscriptionSettings price={x.subscriptionPrice} days={x.subscriptionDays} active={x.activeSubscriptions} onSaved={d.reload} />
+      <SubscriptionSettings promo price={x.promotionPrice} days={x.promotionDays} active={x.activePromotions} onSaved={d.reload} />
     </div>
   );
 }

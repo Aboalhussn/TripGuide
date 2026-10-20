@@ -288,7 +288,7 @@ export function Account() {
         className="btn ghost"
         onClick={async () => {
           if (!(await ask(t('account.sign_out_confirm'), t('account.sign_out')))) return;
-          navigate('/', { replace: true });
+          navigate('/login', { replace: true }); // land on sign-in, not on a page that needs an account
           await signOut();
         }}
       >

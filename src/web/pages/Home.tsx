@@ -2,6 +2,7 @@ import React from 'react';
 import { api } from '../lib/api';
 import { useApp, useLoad } from '../lib/app';
 import { useFmt } from '../lib/format';
+import { CityStats } from './Admin';
 import { Link } from '../lib/router';
 import { asset, photoSrc } from '../assets';
 import { Avatar, BookingStatus, Icon, Loading, Money, Rating, RequestFacts, RequestStatus, BrandBar, BrandFooter, VerifiedBadge } from '../ui';
@@ -464,10 +465,10 @@ export function AdminHome() {
     x.openReports > 0 && { to: '/admin/reports', icon: 'flag', text: t('admin.todo_reports', { count: x.openReports }) },
   ].filter(Boolean) as { to: string; icon: string; text: string }[];
   const stats = [
-    { to: '/admin/users', label: t('admin.users'), value: fmt.num(x.users) },
-    { label: t('admin.open_requests'), value: fmt.num(x.openRequests) },
-    { label: t('admin.active_bookings'), value: fmt.num(x.activeBookings) },
-    { label: t('admin.held_total'), value: fmt.usd(x.heldTotal) },
+    { to: '/admin/users', label: t('admin.users'), value: fmt.num(x.users), icon: 'users', tone: 'sky' },
+    { to: '/requests', label: t('admin.open_requests'), value: fmt.num(x.openRequests), icon: 'list', tone: 'teal' },
+    { label: t('admin.active_bookings'), value: fmt.num(x.activeBookings), icon: 'calendar', tone: 'gold' },
+    { label: t('admin.held_total'), value: fmt.usd(x.heldTotal), icon: 'wallet', tone: 'navy' },
   ];
   return (
     <div className="page">
@@ -500,32 +501,46 @@ export function AdminHome() {
           </div>
         )}
       </section>
-      <SubscriptionSettings price={x.subscriptionPrice} days={x.subscriptionDays} active={x.activeSubscriptions} onSaved={d.reload} />
-      <SubscriptionSettings promo price={x.promotionPrice} days={x.promotionDays} active={x.activePromotions} onSaved={d.reload} />
       <section className="stack" style={{ gap: 10 }}>
         <h2>{t('admin.platform')}</h2>
-        <div className="stat-grid">
-          {stats.map((s) =>
-            s.to ? (
-              <Link key={s.label} to={s.to} className="stat link">
-                <span className="xs muted">{s.label}</span>
+        <div className="stat-tiles four">
+          {stats.map((s) => {
+            const body = (
+              <>
+                <span className="st-ico"><Icon name={s.icon} size={20} /></span>
                 <strong>{s.value}</strong>
-              </Link>
+                <span>{s.label}</span>
+              </>
+            );
+            return s.to ? (
+              <Link key={s.label} to={s.to} className={'stat-tile link ' + s.tone}>{body}</Link>
             ) : (
-              <div key={s.label} className="stat">
-                <span className="xs muted">{s.label}</span>
-                <strong>{s.value}</strong>
-              </div>
-            ),
-          )}
+              <div key={s.label} className={'stat-tile ' + s.tone}>{body}</div>
+            );
+          })}
         </div>
       </section>
+      <section className="stack" style={{ gap: 10 }}>
+        <div className="section-head">
+          <h2>{t('stats.governorates')}</h2>
+          <Link to="/admin/stats" className="see-all">{t('common.see_all')}</Link>
+        </div>
+        <CityStats limit={5} />
+      </section>
+      <Link to="/admin/pricing" className="card link row pricing-link" style={{ gap: 12, flexWrap: 'nowrap' }}>
+        <span className="st-ico gold"><Icon name="money" size={20} /></span>
+        <span style={{ flex: 1 }} className="stack">
+          <strong>{t('admin.pricing')}</strong>
+          <span className="xs muted">{t('admin.pricing_text')}</span>
+        </span>
+        <Icon name="next" size={18} className="flip" />
+      </Link>
     </div>
   );
 }
 
 /** Admin: price of the guide subscription that unlocks cash bookings. */
-function SubscriptionSettings({ price, days, active, onSaved, promo = false }: { price: number; days: number; active: number; onSaved(): void; promo?: boolean }) {
+export function SubscriptionSettings({ price, days, active, onSaved, promo = false }: { price: number; days: number; active: number; onSaved(): void; promo?: boolean }) {
   const k = promo ? 'admin.promo_' : 'admin.subs_';
   const { t } = useApp();
   const [p, setP] = React.useState(String(price));

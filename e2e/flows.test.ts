@@ -68,21 +68,39 @@ test('tourist posts a trip, a guide offers, the tourist chats, hires, pays day b
   const tourist = await open();
   await login(tourist, 'james@tripguide.demo');
   await go(tourist, '/post');
+  // Step 1 of 4: name and cities. Next refuses to move on while the step has a problem.
+  await tourist.getByRole('heading', { name: 'Where do you want to go?' }).waitFor();
+  await tourist.getByRole('button', { name: 'Next' }).click();
+  await tourist.getByText('Give your trip a title.').waitFor();
   await tourist.getByLabel('Title').fill('Weekend in Samarra and Baghdad');
   await tourist.getByRole('button', { name: 'Samarra', exact: true }).click();
   await tourist.getByRole('button', { name: 'Baghdad', exact: true }).click();
   await tourist.getByRole('button', { name: '+ Malwiya Minaret' }).click();
-  // Dates come from the brand date picker: pick the 3-day range again to exercise it.
+  await shot(tourist, 'e2e-post-1');
+  await tourist.getByRole('button', { name: 'Next' }).click();
+  // Step 2: people and dates (the brand date picker).
+  await tourist.getByRole('heading', { name: "Who's coming, and when?" }).waitFor();
   await tourist.locator('#pf-dates').click();
   await tourist.getByRole('dialog').getByRole('button', { name: 'Done' }).click();
-  // Interests live behind "Customize further".
-  await tourist.getByRole('button', { name: /Customize further/ }).click();
+  await tourist.getByRole('button', { name: 'Next' }).click();
+  // Step 3: guide language, the tourist's own day plan, interests.
+  await tourist.getByRole('heading', { name: 'Your guide and your plan' }).waitFor();
+  await tourist.getByLabel('Add my own day plan').check();
+  await tourist.getByLabel('Day 1', { exact: true }).fill('Malwiya at sunrise');
   await tourist.getByRole('button', { name: 'Photography' }).click();
+  await tourist.getByRole('button', { name: 'Next' }).click();
+  // Step 4: budget, a summary, then post. Back keeps what was typed.
+  await tourist.getByRole('heading', { name: 'Set your budget' }).waitFor();
+  await tourist.getByRole('button', { name: 'Back', exact: true }).last().click();
+  assert.equal(await tourist.getByLabel('Day 1', { exact: true }).inputValue(), 'Malwiya at sunrise');
+  await tourist.getByRole('button', { name: 'Next' }).click();
   await tourist.getByLabel('From (USD)').fill('80');
   await tourist.getByLabel('To (USD)').fill('150');
+  await tourist.getByText('Your day plan is included').waitFor();
   await shot(tourist, 'e2e-post');
   await tourist.getByRole('button', { name: 'Post request' }).click();
   await tourist.getByRole('heading', { name: 'Weekend in Samarra and Baghdad' }).waitFor();
+  await tourist.getByRole('region', { name: "The tourist's day plan" }).getByText('Malwiya at sunrise').waitFor();
   const requestUrl = tourist.url();
   const requestId = requestUrl.split('/requests/')[1];
 
@@ -177,8 +195,9 @@ test('a tourist hires a guide directly from the profile, and only that guide see
   await go(tourist, '/guides?city=basra');
   await tourist.getByRole('link', { name: /Layla Jasim/ }).click();
   await tourist.getByRole('link', { name: 'Hire Layla' }).click();
-  await tourist.getByRole('heading', { name: 'Hire Layla' }).waitFor();
+  await tourist.getByText('Hire Layla').first().waitFor();
   await tourist.getByLabel('Title').fill('Marshes at sunrise');
+  for (let i = 0; i < 3; i++) await tourist.getByRole('button', { name: 'Next' }).click();
   await tourist.getByRole('button', { name: 'Use this' }).click();
   await tourist.getByRole('button', { name: 'Send to Layla' }).click();
   await tourist.getByText('Sent to Layla').first().waitFor();
@@ -352,11 +371,16 @@ test('post page: problems show while typing, before pressing the button', async 
   await t.getByLabel('Title').fill('Bab');
   await t.getByLabel('Title').blur();
   await t.getByText('Add 2 more characters.').waitFor();
+  await t.getByLabel('Title').fill('Babylon weekend');
+  await t.getByRole('button', { name: 'Basra', exact: true }).click();
+  await t.getByRole('button', { name: 'Next' }).click();
+  await t.getByRole('button', { name: 'Next' }).click();
+  await t.getByRole('button', { name: /More languages/ }).click();
+  await t.getByRole('button', { name: 'Kurdish', exact: true }).click();
+  await t.getByRole('button', { name: 'Next' }).click();
   await t.locator('#pf-budgetMin').fill('200');
   await t.locator('#pf-budgetMax').fill('90');
   await t.getByText("The budget's upper value must be at least the lower one.").waitFor();
-  await t.getByRole('button', { name: /More languages/ }).click();
-  await t.getByRole('button', { name: 'Kurdish', exact: true }).click();
   await noSideScroll(t, 'post page');
 });
 
@@ -394,6 +418,8 @@ test('home has no search bar or shortcut row; signing out asks first; admin open
   await p.getByRole('button', { name: 'Sign out' }).click();
   await p.getByRole('alertdialog').getByRole('button', { name: 'Sign out' }).click();
   await p.waitForFunction(() => !localStorage.getItem('tg.token'));
+  await p.waitForFunction(() => location.hash === '#/login');
+  await p.locator('.login-brand').waitFor();
   await p.context().close();
 
   const a = await open();
@@ -455,4 +481,33 @@ test('an open chat fills the phone screen: no tab bar, header pinned on top, mes
   await go(p, '/messages');
   await p.locator('.tabbar').waitFor();
   await p.context().close();
+});
+
+test('admin: home sections, city statistics, prices page, and Users on its own', async () => {
+  const a = await open();
+  await login(a, 'admin@tripguide.demo');
+  await go(a, '/');
+  const order = await a.locator('main h2').allInnerTexts();
+  assert.deepEqual(order.slice(0, 3), ['Needs you', 'The platform', 'Governorates and visitors']);
+  assert.equal(await a.locator('.stat-tile').count(), 4);
+  assert.equal(await a.locator('.cs-row').count(), 5);
+  assert.equal(await a.getByRole('heading', { name: 'Guide subscription' }).count(), 0);
+  // Stats replaces Reports in the bottom bar.
+  assert.deepEqual((await a.locator('.tabbar a').allInnerTexts()).map((x) => x.split('\n')[0]), ['Admin', 'Verify', 'Stats', 'Users', 'Profile']);
+  await a.locator('.tabbar a', { hasText: 'Stats' }).click();
+  await a.getByRole('heading', { name: 'City statistics' }).waitFor();
+  assert.equal(await a.locator('.cs-row').count(), 8);
+  await a.getByRole('heading', { name: 'Languages tourists ask for' }).waitFor();
+  await noSideScroll(a, 'admin stats');
+  await go(a, '/admin/pricing');
+  await a.getByRole('heading', { name: 'Guide subscription' }).waitFor();
+  await a.getByRole('heading', { name: 'Featured guides' }).waitFor();
+  await go(a, '/admin/users');
+  await a.getByRole('heading', { name: 'Users', exact: true }).waitFor();
+  assert.equal(await a.locator('nav.tabs').count(), 0);
+  // Reports are still one tap away next to Verify.
+  await go(a, '/admin/verify');
+  await a.locator('nav.tabs').getByRole('link', { name: 'Reports' }).click();
+  await a.waitForFunction(() => location.hash === '#/admin/reports');
+  await a.context().close();
 });

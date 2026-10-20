@@ -14,7 +14,7 @@ import { MyOffers, PostRequest, RequestDetail, RequestsIndex } from './pages/Req
 import { BookingDetail, BookingsList, Wallet } from './pages/Bookings';
 import { Notifications, Thread, Threads } from './pages/Messages';
 import { Account, GuideEditor, Login, Register } from './pages/Account';
-import { AdminReports, AdminUsers, AdminVerify } from './pages/Admin';
+import { AdminReports, AdminUsers, AdminVerify, AdminStats, AdminPricing } from './pages/Admin';
 
 function NeedLogin({ path }: { path: string }) {
   React.useEffect(() => navigate('/login?next=' + encodeURIComponent(path), { replace: true }), [path]);
@@ -67,6 +67,8 @@ function Routes() {
   else if (p('/admin') || p('/admin/verify')) page = authed(<AdminVerify />);
   else if (p('/admin/reports')) page = authed(<AdminReports />);
   else if (p('/admin/users')) page = authed(<AdminUsers />);
+  else if (p('/admin/stats')) page = authed(<AdminStats />);
+  else if (p('/admin/pricing')) page = authed(<AdminPricing />);
 
   // Re-mount pages on navigation so each route starts fresh.
   return (

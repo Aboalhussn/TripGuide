@@ -350,3 +350,32 @@ test('a guide pays to be featured on the home screen; it lapses after the period
   s.advance(24 * 13); // past any seeded promotion plus the 7 days bought
   assert.ok(!featured().includes(meId));
 });
+
+test('a trip sent straight to one guide carries the tourist plan and stays hidden from other guides', () => {
+  const s = setup();
+  const tt = s.login(DEMO_ACCOUNTS.tourist);
+  const g = s.login(DEMO_ACCOUNTS.guide);
+  const meId = s.ok('GET', '/me', null, g).id;
+  const other = s.data.guides.find((x) => x.userId !== meId && x.headline)!;
+  const otherUser = s.data.users.find((u) => u.id === other.userId)!;
+  const og = s.ok('POST', '/auth/login', { email: otherUser.email, password: DEMO_PASSWORD }).token as string;
+  const plan = [{ title: 'Old Baghdad', details: 'Mutanabbi Street' }, { title: '', details: '' }];
+  const r = s.ok('POST', '/requests', { ...tripBody(s.today()), directGuideId: meId, plan }, tt);
+  assert.deepEqual(s.ok('GET', `/requests/${r.id}`, null, tt).plan, plan);
+  assert.ok(s.ok('GET', '/requests', null, g).requests.some((x: any) => x.id === r.id));
+  assert.ok(!s.ok('GET', '/requests', null, og).requests.some((x: any) => x.id === r.id));
+  assert.equal(s.call('GET', `/requests/${r.id}`, null, og).status, 404);
+  // A plan longer than the trip is refused; an empty plan is stored as none.
+  assert.equal(s.call('POST', '/requests', { ...tripBody(s.today()), plan: [plan[0], plan[0], plan[0]] }, tt).body.error, 'plan_days');
+  assert.deepEqual(s.ok('POST', '/requests', { ...tripBody(s.today()), plan: [{ title: '' }] }, tt).plan, []);
+});
+
+test('admin city statistics', () => {
+  const s = setup();
+  const admin = s.login(DEMO_ACCOUNTS.admin);
+  const st = s.ok('GET', '/admin/stats', null, admin);
+  assert.equal(st.cities.length, 8);
+  assert.ok(st.totals.visitors > 0);
+  assert.equal(st.cities.reduce((a: number, c: any) => Math.max(a, c.visitors), 0), st.cities[0].visitors);
+  assert.equal(s.call('GET', '/admin/stats', null, s.login(DEMO_ACCOUNTS.tourist)).status, 403);
+});
