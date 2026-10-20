@@ -60,95 +60,6 @@ function HomeBanners({ slides }: { slides: Slide[] }) {
   );
 }
 
-/** Search right on the home screen: matching cities and guides show up below as you type. */
-function HomeSearch() {
-  const { t, meta, lang } = useApp();
-  const fmt = useFmt();
-  const [q, setQ] = React.useState('');
-  const [res, setRes] = React.useState<{ q: string; guides: any[] } | null>(null);
-  const term = q.trim();
-  React.useEffect(() => {
-    if (!term) return setRes(null);
-    let live = true;
-    const id = window.setTimeout(() => {
-      api('GET', '/guides', undefined, { q: term })
-        .then((r: any) => live && setRes({ q: term, guides: r.guides }))
-        .catch(() => live && setRes({ q: term, guides: [] }));
-    }, 200);
-    return () => {
-      live = false;
-      window.clearTimeout(id);
-    };
-  }, [term]);
-  const low = term.toLowerCase();
-  const cities = term ? (meta?.cities || []).filter((c: any) => c.name.toLowerCase().includes(low) || c.nameAr.includes(term)) : [];
-  return (
-    <div className="home-search">
-      <label className="search-pill">
-        <Icon name="search" size={20} />
-        <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('home.search')} aria-label={t('home.search')} enterKeyHint="search" dir={lang === 'ar' ? 'rtl' : 'ltr'} />
-        {q && (
-          <button type="button" className="search-clear" aria-label={t('common.clear')} onClick={() => setQ('')}>
-            <Icon name="close" size={18} />
-          </button>
-        )}
-      </label>
-      {term && (
-        <div className="search-results card flush" role="region" aria-live="polite" aria-label={t('home.results')}>
-          {cities.length > 0 && (
-            <div className="chips" style={{ padding: '12px 14px 4px' }}>
-              {cities.map((c: any) => (
-                <Link key={c.slug} to={`/guides?city=${c.slug}`} className="city-tile sm">
-                  <Icon name="pin" size={16} /> {fmt.city(c.slug)}
-                </Link>
-              ))}
-            </div>
-          )}
-          {!res || res.q !== term ? (
-            <div className="skeleton" style={{ height: 64, margin: 12 }} />
-          ) : res.guides.length === 0 && cities.length === 0 ? (
-            <p className="muted small" style={{ padding: 16 }}>{t('home.no_results')}</p>
-          ) : (
-            res.guides.slice(0, 5).map((g: any) => (
-              <Link key={g.id} to={`/guides/${g.id}`} className="list-item">
-                <Avatar user={g} size={40} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="row" style={{ gap: 4, flexWrap: 'nowrap' }}>
-                    <strong className="gt-name">{g.name}</strong>
-                    {g.stats.verified && <VerifiedBadge />}
-                  </div>
-                  <div className="xs muted" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{fmt.pick(g.headline, g.headlineAr)}</div>
-                </div>
-                <strong className="small">{fmt.usd(g.pricePerDay)}</strong>
-              </Link>
-            ))
-          )}
-          {res && res.q === term && res.guides.length > 5 && (
-            <Link to={`/guides?q=${encodeURIComponent(term)}`} className="list-item see-all" style={{ justifyContent: 'center' }}>
-              {t('home.all_results', { count: res.guides.length })}
-            </Link>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function QuickActions({ items }: { items: { to: string; icon: string; label: string }[] }) {
-  return (
-    <nav className="quick-actions">
-      {items.map((q) => (
-        <Link key={q.to} to={q.to} className="qa">
-          <span className="qa-ico">
-            <Icon name={q.icon} size={24} />
-          </span>
-          <span className="qa-label">{q.label}</span>
-        </Link>
-      ))}
-    </nav>
-  );
-}
-
 function SectionHead({ title, to }: { title: string; to?: string }) {
   const { t } = useApp();
   return (
@@ -198,23 +109,7 @@ function TopGuides() {
     <section className="stack" style={{ gap: 10 }}>
       <SectionHead title={t('home.top_guides')} to="/guides" />
       <div className="h-scroll">
-        {top.data ? top.data.guides.slice(0, 6).map((g: any) => <GuideTile key={g.id} g={g} />) : [0, 1].map((n) => <div key={n} className="guide-tile skeleton" style={{ height: 200 }} />)}
-      </div>
-    </section>
-  );
-}
-
-/** Guides who paid to be featured. Hidden when nobody is promoted. */
-function FeaturedGuides() {
-  const { t } = useApp();
-  const res = useLoad(() => api('GET', '/guides', undefined, { promoted: '1' }), []);
-  const list: any[] = res.data?.guides || [];
-  if (res.data && list.length === 0) return null;
-  return (
-    <section className="stack" style={{ gap: 10 }}>
-      <SectionHead title={t('home.featured')} />
-      <div className="h-scroll">
-        {res.data ? list.map((g: any) => <GuideTile key={g.id} g={g} />) : [0, 1].map((n) => <div key={n} className="guide-tile skeleton" style={{ height: 200 }} />)}
+        {top.data ? [...top.data.guides].sort((a: any, b: any) => Number(!!b.promoted) - Number(!!a.promoted)).slice(0, 6).map((g: any) => <GuideTile key={g.id} g={g} />) : [0, 1].map((n) => <div key={n} className="guide-tile skeleton" style={{ height: 200 }} />)}
       </div>
     </section>
   );
@@ -277,16 +172,6 @@ export function GuestHome() {
           { img: 'babylon.jpg', title: t('home.slide_pay'), cta: t('home.cta_browse'), to: '/guides' },
         ]}
       />
-      <HomeSearch />
-      <QuickActions
-        items={[
-          { to: '/post', icon: 'plus', label: t('home.q_post') },
-          { to: '/guides', icon: 'users', label: t('home.q_guides') },
-          { to: '/register?role=guide', icon: 'shield', label: t('home.q_join') },
-          { to: '/login', icon: 'user', label: t('home.q_login') },
-        ]}
-      />
-      <FeaturedGuides />
       <TopGuides />
       <CityTiles />
       <HowItWorks />
@@ -316,16 +201,6 @@ export function TouristHome() {
           { img: 'babylon.jpg', title: t('home.slide_pay'), cta: t('home.cta_browse'), to: '/guides' },
         ]}
       />
-      <HomeSearch />
-      <QuickActions
-        items={[
-          { to: '/post', icon: 'plus', label: t('home.q_post') },
-          { to: '/guides', icon: 'users', label: t('home.q_guides') },
-          { to: '/bookings', icon: 'calendar', label: t('home.q_trips') },
-          { to: '/messages', icon: 'chat', label: t('home.q_messages') },
-        ]}
-      />
-      <FeaturedGuides />
 
       <TopGuides />
 

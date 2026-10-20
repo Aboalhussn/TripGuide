@@ -175,7 +175,7 @@ export function Register({ query }: { query: Record<string, string> }) {
 }
 
 export function Account() {
-  const { t, me, setLang, lang, signOut, refreshMe, toast } = useApp();
+  const { t, me, setLang, lang, signOut, refreshMe, toast, ask } = useApp();
   const [f, setF] = useState({ name: me?.name || '', country: me?.country || '', phone: me?.phone || '' });
   const [code, setCode] = useState('');
   const [showCode, setShowCode] = useState(false);
@@ -287,6 +287,7 @@ export function Account() {
         type="button"
         className="btn ghost"
         onClick={async () => {
+          if (!(await ask(t('account.sign_out_confirm'), t('account.sign_out')))) return;
           navigate('/', { replace: true });
           await signOut();
         }}

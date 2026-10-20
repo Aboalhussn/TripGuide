@@ -378,15 +378,22 @@ test('launch: the loading screen shows, then sign-in, which leads to create acco
 });
 
 
-test('home: search right there, featured guides, and admin opens a user profile', async () => {
+test('home has no search bar or shortcut row; signing out asks first; admin opens a user profile', async () => {
   const p = await open();
   await go(p, '/');
-  await p.getByRole('heading', { name: 'Featured guides' }).waitFor();
-  await p.getByRole('searchbox', { name: 'Search guides or cities' }).fill('Karbala');
-  const results = p.getByRole('region', { name: 'Search results' });
-  await results.locator('.city-tile', { hasText: 'Karbala' }).waitFor();
-  await results.locator('a.list-item').first().waitFor();
-  assert.equal(await p.evaluate(() => location.hash), '#/');
+  await p.getByRole('heading', { name: 'Top guides' }).waitFor();
+  assert.equal(await p.locator('.search-pill, .quick-actions').count(), 0);
+  assert.equal(await p.getByRole('heading', { name: 'Featured guides' }).count(), 0);
+  await login(p, 'tourist@tripguide.demo');
+  await go(p, '/profile');
+  await p.getByRole('button', { name: 'Sign out' }).click();
+  const confirm = p.getByRole('alertdialog');
+  await confirm.getByText('Sign out of your account?').waitFor();
+  await confirm.getByRole('button', { name: 'Cancel' }).click();
+  assert.ok(await p.evaluate(() => !!localStorage.getItem('tg.token')));
+  await p.getByRole('button', { name: 'Sign out' }).click();
+  await p.getByRole('alertdialog').getByRole('button', { name: 'Sign out' }).click();
+  await p.waitForFunction(() => !localStorage.getItem('tg.token'));
   await p.context().close();
 
   const a = await open();
