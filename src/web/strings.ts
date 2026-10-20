@@ -28,9 +28,10 @@ const en: Record<string, Entry> = {
   'guide.replies_hour': en1('Replies in about an hour', 'Replies in about {count} hours'), 'guide.replies_day': 'Usually replies within a day',
 
   // home
-  'home.title': 'Post your trip. Iraqi guides send you offers.',
-  'home.lede': 'Compare their plans and prices, chat, then hire one. Your money is held safely and released one tour day at a time.',
-  'home.cta_post': 'Post a trip request', 'home.cta_browse': 'Browse guides', 'home.cta_note': 'Posting is free. Guides usually reply within an hour.',
+  'home.search': 'Search guides or cities', 'home.highlights': 'Highlights', 'home.slide_n': 'Slide {n}',
+  'home.slide_post': 'Post your trip. Guides send you offers.', 'home.slide_pay': 'Pay day by day. Your money stays safe.',
+  'home.q_post': 'Post trip', 'home.q_guides': 'Guides', 'home.q_join': 'Be a guide', 'home.q_login': 'Sign in', 'home.q_trips': 'My trips', 'home.q_messages': 'Messages',
+  'home.cta_post': 'Post a trip request', 'home.cta_browse': 'Browse guides',
   'home.pictures': 'Iraq in pictures', 'home.alt_ishtar': 'Glazed blue bricks of the Ishtar Gate', 'home.alt_babylon': 'The rebuilt walls of ancient Babylon', 'home.alt_arch': 'A brick arch framing the Malwiya minaret in Samarra',
   'home.where': 'Where do you want to go?', 'home.how': 'How it works',
   'home.step1': 'Post your trip', 'home.step1_text': 'Cities, dates, group size, languages and what you love: history, shrines, food, photography.',
@@ -332,9 +333,10 @@ const arStrings: Record<string, Entry> = {
   'guide.replies_min': ar('يردّ خلال دقيقة تقريبًا', 'يردّ خلال دقيقتين تقريبًا', 'يردّ خلال {count} دقائق تقريبًا', 'يردّ خلال {count} دقيقة تقريبًا'),
   'guide.replies_hour': ar('يردّ خلال ساعة تقريبًا', 'يردّ خلال ساعتين تقريبًا', 'يردّ خلال {count} ساعات تقريبًا', 'يردّ خلال {count} ساعة تقريبًا'), 'guide.replies_day': 'يردّ عادةً خلال يوم',
 
-  'home.title': 'انشر رحلتك، ودَع المرشدين العراقيين يرسلون عروضهم.',
-  'home.lede': 'قارن الخطط والأسعار، وتحدّث معهم، ثم اختر مرشدك. نحتفظ بمبلغك بأمان ويُحوَّل إلى المرشد يومًا بيوم.',
-  'home.cta_post': 'انشر طلب رحلة', 'home.cta_browse': 'تصفّح المرشدين', 'home.cta_note': 'النشر مجاني، ويردّ المرشدون عادةً خلال ساعة.',
+  'home.search': 'ابحث عن مرشد أو مدينة', 'home.highlights': 'عروض مميزة', 'home.slide_n': 'الشريحة {n}',
+  'home.slide_post': 'انشر رحلتك واستلم عروض المرشدين.', 'home.slide_pay': 'ادفع يومًا بيوم، ومبلغك بأمان.',
+  'home.q_post': 'انشر رحلة', 'home.q_guides': 'المرشدون', 'home.q_join': 'كن مرشدًا', 'home.q_login': 'دخول', 'home.q_trips': 'رحلاتي', 'home.q_messages': 'الرسائل',
+  'home.cta_post': 'انشر طلب رحلة', 'home.cta_browse': 'تصفّح المرشدين',
   'home.pictures': 'صور من العراق', 'home.alt_ishtar': 'الطابوق الأزرق المزجّج لبوابة عشتار', 'home.alt_babylon': 'أسوار بابل الأثرية', 'home.alt_arch': 'قوس من الطابوق يطلّ على ملوية سامراء',
   'home.where': 'إلى أين تريد الذهاب؟', 'home.how': 'كيف يعمل',
   'home.step1': 'انشر رحلتك', 'home.step1_text': 'المدن والتواريخ وعدد الأشخاص واللغات وما تحبه: التاريخ، المراقد، الطعام، التصوير.',

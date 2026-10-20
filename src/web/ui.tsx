@@ -680,7 +680,7 @@ export function LanguagePick({ all, value, onChange, label, render, error }: { a
 export function BrandBar() {
   const { t, me } = useApp();
   return (
-    <div className={'brand-bar' + (me ? '' : ' guest')}>
+    <div className={'brand-bar' + (me ? '' : ' guest')} dir="ltr">
       <img src={asset('tg-logo-horizontal.svg')} alt={t('brand.name')} className="brand-logo" />
       {!me && <LangToggle />}
       {me && (

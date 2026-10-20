@@ -1,4 +1,6 @@
-# Builds the Android APK and checks the iOS app compiles, on every push to main or by hand.
+# On every push to main: builds the Android APK and the iOS app, then publishes both as the
+# newest GitHub Release, so this link always downloads the latest Android build:
+#   https://github.com/<owner>/<repo>/releases/latest/download/trip-guide.apk
 # Set the repository variable API_URL (Settings > Secrets and variables > Actions > Variables)
 # to your server's address; leave it empty to ship the demo data inside the app.
 name: Mobile apps
@@ -8,6 +10,9 @@ on:
   push:
     branches: [main]
     paths: ['src/**', 'public/**', 'android/**', 'ios/**', 'assets/**', 'capacitor.config.ts', 'package.json', 'package-lock.json', '.github/workflows/mobile.yml']
+
+permissions:
+  contents: write
 
 jobs:
   android:
@@ -29,13 +34,17 @@ jobs:
         env:
           API_URL: ${{ vars.API_URL }}
       - run: npx cap sync android
+      - name: Number this build so phones install it as an update
+        run: |
+          sed -i -E "s/versionCode [0-9]+/versionCode ${{ github.run_number }}/; s/versionName \"[^\"]*\"/versionName \"1.0.${{ github.run_number }}\"/" android/app/build.gradle
       - name: Build APK
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon
+      - run: cp android/app/build/outputs/apk/debug/app-debug.apk trip-guide.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: trip-guide-android-debug
-          path: android/app/build/outputs/apk/debug/*.apk
+          name: trip-guide-android
+          path: trip-guide.apk
 
   ios:
     runs-on: macos-15
@@ -51,5 +60,39 @@ jobs:
         env:
           API_URL: ${{ vars.API_URL }}
       - run: npx cap sync ios
-      - name: Compile for the iOS simulator (no signing needed)
-        run: xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+      - name: Build the iPhone app (unsigned)
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -sdk iphoneos \
+            -destination 'generic/platform=iOS' -derivedDataPath build \
+            MARKETING_VERSION=1.0.${{ github.run_number }} CURRENT_PROJECT_VERSION=${{ github.run_number }} \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+      - name: Package as .ipa
+        run: |
+          mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -qry trip-guide-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: trip-guide-ios
+          path: trip-guide-unsigned.ipa
+
+  release:
+    needs: [android, ios]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Trip guide 1.0.${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          body: |
+            Latest build of Trip guide from ${{ github.sha }}.
+            - **Android:** download `trip-guide.apk` and open it on the phone (allow installing from this source).
+            - **iPhone:** `trip-guide-unsigned.ipa` is not signed; install it with a signing tool such as Sideloadly or AltStore using your Apple ID, or publish through TestFlight with an Apple Developer account.
+          files: |
+            trip-guide.apk
+            trip-guide-unsigned.ipa

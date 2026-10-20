@@ -301,7 +301,7 @@ test('every main screen works in Arabic, right to left, on a phone and on a desk
   }
   const p = await open('ar');
   await go(p, '/'); // a fresh launch opens on sign-in; the guest home is one step away
-  await p.getByRole('heading', { name: 'انشر رحلتك، ودَع المرشدين العراقيين يرسلون عروضهم.' }).waitFor();
+  await p.getByRole('heading', { name: 'أفضل المرشدين' }).waitFor();
   await shot(p, 'e2e-home-ar');
 });
 
@@ -371,6 +371,6 @@ test('launch: the loading screen shows, then sign-in, which leads to create acco
   await page.getByRole('button', { name: 'Login' }).waitFor();
   await page.getByRole('link', { name: 'Create an account' }).click();
   await page.getByRole('button', { name: 'Continue as guest' }).click();
-  await page.getByRole('heading', { name: /Post your trip/ }).waitFor();
+  await page.getByRole('heading', { name: 'Top guides' }).waitFor();
 });
 

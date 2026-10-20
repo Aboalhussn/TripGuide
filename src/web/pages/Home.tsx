@@ -3,125 +3,211 @@ import { api } from '../lib/api';
 import { useApp, useLoad } from '../lib/app';
 import { useFmt } from '../lib/format';
 import { Link } from '../lib/router';
-import { asset } from '../assets';
-import { BookingStatus, GuideCard, Icon, Loading, Money, RequestFacts, RequestStatus, BrandBar, BrandFooter, PromoBand } from '../ui';
+import { asset, photoSrc } from '../assets';
+import { Avatar, BookingStatus, Icon, Loading, Money, Rating, RequestFacts, RequestStatus, BrandBar, BrandFooter, VerifiedBadge } from '../ui';
 
-// The picture, the bird and its flight path stay the same in Arabic and English.
-// The path is drawn in the box's real pixels so it always ends at the bird's tail.
-const BIRD = { right: 18, top: 18, width: 44 }; // matches .collage .mark
-function Collage() {
+type Slide = { img: string; title: string; text?: string; cta: string; to: string };
+
+/** Swipeable banners at the top of the home screen, like a store app. Advances by itself every few seconds. */
+function HomeBanners({ slides }: { slides: Slide[] }) {
   const { t } = useApp();
-  const ref = React.useRef<HTMLElement>(null);
-  const [size, setSize] = React.useState({ w: 390, h: 300 });
-  React.useEffect(() => {
+  const ref = React.useRef<HTMLDivElement>(null);
+  const [i, setI] = React.useState(0);
+  const step = () => {
+    const el = ref.current!;
+    const first = el.children[0] as HTMLElement | undefined;
+    return first ? first.offsetWidth + 12 : el.clientWidth;
+  };
+  const goTo = (n: number) => {
     const el = ref.current;
     if (!el) return;
-    const update = () => setSize({ w: el.clientWidth, h: el.clientHeight });
-    update();
-    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null;
-    ro?.observe(el);
-    return () => ro?.disconnect();
-  }, []);
-  const { w, h } = size;
-  const birdH = BIRD.width * (446 / 605);
-  // The tail of the bird: its lower-left corner.
-  const ex = w - BIRD.right - BIRD.width + 5;
-  const ey = BIRD.top + birdH - 4;
-  const d = `M -10 ${h - 28} C ${w * 0.2} ${h - 48}, ${w * 0.3} ${h * 0.58}, ${w * 0.52} ${h * 0.46} S ${ex - w * 0.12} ${ey + h * 0.16}, ${ex} ${ey}`;
+    const sign = getComputedStyle(el).direction === 'rtl' ? -1 : 1;
+    el.scrollTo({ left: sign * n * step(), behavior: 'smooth' });
+  };
+  const onScroll = () => {
+    const el = ref.current;
+    if (el) setI(Math.round(Math.abs(el.scrollLeft) / step()));
+  };
+  React.useEffect(() => {
+    if (slides.length < 2) return;
+    const id = window.setInterval(() => goTo((i + 1) % slides.length), 5000);
+    return () => window.clearInterval(id);
+  }, [i, slides.length]);
   return (
-    <section ref={ref} className="collage" dir="ltr" aria-label={t('home.pictures')}>
-      <img className="shot" src={asset('arch.jpg')} alt={t('home.alt_arch')} />
-      <svg className="route" viewBox={`0 0 ${w} ${h}`} aria-hidden="true">
-        <path d={d} fill="none" stroke="#FFFFFF" strokeOpacity="0.8" strokeWidth="2.2" strokeDasharray="2 7" strokeLinecap="round" />
-      </svg>
-      <img className="mark" src={asset('tg-mark-white.svg')} alt="" />
-      <span className="cap" dir="auto">
-        {t('home.alt_arch')}
-      </span>
+    <section className="home-banners" aria-label={t('home.highlights')}>
+      <div className="banner-track" ref={ref} onScroll={onScroll}>
+        {slides.map((s, n) => (
+          <div key={n} className="promo-band banner" aria-hidden={n !== i ? true : undefined}>
+            <img src={asset(s.img)} alt="" />
+            <div className="over">
+              <p className="mark-text">{s.title}</p>
+              {s.text && <p className="promo-text">{s.text}</p>}
+              <Link to={s.to} className="btn gold sm" tabIndex={n !== i ? -1 : undefined}>
+                {s.cta}
+              </Link>
+            </div>
+          </div>
+        ))}
+      </div>
+      {slides.length > 1 && (
+        <div className="banner-dots">
+          {slides.map((_, n) => (
+            <button key={n} type="button" className={n === i ? 'on' : ''} aria-label={t('home.slide_n', { n: n + 1 })} aria-current={n === i ? 'true' : undefined} onClick={() => goTo(n)} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function SearchPill() {
+  const { t } = useApp();
+  return (
+    <Link to="/guides" className="search-pill">
+      <Icon name="search" size={20} />
+      <span>{t('home.search')}</span>
+    </Link>
+  );
+}
+
+function QuickActions({ items }: { items: { to: string; icon: string; label: string }[] }) {
+  return (
+    <nav className="quick-actions">
+      {items.map((q) => (
+        <Link key={q.to} to={q.to} className="qa">
+          <span className="qa-ico">
+            <Icon name={q.icon} size={24} />
+          </span>
+          <span className="qa-label">{q.label}</span>
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
+function SectionHead({ title, to }: { title: string; to?: string }) {
+  const { t } = useApp();
+  return (
+    <div className="section-head">
+      <h2>{title}</h2>
+      {to && (
+        <Link to={to} className="see-all">
+          {t('common.see_all')}
+        </Link>
+      )}
+    </div>
+  );
+}
+
+function GuideTile({ g }: { g: any }) {
+  const { t } = useApp();
+  const fmt = useFmt();
+  return (
+    <Link to={`/guides/${g.id}`} className="guide-tile">
+      <div className="gt-cover">{g.cover ? <img src={photoSrc(g.cover)} alt="" loading="lazy" /> : <img src={asset('map.jpg')} alt="" />}</div>
+      <div className="gt-body">
+        <div className="gt-av">
+          <Avatar user={g} size={44} />
+        </div>
+        <div className="row" style={{ gap: 4, flexWrap: 'nowrap' }}>
+          <strong className="gt-name">{g.name}</strong>
+          {g.stats.verified && <VerifiedBadge />}
+        </div>
+        <div className="between small" style={{ flexWrap: 'nowrap' }}>
+          <Rating rating={g.stats.rating} />
+          <span>
+            <strong>{fmt.usd(g.pricePerDay)}</strong>
+            <span className="xs muted"> {t('common.per_day')}</span>
+          </span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function TopGuides() {
+  const { t } = useApp();
+  const top = useLoad(() => api('GET', '/guides', undefined, { sort: 'best' }), []);
+  return (
+    <section className="stack" style={{ gap: 10 }}>
+      <SectionHead title={t('home.top_guides')} to="/guides" />
+      <div className="h-scroll">
+        {top.data ? top.data.guides.slice(0, 6).map((g: any) => <GuideTile key={g.id} g={g} />) : [0, 1].map((n) => <div key={n} className="guide-tile skeleton" style={{ height: 200 }} />)}
+      </div>
+    </section>
+  );
+}
+
+function CityTiles() {
+  const { t, meta } = useApp();
+  const fmt = useFmt();
+  return (
+    <section className="stack" style={{ gap: 10 }}>
+      <SectionHead title={t('home.where')} to="/guides" />
+      <div className="h-scroll">
+        {(meta?.cities || []).map((c: any) => (
+          <Link key={c.slug} to={`/guides?city=${c.slug}`} className="city-tile">
+            <span className="ct-ico">
+              <Icon name="pin" size={20} />
+            </span>
+            <span>{fmt.city(c.slug)}</span>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function HowItWorks() {
+  const { t } = useApp();
+  const icons = ['edit', 'offer', 'shield'];
+  return (
+    <section className="stack" style={{ gap: 10 }}>
+      <SectionHead title={t('home.how')} />
+      <div className="card flush how-card">
+        {[1, 2, 3].map((n) => (
+          <div key={n} className="how-row">
+            <span className="qa-ico sm">
+              <Icon name={icons[n - 1]} size={20} />
+            </span>
+            <div>
+              <strong>{t(`home.step${n}`)}</strong>
+              <p className="muted small" style={{ marginTop: 2 }}>
+                {t(`home.step${n}_text`)}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }
 
 export function GuestHome() {
-  const { t, meta, me } = useApp();
-  const fmt = useFmt();
-  const top = useLoad(() => api('GET', '/guides', undefined, { sort: 'best' }), []);
+  const { t } = useApp();
   return (
-    <div>
-      <div className="page" style={{ paddingBottom: 0 }}>
-        <BrandBar />
-      </div>
-      <section className="hero">
-        <div className="stack" style={{ gap: 14 }}>
-          <h1>{t('home.title')}</h1>
-          <p className="lede">{t('home.lede')}</p>
-          <div className="stack" style={{ gap: 10, maxWidth: 420, marginTop: 6 }}>
-            <Link to="/post" className="btn lg">
-              {t('home.cta_post')}
-            </Link>
-            <Link to="/guides" className="btn lg outline">
-              {t('home.cta_browse')}
-            </Link>
-            <p className="small muted center">{t('home.cta_note')}</p>
-          </div>
-        </div>
-        <Collage />
-      </section>
-
-      <div className="page" style={{ paddingTop: 8 }}>
-        <section className="stack">
-          <h2>{t('home.where')}</h2>
-          <div className="chips">
-            {(meta?.cities || []).map((c: any) => (
-              <Link key={c.slug} to={`/guides?city=${c.slug}`} className="toggle-chip" style={{ display: 'inline-flex', alignItems: 'center', textDecoration: 'none', fontSize: 15 }}>
-                {fmt.city(c.slug)}
-              </Link>
-            ))}
-          </div>
-        </section>
-
-        <section className="stack">
-          <h2>{t('home.how')}</h2>
-          <ol className="steps-list">
-            {[1, 2, 3].map((n) => (
-              <li key={n}>
-                <span className="step-n">{fmt.num(n)}</span>
-                <div>
-                  <strong>{t(`home.step${n}`)}</strong>
-                  <p className="muted small" style={{ marginTop: 2 }}>
-                    {t(`home.step${n}_text`)}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ol>
-        </section>
-
-        <section className="stack">
-          <div className="between">
-            <h2>{t('home.top_guides')}</h2>
-            <Link to="/guides" className="small" style={{ fontWeight: 500 }}>
-              {t('common.see_all')}
-            </Link>
-          </div>
-          <div className="cards three">
-            {top.data ? top.data.guides.slice(0, 3).map((g: any) => <GuideCard key={g.id} g={g} compact />) : <div className="skeleton" style={{ height: 120 }} />}
-          </div>
-        </section>
-
-        {!me && (
-          <section className="join-band">
-            <img src={asset('skyline.jpg')} alt="" />
-            <div className="over">
-              <p className="mark-text">{t('home.join_title')}</p>
-              <Link to="/register?role=guide" className="btn gold sm">
-                {t('home.join_cta')}
-              </Link>
-            </div>
-          </section>
-        )}
-        <BrandFooter />
-      </div>
+    <div className="page app-home">
+      <BrandBar />
+      <HomeBanners
+        slides={[
+          { img: 'skyline.jpg', title: t('home.join_title'), cta: t('home.join_cta'), to: '/register?role=guide' },
+          { img: 'ishtar.jpg', title: t('home.slide_post'), cta: t('home.cta_post'), to: '/post' },
+          { img: 'babylon.jpg', title: t('home.slide_pay'), cta: t('home.cta_browse'), to: '/guides' },
+        ]}
+      />
+      <SearchPill />
+      <QuickActions
+        items={[
+          { to: '/post', icon: 'plus', label: t('home.q_post') },
+          { to: '/guides', icon: 'users', label: t('home.q_guides') },
+          { to: '/register?role=guide', icon: 'shield', label: t('home.q_join') },
+          { to: '/login', icon: 'user', label: t('home.q_login') },
+        ]}
+      />
+      <TopGuides />
+      <CityTiles />
+      <HowItWorks />
+      <BrandFooter />
     </div>
   );
 }
@@ -136,10 +222,26 @@ export function TouristHome() {
   return (
     <div className="page">
       <BrandBar />
-      <div className="stack" style={{ gap: 6 }}>
-        <h1 style={{ fontWeight: 900, fontSize: 34 }}>{t('dash.hello', { name: first })}</h1>
-        <p className="muted">{t('dash.tourist_lede')}</p>
+      <div className="stack" style={{ gap: 2 }}>
+        <h1 style={{ fontWeight: 900, fontSize: 26 }}>{t('dash.hello', { name: first })}</h1>
+        <p className="muted small">{t('dash.tourist_lede')}</p>
       </div>
+      <HomeBanners
+        slides={[
+          { img: 'ishtar.jpg', title: t('home.slide_post'), cta: t('home.cta_post'), to: '/post' },
+          { img: 'skyline.jpg', title: t('dash.direct_title'), text: t('dash.direct_text'), cta: t('home.cta_browse'), to: '/guides' },
+          { img: 'babylon.jpg', title: t('home.slide_pay'), cta: t('home.cta_browse'), to: '/guides' },
+        ]}
+      />
+      <SearchPill />
+      <QuickActions
+        items={[
+          { to: '/post', icon: 'plus', label: t('home.q_post') },
+          { to: '/guides', icon: 'users', label: t('home.q_guides') },
+          { to: '/bookings', icon: 'calendar', label: t('home.q_trips') },
+          { to: '/messages', icon: 'chat', label: t('home.q_messages') },
+        ]}
+      />
 
       {releaseAsks.map((a: any) => (
         <Link key={a.milestoneId} to={`/bookings/${a.bookingId}`} className="card attention link stack" style={{ gap: 6 }}>
@@ -215,7 +317,6 @@ export function TouristHome() {
               </Link>
             ))}
           </section>
-          <PromoBand title={t('dash.direct_title')} text={t('dash.direct_text')} to="/guides" cta={t('home.cta_browse')} />
         </aside>
       </div>
     </div>
