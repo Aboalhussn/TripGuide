@@ -4,7 +4,7 @@ import { useApp, useLoad } from '../lib/app';
 import { useFmt } from '../lib/format';
 import { Link, navigate } from '../lib/router';
 import { asset } from '../assets';
-import { Avatar, Empty, ErrorState, Field, GuideCard, Icon, Loading, Modal, MonthCalendar, PageHead, Photo, Rating, ResponseTime, Star, VerifiedBadge, useBusy } from '../ui';
+import { Avatar, Empty, ErrorState, Field, GuideCard, Icon, Loading, Modal, MonthCalendar, PageHead, Photo, Rating, ResponseTime, Star, VerifiedBadge, useBusy, PromoBand } from '../ui';
 
 const SORTS = ['best', 'rating', 'price_low', 'price_high', 'tours'];
 
@@ -104,13 +104,7 @@ export function FindGuides({ query }: { query: Record<string, string> }) {
           ))}
         </div>
       )}
-      <div className="card dark stack">
-        <strong style={{ fontFamily: 'var(--display)', fontSize: 21 }}>{t('guides.not_sure')}</strong>
-        <span className="small muted">{t('guides.not_sure_text')}</span>
-        <Link to="/post" className="btn gold sm" style={{ alignSelf: 'flex-start' }}>
-          {t('home.cta_post')}
-        </Link>
-      </div>
+      <PromoBand title={t('guides.not_sure')} text={t('guides.not_sure_text')} to="/post" cta={t('home.cta_post')} />
 
       {showFilters && (
         <FiltersModal

@@ -689,13 +689,28 @@ export function BrandBar() {
   );
 }
 
-/** Small signature at the bottom of long pages. */
+/** Call-to-action banner in the same style as the "Know Iraq? Guide with us" band on the guest home. */
+export function PromoBand({ title, text, to, cta, img = 'skyline.jpg' }: { title: string; text?: string; to: string; cta: string; img?: string }) {
+  return (
+    <section className="promo-band">
+      <img src={asset(img)} alt="" />
+      <div className="over">
+        <p className="mark-text">{title}</p>
+        {text && <p className="promo-text">{text}</p>}
+        <Link to={to} className="btn gold sm">
+          {cta}
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+/** Small logo signature at the bottom of long pages. */
 export function BrandFooter() {
   const { t } = useApp();
   return (
     <div className="brand-footer">
       <img src={asset('tg-logo-horizontal.svg')} alt={t('brand.name')} />
-      <p className="xs faint center">{t('footer.independent')}</p>
     </div>
   );
 }

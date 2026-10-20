@@ -15,7 +15,6 @@ const en: Record<string, Entry> = {
   'nav.main': 'Main', 'nav.post_request': 'Post a trip request', 'nav.notifications_n': en1('Notifications, {count} new', 'Notifications, {count} new', 'Notifications'),
   'role.tourist': 'Tourist', 'role.guide': 'Guide', 'role.admin': 'Admin',
   'demo.banner': 'Demo: no real payments. Changes are saved in this browser only.', 'demo.reset': 'Reset demo', 'demo.reset_confirm': 'Start the demo again with fresh data?',
-  'footer.independent': 'An independent platform. Not run by or affiliated with any government body.',
 
   // common
   'common.back': 'Back', 'common.close': 'Close', 'common.loading': 'Loading', 'common.retry': 'Try again', 'common.see_all': 'See all', 'common.per_day': 'per day',
@@ -319,7 +318,6 @@ const arStrings: Record<string, Entry> = {
   'nav.main': 'التنقل الرئيسي', 'nav.post_request': 'انشر طلب رحلة', 'nav.notifications_n': ar('الإشعارات، إشعار جديد', 'الإشعارات، إشعاران جديدان', 'الإشعارات، {count} إشعارات جديدة', 'الإشعارات، {count} إشعارًا جديدًا', 'الإشعارات'),
   'role.tourist': 'سائح', 'role.guide': 'مرشد', 'role.admin': 'الإدارة',
   'demo.banner': 'نسخة تجريبية: لا مدفوعات حقيقية، وتُحفظ التغييرات في هذا المتصفح فقط.', 'demo.reset': 'إعادة ضبط التجربة', 'demo.reset_confirm': 'هل تريد بدء التجربة من جديد ببيانات جديدة؟',
-  'footer.independent': 'منصّة مستقلة، لا تديرها أي جهة حكومية ولا ترتبط بها.',
 
   'common.back': 'رجوع', 'common.close': 'إغلاق', 'common.loading': 'جارٍ التحميل', 'common.retry': 'حاول مرة أخرى', 'common.see_all': 'عرض الكل', 'common.per_day': 'لليوم',
   'common.search': 'بحث', 'common.any': 'الكل', 'common.optional': '(اختياري)', 'common.remove_x': 'إزالة {name}', 'common.fewer': 'أقل بواحد', 'common.more': 'أكثر بواحد',

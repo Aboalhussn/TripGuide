@@ -4,7 +4,7 @@ import { useApp, useLoad } from '../lib/app';
 import { useFmt } from '../lib/format';
 import { Link } from '../lib/router';
 import { asset } from '../assets';
-import { BookingStatus, GuideCard, Icon, Loading, Money, RequestFacts, RequestStatus, BrandBar, BrandFooter } from '../ui';
+import { BookingStatus, GuideCard, Icon, Loading, Money, RequestFacts, RequestStatus, BrandBar, BrandFooter, PromoBand } from '../ui';
 
 function Collage() {
   const { t, lang } = useApp();
@@ -194,13 +194,7 @@ export function TouristHome() {
               </Link>
             ))}
           </section>
-          <div className="card dark stack">
-            <strong style={{ fontFamily: 'var(--display)', fontSize: 21 }}>{t('dash.direct_title')}</strong>
-            <span className="small muted">{t('dash.direct_text')}</span>
-            <Link to="/guides" className="btn gold sm" style={{ alignSelf: 'flex-start' }}>
-              {t('home.cta_browse')}
-            </Link>
-          </div>
+          <PromoBand title={t('dash.direct_title')} text={t('dash.direct_text')} to="/guides" cta={t('home.cta_browse')} />
         </aside>
       </div>
     </div>
