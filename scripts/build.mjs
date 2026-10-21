@@ -19,7 +19,8 @@ const web = {
   sourcemap: watch,
   jsx: 'automatic',
   target: ['es2020'],
-  define: { 'process.env.NODE_ENV': watch ? '"development"' : '"production"', 'process.env.TG_API_BASE': '""' },
+  // DEMO_AI=mock puts the pretend trip assistant inside the offline demo (docs/AI_ASSISTANT.md, section 9).
+  define: { 'process.env.NODE_ENV': watch ? '"development"' : '"production"', 'process.env.TG_API_BASE': '""', 'process.env.TG_DEMO_AI': JSON.stringify(process.env.DEMO_AI || '') },
   external: ['/fonts/*', '/img/*'],
   logLevel: 'warning',
 };

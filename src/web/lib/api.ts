@@ -5,7 +5,8 @@ export class ApiFailure extends Error {
   }
 }
 
-type LocalApi = (req: { method: string; path: string; query: Record<string, string>; body: any; token: string | null }) => { status: number; body: any };
+// The offline engine answers at once; the demo's pretend trip assistant answers a moment later (a Promise).
+type LocalApi = (req: { method: string; path: string; query: Record<string, string>; body: any; token: string | null }) => { status: number; body: any } | Promise<{ status: number; body: any }>;
 
 declare global {
   interface Window {
@@ -43,7 +44,7 @@ export async function api<T = any>(method: string, path: string, body?: unknown,
   if (window.__TG_LOCAL_API) {
     // Give React a tick, like a network call would.
     await new Promise((r) => setTimeout(r, 0));
-    const res = window.__TG_LOCAL_API({ method, path, query: q, body: body === undefined ? null : JSON.parse(JSON.stringify(body)), token });
+    const res = await window.__TG_LOCAL_API({ method, path, query: q, body: body === undefined ? null : JSON.parse(JSON.stringify(body)), token });
     if (res.status >= 400) throw new ApiFailure(res.status, res.body?.error || 'error', res.body?.params);
     return JSON.parse(JSON.stringify(res.body));
   }

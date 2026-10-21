@@ -3,6 +3,8 @@ import { createApi } from '../core/api';
 import { seed } from '../core/seed';
 import type { Data, Platform } from '../core/types';
 import { sha256 } from './lib/sha256';
+import { createAssistantHandler } from '../server/assistant';
+import { mockProvider } from '../server/mock-ai';
 
 const KEY = 'tg.demo.data.v2'; // bump when the demo data changes shape, so phones start from the new demo data
 
@@ -38,7 +40,20 @@ const save = (d: Data) => {
   }
 };
 save(data);
-window.__TG_LOCAL_API = createApi(data, browserPlatform, save);
+const local = createApi(data, browserPlatform, save);
+window.__TG_LOCAL_API = local;
+
+// Built with DEMO_AI=mock: the trip assistant works offline with the pretend AI (no key, no server).
+// Without it the offline app has no assistant and shows the normal form (docs/AI_ASSISTANT.md, section 9).
+if (process.env.TG_DEMO_AI === 'mock') {
+  const assistant = createAssistantHandler(local, mockProvider());
+  window.__TG_LOCAL_API = (req) => {
+    if (!req.path.startsWith('/assistant/') || req.path === '/assistant/context') return local(req);
+    return new Promise((ok) => setTimeout(ok, 700)) // feel like a real reply
+      .then(() => assistant(req))
+      .then((r) => r || { status: 404, body: { error: 'not_found' } });
+  };
+}
 window.__TG_DEMO = {
   reset() {
     try {

@@ -175,6 +175,15 @@ Errors: `401` not signed in, `403` not a tourist, `400` no message, `429 too_man
 
 The offline phone app runs the marketplace inside the phone with no server, so it has no AI key and no server account to check. In that build the assistant button is hidden. Phone apps built with `API_URL` (pointing at a server) get the assistant like the website.
 
+For showing the app with no server at all (a hackathon booth, a link to send someone), build the offline demo with the pretend AI inside it:
+
+```bash
+DEMO_AI=mock npm run build:demo        # dist/demo/index.html, assistant included
+DEMO_AI=mock npm run build:app         # the same for the offline phone app
+```
+
+The pretend AI runs in the browser (`src/web/demo.tsx` wires `createAssistantHandler` with `mockProvider`), so it understands only simple messages; see section 6. Without `DEMO_AI` nothing changes.
+
 ## 10. Build steps
 
 1. ✅ Draft rules in `src/core/draft.ts`, and `GET /assistant/context`, with tests.

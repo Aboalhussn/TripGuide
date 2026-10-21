@@ -236,7 +236,7 @@ Open **http://localhost:3000**. The first start creates `data/db.json` with demo
 | `npm start` | Build, then serve the app and API on one port (`PORT`, default 3000) |
 | `npm run dev` | Rebuild and restart on every change |
 | `npm run reset` | Delete saved data; the next start creates fresh demo data |
-| `npm run build:demo` | Build `dist/demo/index.html`: the whole app in one file that runs in any browser with no server |
+| `npm run build:demo` | Build `dist/demo/index.html`: the whole app in one file that runs in any browser with no server. Add `DEMO_AI=mock` to include the trip assistant with its pretend AI |
 | `npm run build:app` | Build the files the phone apps use (`dist/app`) |
 | `npm test` | Rules tests |
 | `npm run e2e` | Browser tests (run `npm run build` first; needs `npx playwright install chromium` once) |
