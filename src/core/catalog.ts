@@ -73,9 +73,14 @@ export const CITY_COVERS: Record<string, string[]> = {
 export const BUILTIN_COVERS = () => [...new Set([...GENERAL_COVERS, ...Object.values(CITY_COVERS).flat()])];
 // The admin can add governorates and photos, so the live list is in the data; this falls back to the built-in photos.
 export const cityCovers = (c: City) => c.covers || CITY_COVERS[c.slug] || [];
+// Each chosen governorate brings its own photos; one without photos yet brings the general heritage photos.
 export const coversFor = (all: City[], cities: string[]) => {
-  const own = [...new Set(cities.flatMap((slug) => { const c = all.find((x) => x.slug === slug); return c ? cityCovers(c) : []; }))];
-  return own.length ? own : GENERAL_COVERS;
+  const list = cities.flatMap((slug) => {
+    const c = all.find((x) => x.slug === slug);
+    const own = c ? cityCovers(c) : [];
+    return own.length ? own : GENERAL_COVERS;
+  });
+  return list.length ? [...new Set(list)] : GENERAL_COVERS;
 };
 export const PLACE_KINDS: Place['kind'][] = ['archaeological', 'religious', 'heritage', 'nature', 'market'];
 

@@ -58,10 +58,16 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
   }, [g?.id]);
 
   const up = (patch: Partial<typeof f>) => setF((x) => ({ ...x, ...patch }));
-  // Cover pictures come from the chosen governorates; the first one is picked until the tourist chooses.
-  const own: string[] = [...new Set<string>(f.cities.flatMap((c) => meta.cityCovers?.[c] || []))];
-  const covers: string[] = own.length || !f.cities.length ? own : meta.generalCovers || [];
-  const cover = covers.includes(f.cover) ? f.cover : covers[0] || '';
+  // Cover pictures, grouped by each chosen governorate (one without its own photos shows the general ones).
+  // Nothing is picked until the tourist taps a photo; tapping it again clears the choice (then the first photo is used).
+  const ownOf = (c: string): string[] => meta.cityCovers?.[c] || [];
+  const ownAll = new Set(f.cities.flatMap(ownOf));
+  const coverGroups = f.cities
+    .map((c) => ({ city: c, list: ownOf(c).length ? ownOf(c) : ((meta.generalCovers || []) as string[]).filter((x) => !ownAll.has(x)) }))
+    .filter((g) => g.list.length);
+  const covers: string[] = [...new Set(coverGroups.flatMap((g) => g.list))];
+  const cover = covers.includes(f.cover) ? f.cover : '';
+  const shownCover = cover || covers[0] || '';
   const days = f.startDate && f.endDate && f.endDate >= f.startDate ? daysBetween(f.startDate, f.endDate) : 0;
   const placesInCities = meta.places.filter((p: any) => f.cities.includes(p.city) && !f.places.includes(p.id) && (!placeQuery || fmt.place(p.id).toLowerCase().includes(placeQuery.toLowerCase())));
   const suggested = g ? g.pricePerDay : null; // per day, like the budget
@@ -161,7 +167,7 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
       try {
         const r = await api('POST', '/requests', {
           ...f,
-          cover,
+          cover: cover || undefined,
           budgetMin: Number(f.budgetMin) * days,
           budgetMax: Number(f.budgetMax) * days,
           plan: usePlan ? dayPlan.map((d) => ({ title: d.title.trim(), details: d.details.trim() })) : [],
@@ -257,22 +263,28 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
               {show('cities') && <span className="err small">{show('cities')}</span>}
             </div>
             {covers.length > 0 && (
-              <div className="stack" style={{ gap: 8 }}>
-                <span className="small" style={{ fontWeight: 500 }} id="cover-label">
+              <div className="stack" style={{ gap: 10 }}>
+                <span className="small" style={{ fontWeight: 500 }}>
                   {t('post.cover')}
                 </span>
-                <div className="cover-pick" role="radiogroup" aria-labelledby="cover-label">
-                  {covers.map((c, i) => (
-                    <button key={c} type="button" role="radio" aria-checked={cover === c} aria-label={t('post.cover_n', { n: i + 1 })} className={'cover-opt' + (cover === c ? ' on' : '')} onClick={() => up({ cover: c })}>
-                      <img src={coverSrc(c, meta)} alt="" />
-                      {cover === c && (
-                        <span className="cover-check" aria-hidden="true">
-                          <Icon name="check" size={14} stroke={3} />
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
+                <span className="xs muted" style={{ marginTop: -6 }}>{t('post.cover_pick_hint')}</span>
+                {coverGroups.map((g) => (
+                  <div key={g.city} className="stack" style={{ gap: 6 }}>
+                    <span className="xs bold cover-city" id={'cover-' + g.city}>{fmt.city(g.city)}</span>
+                    <div className="cover-pick" role="group" aria-labelledby={'cover-' + g.city}>
+                      {g.list.map((c, i) => (
+                        <button key={c} type="button" aria-pressed={cover === c} aria-label={t('post.cover_n', { n: i + 1 }) + ' · ' + fmt.city(g.city)} className={'cover-opt' + (cover === c ? ' on' : '')} onClick={() => up({ cover: cover === c ? '' : c })}>
+                          <img src={coverSrc(c, meta)} alt="" />
+                          {cover === c && (
+                            <span className="cover-check" aria-hidden="true">
+                              <Icon name="check" size={14} stroke={3} />
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
                 <span className="xs muted">{t('post.cover_hint')}</span>
               </div>
             )}
@@ -396,7 +408,7 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
               </label>
             )}
             <div className="card wiz-summary stack" style={{ gap: 6 }}>
-              {cover && <img className="summary-cover" src={coverSrc(cover, meta)} alt="" />}
+              {shownCover && <img className="summary-cover" src={coverSrc(shownCover, meta)} alt="" />}
               <strong>{t('post.summary')}</strong>
               <span className="bold"><bdi>{f.title}</bdi></span>
               <span className="small muted">{f.cities.map(fmt.city).join('، ')}</span>
@@ -475,7 +487,7 @@ export function MyRequestsList() {
             badge={<RequestStatus status={r.status} />}
             pills={r.directGuide ? <span className="pill navy">{t('request.direct_to', { name: r.directGuide.name })}</span> : null}
             action={
-              <Link to={`/requests/${r.id}`} className="btn sm tc-action">
+              <Link to={`/requests/${r.id}`} className="btn tc-action">
                 {t('request.offers_n', { count: r.offersCount })}
               </Link>
             }

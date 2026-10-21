@@ -474,7 +474,7 @@ test('home has no search bar or shortcut row; signing out asks first; admin open
   const h = await open();
   await login(h, 'tourist@tripguide.demo');
   await go(h, '/');
-  await h.locator('a.card.link[href*="#/requests/"]').first().click();
+  await h.locator('.trip-card .tc-link').first().click();
   await h.waitForFunction(() => /^#\/requests\/\d+/.test(location.hash));
   assert.equal(await h.locator('.tabbar a[aria-current="page"]').innerText(), 'Home');
   await h.context().close();
@@ -833,5 +833,21 @@ test('admin: the + button adds a governorate in 3 steps (name, heritage places, 
   await tt.getByRole('button', { name: 'Dhi Qar' }).click();
   assert.equal(await tt.locator('.cover-opt').count(), 2);
   assert.ok((await tt.locator('.cover-opt img').first().getAttribute('src'))!.startsWith('data:image/'));
+  await tt.context().close();
+});
+
+test('post: cover photos are grouped by each chosen governorate, and a picked photo can be unpicked', async () => {
+  const tt = await open();
+  await login(tt, 'tourist@tripguide.demo');
+  await go(tt, '/post');
+  await tt.getByRole('button', { name: 'Babylon' }).click();
+  await tt.getByRole('button', { name: 'Baghdad' }).click();
+  assert.deepEqual(await tt.locator('.cover-city').allInnerTexts(), ['Babylon', 'Baghdad']);
+  assert.equal(await tt.locator('.cover-opt.on').count(), 0); // nothing is picked for the tourist
+  const first = tt.locator('.cover-opt').first();
+  await first.click();
+  assert.equal(await first.getAttribute('aria-pressed'), 'true');
+  await first.click();
+  assert.equal(await first.getAttribute('aria-pressed'), 'false');
   await tt.context().close();
 });

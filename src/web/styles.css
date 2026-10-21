@@ -778,3 +778,8 @@ html:has(.post-wizard) { scroll-padding: 110px 0 170px; }
 .auth-hero.small { min-height: 0; height: auto; gap: 34px; padding-bottom: 52px; }
 .card.link.city-row { display: flex; flex-direction: row; align-items: center; gap: 12px; flex-wrap: nowrap; }
 .auth-sheet .demo-trigger { width: 100%; }
+.cover-city { color: var(--navy, #053f5c); }
+/* Trip card button, as drawn in the design: 46px tall, 14px corners, bold label; "Send offer" is gold with the paper-plane icon. */
+.btn.tc-action { min-height: 46px; height: 46px; padding: 0 18px; border-radius: 14px; font-size: 15px; font-weight: 700; gap: 6px; white-space: nowrap; flex: none; }
+.btn.gold.tc-action, .btn.gold.tc-action:hover { background: #f7ad19; color: #053f5c; font-weight: 900; border: none; box-shadow: none; }
+.btn.gold.tc-action:active { transform: scale(.97); }

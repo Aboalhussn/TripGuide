@@ -393,7 +393,7 @@ export function TripCard({ r, badge, pills, action, footNote }: { r: any; badge?
         <div className="tc-who">
           <span className="tc-av"><Avatar user={r.tourist} size={38} /></span>
           <span className="stack" style={{ gap: 0, minWidth: 0 }}>
-            <strong>{r.tourist.name}</strong>
+            <strong><bdi>{r.tourist.name}</bdi></strong>
             <span className="xs">{r.tourist.country} · {fmt.ago(r.createdAt)}</span>
           </span>
         </div>

@@ -82,7 +82,7 @@ const en: Record<string, Entry> = {
   'include.transport': 'Transport with driver', 'include.tickets': 'Entry tickets', 'include.meals': 'Meals', 'include.pickup': 'Hotel pickup', 'include.water': 'Water and snacks',
 
   // post
-  'post.cover': 'Cover picture for your trip', 'post.cover_hint': 'Guides see this picture on your trip card.', 'post.cover_n': 'Picture {n}',
+  'post.cover': 'Cover picture for your trip', 'post.cover_hint': 'Guides see this picture on your trip card.', 'post.cover_pick_hint': 'Tap a photo to pick it, tap it again to unpick. If you pick none, the first photo is used.', 'post.cover_n': 'Picture {n}',
   'post.step_n': 'Step {n} of {total}', 'post.next': 'Next', 'post.prev': 'Back', 'post.summary': 'Your trip', 'post.plan_added': 'Your day plan is included',
   'post.s1_title': 'Where do you want to go?', 'post.s1_text': 'Give your trip a name and pick the cities.',
   'post.s2_title': "Who's coming, and when?", 'post.s2_text': 'How many people, and which days.',
@@ -449,7 +449,7 @@ const arStrings: Record<string, Entry> = {
   'interest.markets': 'الأسواق', 'interest.architecture': 'العمارة', 'interest.nature': 'الطبيعة', 'interest.museums': 'المتاحف', 'interest.families': 'العائلات',
   'include.transport': 'سيارة مع سائق', 'include.tickets': 'تذاكر الدخول', 'include.meals': 'الوجبات', 'include.pickup': 'الاستقبال من الفندق', 'include.water': 'ماء ووجبات خفيفة',
 
-  'post.cover': 'صورة غلاف رحلتك', 'post.cover_hint': 'يرى المرشدون هذه الصورة على كارد رحلتك.', 'post.cover_n': 'الصورة {n}',
+  'post.cover': 'صورة غلاف رحلتك', 'post.cover_hint': 'يرى المرشدون هذه الصورة على كارد رحلتك.', 'post.cover_pick_hint': 'اضغط على صورة لتختارها، واضغط عليها مرة ثانية لتلغي الاختيار. إذا ما اخترت، تُستخدم الصورة الأولى.', 'post.cover_n': 'الصورة {n}',
   'post.step_n': 'الخطوة {n} من {total}', 'post.next': 'التالي', 'post.prev': 'السابق', 'post.summary': 'رحلتك', 'post.plan_added': 'خطتك اليومية مرفقة',
   'post.s1_title': 'إلى أين تريد الذهاب؟', 'post.s1_text': 'سمِّ رحلتك واختر المدن.',
   'post.s2_title': 'من سيذهب، ومتى؟', 'post.s2_text': 'عدد الأشخاص وأيام الرحلة.',

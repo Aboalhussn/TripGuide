@@ -515,3 +515,12 @@ test('governorates: the admin adds one with places and photos; tourists can then
   assert.equal(bg2.places.length, bg.places.length);
   assert.ok(s.ok('GET', '/meta').cityCovers.baghdad[0].startsWith('m:'));
 });
+
+test('trip cover: each governorate brings its photos, one without photos brings the general ones; no pick = first photo', () => {
+  const s = setup();
+  const tt = s.login(DEMO_ACCOUNTS.tourist);
+  const base = { ...tripBody(s.today()), cities: ['babylon', 'baghdad'] };
+  assert.equal(s.ok('POST', '/requests', { ...base, cover: 'ziggurat.jpg' }, tt).cover, 'ziggurat.jpg'); // Baghdad has no own photos yet
+  assert.equal(s.ok('POST', '/requests', { ...base, cover: 'gate.jpg' }, tt).cover, 'gate.jpg');
+  assert.equal(s.ok('POST', '/requests', { ...base, cover: '' }, tt).cover, 'babylon.jpg');
+});

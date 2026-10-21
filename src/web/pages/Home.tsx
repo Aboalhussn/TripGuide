@@ -222,23 +222,21 @@ export function TouristHome() {
                 </Link>
               </div>
             )}
-            {requests.map((r: any) => (
-              <Link key={r.id} to={`/requests/${r.id}`} className="card link stack" style={{ gap: 10 }}>
-                <div className="between">
-                  <RequestStatus status={r.status} />
-                  <span className="xs muted">{fmt.ago(r.createdAt)}</span>
-                </div>
-                <strong style={{ fontSize: 17 }}><bdi>{r.title}</bdi></strong>
-                <RequestFacts r={r} />
-                <div className="between small">
-                  <span>
-                    <strong>{t('request.offers_n', { count: r.offersCount })}</strong>
-                    {r.avgOffer !== null && <span className="muted"> · {t('request.avg', { amount: fmt.usd(r.avgOffer) })}</span>}
-                  </span>
-                  <span className="bold">{t('request.view_offers')}</span>
-                </div>
-              </Link>
-            ))}
+            <div className="cards">
+              {requests.map((r: any) => (
+                <TripCard
+                  key={r.id}
+                  r={{ ...r, tourist: r.tourist || me }}
+                  badge={<RequestStatus status={r.status} />}
+                  pills={r.directGuide ? <span className="pill navy">{t('request.direct_to', { name: r.directGuide.name })}</span> : null}
+                  action={
+                    <Link to={`/requests/${r.id}`} className="btn tc-action">
+                      {t('request.offers_n', { count: r.offersCount })}
+                    </Link>
+                  }
+                />
+              ))}
+            </div>
           </section>
         </div>
         <aside className="stack-lg">
@@ -420,16 +418,16 @@ export function RequestFeedCard({ r }: { r: any }) {
     </>
   );
   const action = r.myOffer ? (
-    <Link to={`/requests/${r.id}`} className="btn sm ghost tc-action">
+    <Link to={`/requests/${r.id}`} className="btn ghost tc-action">
       {t('request.your_offer', { amount: fmt.usd(r.myOffer.price) })}
     </Link>
   ) : r.busyForMe ? (
-    <Link to={`/requests/${r.id}`} className="btn sm ghost tc-action">
+    <Link to={`/requests/${r.id}`} className="btn ghost tc-action">
       {t('request.view')}
     </Link>
   ) : (
     <Link to={`/requests/${r.id}#offer`} className="btn gold tc-action">
-      <Icon name="send" size={16} /> {t('request.send_offer')}
+      <Icon name="send" size={16} stroke={2.2} /> {t('request.send_offer')}
     </Link>
   );
   return <TripCard r={r} badge={t('request.offers_n', { count: r.offersCount })} pills={pills} action={action} />;
