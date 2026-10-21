@@ -262,7 +262,7 @@ const en: Record<string, Entry> = {
 
   // auth & account
   'auth.welcome_back': 'Welcome back', 'auth.no_account': "Don't have an account?", 'auth.have_account': 'Already have an account?', 'auth.try_demo': 'Try the demo',
-  'auth.try_demo_text': 'Sign in as one of the sample accounts to see each side of the app.', 'auth.demo_tourist': 'Hannah, a tourist', 'auth.demo_guide': 'Zainab, a guide', 'auth.demo_admin': 'The admin team',
+  'auth.try_demo_text': 'Sign in as one of the sample accounts to see each side of the app.', 'auth.demo_sheet_title': 'Try the app with a demo account', 'auth.demo_sheet_text': 'Pick an account and you are in. No real money is ever charged.', 'auth.demo_tourist': 'Hannah, a tourist', 'auth.demo_guide': 'Zainab, a guide', 'auth.demo_admin': 'The admin team',
   'auth.create': 'Create your account', 'auth.i_am': 'I am', 'auth.role_tourist': "I'm travelling", 'auth.role_tourist_text': 'Find and hire guides', 'auth.role_guide': "I'm a guide", 'auth.role_guide_text': 'Get hired by tourists',
   'auth.pw_rules': 'Password rules', 'auth.pw_len': 'At least 8 characters', 'auth.pw_upper': 'A capital letter (A–Z)', 'auth.pw_lower': 'A small letter (a–z)', 'auth.pw_digit': 'A number (0–9)', 'auth.pw_symbol': 'A symbol, like ! @ # $', 'auth.pw_met': '(done)', 'auth.pw_missing': '(missing)',
   'menu.verification': 'Verification', 'menu.guide_profile': 'Your guide profile', 'menu.guide_profile_sub': 'Headline, bio, cities, languages and price', 'menu.todo': 'To do', 'menu.media_sub': en1('{count} photo from your tours, and days off', '{count} photos from your tours, and days off', 'Photos from your tours, and days off'),
@@ -617,7 +617,7 @@ const arStrings: Record<string, Entry> = {
   'notif.verification_new': 'طلب {name} التوثيق', 'notif.verification_approved': 'أصبحت موثّقًا، والشارة تظهر الآن في ملفك.', 'notif.verification_rejected': 'لم يُقبل التوثيق: {note}',
 
   'auth.welcome_back': 'أهلًا بعودتك', 'auth.no_account': 'ليس لديك حساب؟', 'auth.have_account': 'لديك حساب؟', 'auth.try_demo': 'جرّب النسخة التجريبية',
-  'auth.try_demo_text': 'ادخل بأحد الحسابات التجريبية لترى كل جانب من التطبيق.', 'auth.demo_tourist': 'هانا، سائحة', 'auth.demo_guide': 'زينب، مرشدة', 'auth.demo_admin': 'فريق الإدارة',
+  'auth.try_demo_text': 'ادخل بأحد الحسابات التجريبية لترى كل جانب من التطبيق.', 'auth.demo_sheet_title': 'جرّب التطبيق بحساب تجريبي', 'auth.demo_sheet_text': 'اختر حساباً وادخل مباشرة. لا تُدفع أي أموال حقيقية.', 'auth.demo_tourist': 'هانا، سائحة', 'auth.demo_guide': 'زينب، مرشدة', 'auth.demo_admin': 'فريق الإدارة',
   'auth.create': 'أنشئ حسابك', 'auth.i_am': 'أنا', 'auth.role_tourist': 'مسافر', 'auth.role_tourist_text': 'أبحث عن مرشد وأستأجره', 'auth.role_guide': 'مرشد', 'auth.role_guide_text': 'يستأجرني السياح',
   'auth.pw_rules': 'شروط كلمة المرور', 'auth.pw_len': '٨ أحرف على الأقل', 'auth.pw_upper': 'حرف كبير (A–Z)', 'auth.pw_lower': 'حرف صغير (a–z)', 'auth.pw_digit': 'رقم (0–9)', 'auth.pw_symbol': 'رمز مثل ! @ # $', 'auth.pw_met': '(تم)', 'auth.pw_missing': '(ناقص)',
   'menu.verification': 'التوثيق', 'menu.guide_profile': 'ملفك كمرشد', 'menu.guide_profile_sub': 'العنوان التعريفي والنبذة والمدن واللغات والسعر', 'menu.todo': 'مطلوب', 'menu.media_sub': ar('صورة واحدة من جولاتك وأيام عدم التوفر', 'صورتان من جولاتك وأيام عدم التوفر', '{count} صور من جولاتك وأيام عدم التوفر', '{count} صورة من جولاتك وأيام عدم التوفر', 'صور جولاتك وأيام عدم التوفر'),

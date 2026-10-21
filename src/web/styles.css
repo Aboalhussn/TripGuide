@@ -690,3 +690,13 @@ html:has(.post-wizard) { scroll-padding: 110px 0 170px; }
 .date-chip { flex: none; width: 54px; text-align: center; padding: 6px 0; border-radius: 10px; background: var(--sky-soft); }
 .radio-dot { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--line-strong); display: grid; place-items: center; flex: none; }
 .radio-dot.on { background: var(--navy); border-color: var(--navy); color: #fff; }
+
+/* Try the demo: a button that opens a pop-up sheet of demo accounts */
+.demo-trigger { display: flex; align-items: center; justify-content: center; gap: 8px; width: fit-content; margin: 0 auto; min-height: 44px; padding: 0 18px; border-radius: 999px; border: none; background: var(--sky-soft); color: var(--navy); font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
+.demo-pick { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 72px; padding: 12px 14px; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); color: var(--navy); font: inherit; text-align: start; cursor: pointer; }
+.demo-pick:active { background: var(--paper); border-color: var(--navy); }
+.demo-av { flex: none; width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; background: var(--sky-soft); color: var(--navy); }
+.demo-guide .demo-av { background: #fff1d1; color: #6b4500; }
+.demo-admin .demo-av { background: var(--brand); color: #fff; }
+.demo-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.demo-text strong { font-size: 16px; }

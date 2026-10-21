@@ -21,6 +21,7 @@ export function Login({ query }: { query: Record<string, string> }) {
   const [showPw, setShowPw] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [demoOpen, setDemoOpen] = useState(false);
   const go = async (e?: React.FormEvent, creds?: { email: string; password: string }) => {
     e?.preventDefault();
     setErr(null);
@@ -70,28 +71,39 @@ export function Login({ query }: { query: Record<string, string> }) {
         </button>
       </div>
       {demo && (
-        <details className="demo-box" dir="auto">
-          <summary>{t('auth.try_demo')}</summary>
-          <p className="small muted">{t('auth.try_demo_text')}</p>
-          <div className="card flush">
+        <div className="demo-box" dir="auto">
+          <button type="button" className="demo-trigger" onClick={() => setDemoOpen(true)}>
+            <Icon name="send" size={16} /> {t('auth.try_demo')}
+          </button>
+        </div>
+      )}
+      {demo && demoOpen && (
+        // Pop-up sheet with the demo accounts: one tap signs in.
+        <Modal title={t('auth.demo_sheet_title')} onClose={() => setDemoOpen(false)}>
+          <div className="stack demo-sheet" dir="auto" style={{ gap: 10 }}>
+            <p className="small muted" style={{ margin: 0 }}>{t('auth.demo_sheet_text')}</p>
             {([
-              ['tourist', demo.tourist, 'auth.demo_tourist', 'auth.demo_tourist_text', 'user'],
-              ['guide', demo.guide, 'auth.demo_guide', 'auth.demo_guide_text', 'calendar'],
-              ['admin', demo.admin, 'auth.demo_admin', 'auth.demo_admin_text', 'shield'],
-            ] as const).map(([k, mail, label, text, icon]) => (
-              <button key={k} type="button" className="list-item demo-pick" disabled={busy} onClick={() => go(undefined, { email: mail, password: demo.password })}>
-                <span className="avatar av-2" style={{ width: 40, height: 40 }} aria-hidden="true">
-                  <Icon name={icon} size={20} />
-                </span>
-                <span style={{ flex: 1, minWidth: 0, textAlign: 'start' }}>
-                  <strong style={{ display: 'block' }}>{t(label)}</strong>
+              ['tourist', demo.tourist, 'auth.demo_tourist', 'auth.demo_tourist_text', 'HW'],
+              ['guide', demo.guide, 'auth.demo_guide', 'auth.demo_guide_text', 'ZR'],
+              ['admin', demo.admin, 'auth.demo_admin', 'auth.demo_admin_text', 'TG'],
+            ] as const).map(([k, mail, label, text, ini]) => (
+              <button key={k} type="button" className={'demo-pick demo-' + k} disabled={busy} onClick={() => go(undefined, { email: mail, password: demo.password })}>
+                <span className="demo-av" aria-hidden="true">{ini}</span>
+                <span className="demo-text">
+                  <strong>{t(label)}</strong>
                   <span className="xs muted">{t(text)}</span>
+                  <span className="xs muted" dir="ltr">{mail}</span>
                 </span>
                 <Icon name="next" size={18} className="flip" />
               </button>
             ))}
+            {err && (
+              <div className="note danger" role="alert">
+                {err}
+              </div>
+            )}
           </div>
-        </details>
+        </Modal>
       )}
     </div>
   );

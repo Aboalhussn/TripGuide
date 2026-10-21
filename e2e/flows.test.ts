@@ -783,3 +783,16 @@ test('guide and admin profiles use the same menu', async () => {
   assert.match((await a.getByRole('button', { name: 'Sign out' }).getAttribute('class')) || '', /\bred\b/);
   await a.context().close();
 });
+
+test('login: "Try the demo" opens a sheet of demo accounts; one tap signs in', async () => {
+  const p = await open();
+  await go(p, '/login');
+  await p.getByRole('button', { name: 'Try the demo' }).click();
+  const sheet = p.getByRole('dialog', { name: 'Try the app with a demo account' });
+  await sheet.getByText('No real money is ever charged.').waitFor();
+  assert.equal(await sheet.locator('.demo-pick').count(), 3);
+  await sheet.locator('.demo-pick.demo-guide').click();
+  await p.waitForFunction(() => !!localStorage.getItem('tg.token'));
+  await p.getByRole('heading', { name: /Zainab/ }).first().waitFor();
+  await p.context().close();
+});
