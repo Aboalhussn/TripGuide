@@ -126,7 +126,7 @@ export function Shell({ path, children }: { path: string; children: React.ReactN
         {path === '/' ? <PullToRefresh>{children}</PullToRefresh> : children}
       </main>
       {role === 'guide' && !bare && !chat && path !== '/guide/setup' && <PhotoFab />}
-      {role === 'tourist' && !bare && !chat && path !== '/post' && <PassportFab />}
+      {role === 'tourist' && path === '/' && <PassportFab />}
       {role === 'admin' && !bare && !chat && !path.startsWith('/admin/cities/') && (
         <Link to="/admin/cities/new" className="photo-fab" aria-label={t('city.add')} title={t('city.add')}>
           <Icon name="plus" size={28} stroke={2.4} />

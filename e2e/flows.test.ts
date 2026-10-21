@@ -227,7 +227,8 @@ test('a new guide signs up, fills the profile, asks for verification and the adm
   await g.getByRole('button', { name: 'Create account' }).click();
   await g.getByText('Your password needs a capital letter, a small letter, a number and a symbol.').waitFor();
   await g.getByLabel('Password', { exact: true }).fill('Kufa#Ride24');
-  assert.equal(await g.locator('.pw-rules li.ok').count(), 5);
+  await g.locator('.pw-meter[data-score="5"]').getByText('Strong password').waitFor();
+  assert.equal(await g.locator('.pw-chip').count(), 0);
   await g.getByRole('button', { name: 'Create account' }).click();
   // Three set-up steps, each with a photo banner and a Next button.
   await g.getByRole('heading', { name: 'About you' }).waitFor();

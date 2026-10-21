@@ -447,6 +447,7 @@ bdi { unicode-bidi: isolate; }
 
 /* ---------- sign in ---------- */
 .main.bare { padding-bottom: 32px; }
+.main.bare:has(.auth-page) { padding-bottom: 0; }
 .auth-page { max-width: 460px; margin: 0 auto; width: 100%; gap: 22px; padding-top: 12px; }
 .auth-top { display: flex; justify-content: flex-end; }
 .auth-head h1 { font-size: 34px; font-weight: 900; letter-spacing: -.02em; line-height: 1.1; }
@@ -849,11 +850,11 @@ html:has(.post-wizard) { scroll-padding: 110px 0 170px; }
 
 /* the turning sheet: swings around the middle of the spine */
 .pp-sheet { position: absolute; z-index: 4; top: 1.2cqi; bottom: 1.2cqi; inset-inline-start: calc(50% + var(--spine) / 2); width: calc(50% - 1.2cqi - var(--spine) / 2);
-  transform-style: preserve-3d; transform-origin: calc(var(--spine) / -2) 50%; will-change: transform; }
+  transform-origin: calc(var(--spine) / -2) 50%; will-change: transform; }
 [dir='rtl'] .pp-sheet { transform-origin: calc(100% + var(--spine) / 2) 50%; }
-.pp-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.pp-face { position: absolute; inset: 0; }
 .pp-face.front { border-radius: 0 1.6cqi 1.6cqi 0; box-shadow: inset 1.6cqi 0 2cqi -1.4cqi rgba(46, 42, 38, .35); }
-.pp-face.back { transform: rotateY(180deg); border-radius: 1.6cqi 0 0 1.6cqi; box-shadow: inset -1.6cqi 0 2cqi -1.4cqi rgba(46, 42, 38, .35); }
+.pp-face.back { transform: scaleX(-1); border-radius: 1.6cqi 0 0 1.6cqi; box-shadow: inset -1.6cqi 0 2cqi -1.4cqi rgba(46, 42, 38, .35); }
 [dir='rtl'] .pp-face.front { border-radius: 1.6cqi 0 0 1.6cqi; box-shadow: inset -1.6cqi 0 2cqi -1.4cqi rgba(46, 42, 38, .35); }
 [dir='rtl'] .pp-face.back { border-radius: 0 1.6cqi 1.6cqi 0; box-shadow: inset 1.6cqi 0 2cqi -1.4cqi rgba(46, 42, 38, .35); }
 .pp-face-shade { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: linear-gradient(90deg, rgba(20, 24, 40, .9), rgba(20, 24, 40, .1)); }
@@ -959,3 +960,30 @@ html:has(.post-wizard) { scroll-padding: 110px 0 170px; }
 .pp-photo-drop img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .pp-photo-drop .pp-change { position: absolute; bottom: 8px; inset-inline-end: 8px; background: rgba(20, 30, 60, .8); color: #fff; padding: 6px 10px; border-radius: 99px; font-size: 12px; font-weight: 700; }
 @media (prefers-reduced-motion: reduce) { .pp-cover, .pp-mount { transition: none; } }
+
+/* Password strength: bar + only what's missing */
+.pw-meter { margin-top: -6px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+.pw-hint { color: var(--muted); line-height: 1.5; }
+.pw-bar { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+.pw-bar i { height: 5px; border-radius: 99px; background: #e4edf1; transition: background .2s; }
+.pw-meter.weak .pw-bar i.on { background: #d64545; }
+.pw-meter.fair .pw-bar i.on { background: #e8a33d; }
+.pw-meter.good .pw-bar i.on { background: #9cbf3b; }
+.pw-meter.strong .pw-bar i.on { background: #2f8a50; }
+.pw-status { display: flex; justify-content: space-between; font-weight: 700; }
+.pw-meter.weak .pw-level { color: #b42318; } .pw-meter.fair .pw-level { color: #8a5a00; } .pw-meter.good .pw-level { color: #4d6b12; }
+.pw-ok { color: #1d5b34; display: inline-flex; align-items: center; gap: 4px; }
+.pw-meter .pw-rules { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; grid-template-columns: none; }
+.pw-still { color: var(--muted); font-size: 12px; }
+.pw-chip { padding: 3px 10px; border-radius: 99px; background: #f2f6f8; border: 1px solid #dde7ec; color: var(--navy); font-size: 12px; font-weight: 700; direction: ltr; }
+.pw-meter.warn .pw-chip { background: #fdecea; border-color: #f3c3bd; color: #9b2c2c; }
+
+/* Sign-in fits one screen, no scrolling */
+.auth-page.fit { height: 100dvh; min-height: 0; overflow: hidden; }
+.auth-page.fit .auth-hero { height: clamp(190px, 33dvh, 300px); min-height: 0; flex: none; }
+.auth-page.fit .auth-sheet { gap: clamp(8px, 1.6dvh, 16px); padding-top: clamp(16px, 2.6dvh, 24px); overflow: hidden; }
+.auth-page.fit .login-form { gap: clamp(8px, 1.4dvh, 14px); }
+@media (max-height: 700px) { .auth-page.fit .auth-head p { display: none; } .auth-page.fit .auth-sheet h2 { font-size: 19px; } }
+/* Sign-up: the photo stays put and the white sheet slides up over it */
+.auth-page.slide .auth-hero { position: sticky; top: 0; z-index: 0; }
+.auth-page.slide .auth-sheet { z-index: 2; box-shadow: 0 -10px 24px -14px rgba(5, 63, 92, .35); min-height: 80dvh; }

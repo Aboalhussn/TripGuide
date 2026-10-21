@@ -247,6 +247,8 @@ export function PassportBook({ holder, data, trips, editable = false, onAdd, onD
   const shadeLeaf = useRef<HTMLDivElement>(null);
   const shadeFront = useRef<HTMLDivElement>(null);
   const shadeBack = useRef<HTMLDivElement>(null);
+  const frontRef = useRef<HTMLDivElement>(null);
+  const backRef = useRef<HTMLDivElement>(null);
   const angle = useRef(0);
   const raf = useRef(0);
   const live = useRef({ index, turn, total, sound });
@@ -271,6 +273,10 @@ export function PassportBook({ holder, data, trips, editable = false, onAdd, onD
       const bend = Math.sin((a * Math.PI) / 180);
       if (shadeFront.current) shadeFront.current.style.opacity = String(p < 0.5 ? bend * 0.32 : 0);
       if (shadeBack.current) shadeBack.current.style.opacity = String(p >= 0.5 ? bend * 0.32 : 0);
+      // Show one face at a time ourselves instead of trusting backface-visibility, which some phone
+      // browsers get wrong (the page would vanish mid-turn). Past 90° the back (the holder's page) shows.
+      if (frontRef.current) frontRef.current.style.visibility = a < 90 ? 'visible' : 'hidden';
+      if (backRef.current) backRef.current.style.visibility = a < 90 ? 'hidden' : 'visible';
     },
     [rtl],
   );
@@ -278,6 +284,9 @@ export function PassportBook({ holder, data, trips, editable = false, onAdd, onD
   const finish = (dir: Turn['dir'], done: boolean) => {
     if (done) setIndex((i) => (dir === 'next' ? i + 1 : i - 1));
     setTurn(null);
+    // The sheet is gone: clear the cast shadows so no page stays darkened.
+    if (shadeLeaf.current) shadeLeaf.current.style.opacity = '0';
+    if (shadeHold.current) shadeHold.current.style.opacity = '0';
   };
 
   const runTo = (from: number, to: number, ms: number, ease: (k: number) => number, done: () => void) => {
@@ -417,7 +426,7 @@ export function PassportBook({ holder, data, trips, editable = false, onAdd, onD
         <div className="pp-spread">
           <div className="pp-page pp-hold" data-side="hold">
             <HolderPage holder={holder} data={data} trips={trips} />
-            <div ref={shadeHold} className="pp-cast hold" aria-hidden="true" />
+            <div ref={shadeHold} className="pp-cast hold" aria-hidden="true" style={{ opacity: 0 }} />
           </div>
           <div ref={spineRef} className="pp-spine" aria-hidden="true">
             {Array.from({ length: 9 }, (_, i) => (
@@ -430,11 +439,11 @@ export function PassportBook({ holder, data, trips, editable = false, onAdd, onD
           </div>
           {turn && front >= 0 && (
             <div ref={sheetRef} className="pp-sheet" data-side={turn.dir === 'next' ? 'leaf' : 'hold'} aria-hidden="true">
-              <div className="pp-face front pp-page">
+              <div ref={frontRef} className="pp-face front pp-page">
                 {leaf(front)}
                 <div ref={shadeFront} className="pp-face-shade" />
               </div>
-              <div className="pp-face back pp-page">
+              <div ref={backRef} className="pp-face back pp-page" style={{ visibility: 'hidden' }}>
                 <HolderPage holder={holder} data={data} trips={trips} />
                 <div ref={shadeBack} className="pp-face-shade" />
               </div>

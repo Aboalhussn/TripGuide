@@ -39,7 +39,7 @@ export function Login({ query }: { query: Record<string, string> }) {
   };
   const demo = meta?.demoLogins;
   return (
-    <div className="auth-page">
+    <div className="auth-page fit">
       <AuthHero img="babylon.jpg" title={t('auth.hero_title')} text={t('auth.hero_text')} />
       <section className="auth-sheet">
         <h2>{t('auth.login_btn')}</h2>
@@ -145,6 +145,48 @@ function passwordRules(pw: string) {
   ];
 }
 
+/** Password strength: a bar that fills as rules are met, then only the rules still missing, as small chips. */
+function PasswordMeter({ rules, typed, warn }: { rules: { key: string; ok: boolean }[]; typed: boolean; warn: boolean }) {
+  const { t } = useApp();
+  const score = rules.filter((r) => r.ok).length;
+  const level = score >= 5 ? 'strong' : score === 4 ? 'good' : score >= 2 ? 'fair' : 'weak';
+  const missing = rules.filter((r) => !r.ok);
+  return (
+    <div id="pw-meter" className={'pw-meter ' + (typed ? level : 'idle') + (warn ? ' warn' : '')} data-score={score} aria-live="polite">
+      {!typed ? (
+        <span className="pw-hint">{t('auth.pw_hint')}</span>
+      ) : (
+        <>
+          <div className="pw-bar" aria-hidden="true">
+            {rules.map((r, i) => (
+              <i key={r.key} className={i < score ? 'on' : ''} />
+            ))}
+          </div>
+          <div className="pw-status">
+            {score === 5 ? (
+              <span className="pw-ok">
+                <Icon name="check" size={14} stroke={3} /> {t('auth.pw_strong_ok')}
+              </span>
+            ) : (
+              <span className="pw-level">{t('auth.pw_' + level)}</span>
+            )}
+          </div>
+          {missing.length > 0 && (
+            <ul className="pw-rules" aria-label={t('auth.pw_still')}>
+              <li className="pw-still">{t('auth.pw_still')}</li>
+              {missing.map((r) => (
+                <li key={r.key} className="pw-chip">
+                  {t('auth.pw_chip_' + r.key)}
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 export function Register({ query }: { query: Record<string, string> }) {
   const { t, signIn, errorText } = useApp();
   const [f, setF] = useState({ role: query.role === 'guide' ? 'guide' : 'tourist', name: '', email: '', password: '', country: query.role === 'guide' ? 'Iraq' : '', gender: '' });
@@ -152,6 +194,7 @@ export function Register({ query }: { query: Record<string, string> }) {
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState<Record<string, boolean>>({});
   const [tried, setTried] = useState(false);
+  const [showPw, setShowPw] = useState(false);
   const up = (p: Partial<typeof f>) => {
     setF((x) => ({ ...x, ...p }));
     setDirty((d) => ({ ...d, ...Object.fromEntries(Object.keys(p).map((k) => [k, true])) }));
@@ -188,7 +231,7 @@ export function Register({ query }: { query: Record<string, string> }) {
     }
   };
   return (
-    <div className="auth-page">
+    <div className="auth-page slide">
       <AuthHero small img="ishtar.jpg" title={t('auth.create')} text={t('auth.create_text')} />
       <section className="auth-sheet">
       <form className="stack" onSubmit={go} noValidate>
@@ -208,18 +251,21 @@ export function Register({ query }: { query: Record<string, string> }) {
         <Field label={t('field.email')} error={show('email')}>
           <input id="reg-email" className="input" type="email" autoComplete="email" value={f.email} onChange={(e) => up({ email: e.target.value.trim() })} />
         </Field>
-        <Field label={t('field.password')} error={dirty.password && f.password.length >= 8 ? show('password') : undefined}>
-          <input id="reg-password" className="input" type="password" autoComplete="new-password" value={f.password} onChange={(e) => up({ password: e.target.value })} aria-describedby="pw-rules" />
-        </Field>
-        <ul id="pw-rules" className="pw-rules" aria-label={t('auth.pw_rules')}>
-          {rules.map((r) => (
-            <li key={r.key} className={r.ok ? 'ok' : ''}>
-              <span className="pw-dot" aria-hidden="true">{r.ok && <Icon name="check" size={12} stroke={3} />}</span>
-              {t('auth.pw_' + r.key)}
-              <span className="sr-only">{r.ok ? t('auth.pw_met') : t('auth.pw_missing')}</span>
-            </li>
-          ))}
-        </ul>
+        <div className="field">
+          <label htmlFor="reg-password">{t('field.password')}</label>
+          <div className="pw-wrap">
+            <input id="reg-password" className="input" type={showPw ? 'text' : 'password'} autoComplete="new-password" value={f.password} onChange={(e) => up({ password: e.target.value })} aria-describedby={'pw-meter' + (tried && !strong ? ' pw-err' : '')} aria-invalid={tried && !strong ? true : undefined} />
+            <button type="button" className="pw-eye" aria-label={showPw ? t('auth.hide_pw') : t('auth.show_pw')} aria-pressed={showPw} onClick={() => setShowPw(!showPw)}>
+              <Icon name={showPw ? 'eyeOff' : 'eye'} size={20} />
+            </button>
+          </div>
+          {tried && !strong && (
+            <span className="err" id="pw-err">
+              {errs.password}
+            </span>
+          )}
+        </div>
+        <PasswordMeter rules={rules} typed={!!f.password} warn={(tried || (dirty.password && f.password.length >= 8)) && !strong} />
         <div className="grid-2">
           <Field label={t('field.country')} error={show('country')}>
             <input id="reg-country" className="input" autoComplete="country-name" value={f.country} onChange={(e) => up({ country: e.target.value.slice(0, 60) })} />
