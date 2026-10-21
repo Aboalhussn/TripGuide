@@ -29,7 +29,7 @@ It runs on **Android and iOS** (one shared code base, wrapped with Capacitor), a
 9. [Phone apps and automatic releases](#9-phone-apps-and-automatic-releases)
 10. [Tests](#10-tests)
 11. [Settings, names and fonts](#11-settings-names-and-fonts)
-12. [The API](#12-the-api)
+12. [The API: every endpoint, for apps, agents and MCP](#12-the-api)
 13. [Rules the app enforces](#13-rules-the-app-enforces)
 14. [Deploy](#14-deploy)
 15. [Known limits](#15-known-limits)
@@ -298,23 +298,148 @@ Server environment variables: `PORT`, `DATA_FILE` (path of the JSON data file), 
 
 ## 12. The API
 
-All routes are in `src/core/api.ts` and answer JSON under `/api` (on the server) or inside the app (offline). Signed-in calls send `Authorization: Bearer <token>`.
+Every action in the app is one HTTP endpoint. The screens call these, and an agent or an MCP server can call the same ones to do the same things. This section lists them all: where they live, who may call them, what to send, and what they do.
 
-| Area | Routes |
+### Where the code lives
+
+| What | Where |
 |---|---|
-| Start | `GET /meta` (governorates, places, cover photos, languages, prices, today) |
-| Accounts | `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`, `GET/PUT /me`, `PUT/DELETE /me/card`, `POST /me/verify-phone`, `POST /me/verify-payment` |
-| Travel passport | `POST /me/passport`, `DELETE /me/passport/:id` (shown in `GET /me` and `GET /users/:id`) |
-| Guides | `GET /guides`, `GET /guides/:id`, `PUT /guide/profile`, `POST /guide/photos`, `POST /guide/verification`, `GET/POST /guide/subscription`, `GET/POST /guide/promotion` |
-| Tourists | `GET /users/:id` |
-| Trips | `POST /requests`, `GET /requests`, `GET /requests/mine`, `GET /requests/:id`, `POST /requests/:id/close`, `GET /requests/:id/suggested-guides`, `POST /requests/:id/invite` |
-| Offers | `POST /requests/:id/offers`, `PUT /offers/:id`, `POST /offers/:id/withdraw`, `POST /offers/:id/shortlist`, `GET /offers/mine`, `POST /offers/:id/hire` |
-| Bookings and payments | `GET /bookings`, `GET /bookings/:id`, `POST /bookings/:id/confirm`, `/decline`, `/cancel`, `/report`, `/review`; `POST /milestones/:id/release`, `/request-release`, `/refund`, `/cash-received` |
-| Chat | `GET/POST /threads`, `GET /threads/:id`, `POST /threads/:id/messages` |
-| Other | `GET /notifications`, `POST /notifications/read-all`, `POST /notifications/:id/read`, `GET /wallet`, `POST /wallet/withdraw`, `GET /dashboard` |
-| Admin | `GET /admin/stats`, `GET/PUT /admin/settings`, `GET /admin/verifications`, `POST /admin/guides/:id/verify`, `GET /admin/reports`, `POST /admin/reports/:id/resolve`, `GET /admin/users`, `POST /admin/users/:id/status`, `GET/POST /admin/cities`, `GET/PUT /admin/cities/:slug` |
+| Every endpoint and rule | `src/core/api.ts`. Each one is a single `route('METHOD', '/path', handler)` call; search for the path to find it (for example `route('POST', '/requests'`). Routes are grouped in the file in the same order as the tables below. |
+| Record shapes (User, TripRequest, Offer, Booking, Milestone…) | `src/core/types.ts` |
+| What other people may see of a record | `src/core/views.ts` (`publicUser`, `guideCard`, `bookingView`…) |
+| Allowed values (governorates, languages, interests, includes, rating keys) | `src/core/catalog.ts`, and live from `GET /meta` |
+| HTTP server (adds `/api`, reads the token, saves data) | `src/server/index.ts` |
+| The same API inside the offline phone app | `src/web/demo.tsx` (no HTTP: `window.__TG_LOCAL_API`) |
+| How the screens call it | `src/web/lib/api.ts` (`api(method, path, body)`) |
 
-Errors come back as `{ "error": "code", "params": {…} }`; the app turns each code into a sentence in the user's language.
+### How to call it
+
+- **Base URL:** `https://<your-server>/api` (for example `POST http://localhost:3000/api/auth/login`). The phone apps use the server set in `API_URL`, or the built-in engine when none is set.
+- **Format:** JSON in, JSON out. Dates are `YYYY-MM-DD`; money is US dollars as numbers.
+- **Sign in:** `POST /auth/login` returns `{ token, user }`. Send `Authorization: Bearer <token>` on every other call. Demo accounts are in [section 8](#8-demo-accounts).
+- **Errors:** a non-2xx status with `{ "error": "code", "params": { … } }`, for example `400 {"error":"field_invalid","params":{"field":"cities"}}`. `401` means not signed in, `403` means the wrong role, `404` means not found or not yours, `409` means the record is in the wrong state (for example `request_not_open`).
+- **Who:** the "Who" column below is the role the token must have. "Anyone" needs no token; "Signed in" is any role; "Party" means the tourist or guide on that booking.
+- **Rules are on the server:** limits, prices, dates and money are always checked by `src/core/api.ts`, so an agent cannot do anything the app itself would refuse.
+
+### Start and accounts
+
+| Endpoint | Who | Send | What it does |
+|---|---|---|---|
+| `GET /meta` | Anyone | – | Everything needed to fill forms: governorates (`cities`), heritage places, cover photos per governorate, languages, interests, includes, rating keys, fee, prices, dollar-to-dinar rate, `today`, demo logins |
+| `POST /auth/register` | Anyone | `role` (`tourist`/`guide`), `name`, `email`, `password` (8+ with upper, lower, number, symbol), `country`, `gender` (`f`/`m`) | Creates an account and signs in; returns `{ token, user }` |
+| `POST /auth/login` | Anyone | `email`, `password` | Signs in; returns `{ token, user }` |
+| `POST /auth/logout` | Signed in | – | Ends this session |
+| `GET /me` | Signed in | – | The signed-in user: profile, saved card (brand and last 4 only), unread counts, guide profile, travel passport |
+| `PUT /me` | Signed in | any of `name`, `email`, `country`, `phone`, `avatar`, `cover` (images as `data:image/...;base64`) | Edits your info and photos |
+| `PUT /me/card` | Tourist, Guide | `number`, `name`, `expiry` (`MM/YY`), `cvc` | Saves a payment card (only brand, last 4, name and expiry are kept) |
+| `DELETE /me/card` | Tourist, Guide | – | Removes the saved card |
+| `POST /me/verify-phone` | Signed in | `code` | Marks the phone verified (demo code in settings) |
+| `POST /me/verify-payment` | Tourist | `card` | Marks the payment method verified |
+| `GET /users/:id` | Signed in | – | A tourist's public profile: stats, reviews from guides, travel passport (a guide id redirects to the guide page) |
+
+### Travel passport (tourists)
+
+| Endpoint | Who | Send | What it does |
+|---|---|---|---|
+| `POST /me/passport` | Tourist | `img` (data URL), `place`, `city` (governorate slug), `date` (not in the future), `note` (optional) | Adds a photo page to your passport (up to 30) |
+| `DELETE /me/passport/:id` | Tourist | – | Removes a page |
+
+### Guides
+
+| Endpoint | Who | Send | What it does |
+|---|---|---|---|
+| `GET /guides` | Anyone | query: `q`, `city`, `lang`, `spec`, `maxPrice`, `minRating`, `from`, `to` (free on those dates), `verified=1`, `female=1`, `sort` (`best`/`rating`/`price_low`/`price_high`/`tours`) | Searches guides |
+| `GET /guides/:id` | Anyone | – | A guide's full page: bio, languages, places, price, calendar, photos, track record, reviews. For a signed-in tourist, `forMe` shows their booking, pending offer and open requests with this guide |
+| `PUT /guide/profile` | Guide | any of `headline`, `headlineAr`, `bio`, `bioAr`, `pricePerDay`, `cities`, `languages` (`[{code, level}]`), `specialities`, `places`, `blockedDates`, `photos`, `acceptsCash` | Edits the guide profile |
+| `POST /guide/photos` | Guide | `img`, `caption`, `captionAr` | Adds a tour photo (up to 12) |
+| `POST /guide/verification` | Guide | `docs` (file names) | Asks the team to verify the guide |
+| `GET /guide/subscription` / `POST /guide/subscription` | Guide | `card`, `acceptCash` | Shows / buys the subscription that allows cash bookings |
+| `GET /guide/promotion` / `POST /guide/promotion` | Guide | `card` | Shows / buys being featured on the home screen |
+
+### Trip requests
+
+| Endpoint | Who | Send | What it does |
+|---|---|---|---|
+| `POST /requests` | Tourist | `title`, `description`, `cities` (1–4), `places`, `startDate`, `endDate` (up to 30 days), `groupSize` (1–10), `languages` (1–3), `interests`, `budgetMin`, `budgetMax` (whole-trip totals), `urgent`, `femaleGuide`, `plan` (`[{title, details}]` per day, optional), `cover` (one of the governorates' photos), `directGuideId` (send to one guide only) | Posts a trip; guides who match are notified |
+| `GET /requests` | Guide, Admin | query: `q`, `city`, `lang`, `interest`, `urgent`, `matching` | The requests feed (for guides: open requests that fit them) |
+| `GET /requests/mine` | Tourist | – | Your requests with offer counts |
+| `GET /requests/:id` | Signed in | – | One request; the tourist also gets its offers, the guide gets their own offer |
+| `POST /requests/:id/close` | Tourist | – | Closes the request; guides who offered are told |
+| `GET /requests/:id/suggested-guides` | Tourist | – | Guides who fit and are free on those dates |
+| `POST /requests/:id/invite` | Tourist | `guideId` | Invites a guide to send an offer |
+
+### Offers and hiring
+
+| Endpoint | Who | Send | What it does |
+|---|---|---|---|
+| `POST /requests/:id/offers` | Guide | `price` (whole trip), `plan` (one `{title, details}` per day), `includes`, `message` | Sends an offer |
+| `PUT /offers/:id` | Guide | same as above | Edits a pending offer |
+| `POST /offers/:id/withdraw` | Guide | – | Withdraws a pending offer |
+| `POST /offers/:id/shortlist` | Tourist | `on` (true/false) | Stars an offer to compare |
+| `GET /offers/mine` | Guide | – | The guide's offers and their status |
+| `POST /offers/:id/hire` | Tourist | `confirmPayment: true`, `method` (`card`/`cash`), `card` (`{number, name, expiry, cvc}` or `{saved: true}`) | Hires the guide: the money is held and a booking waits for the guide to confirm within 48 hours |
+
+### Bookings and day-by-day payments
+
+| Endpoint | Who | Send | What it does |
+|---|---|---|---|
+| `GET /bookings` | Signed in | – | Your bookings |
+| `GET /bookings/:id` | Party | – | One booking with its days (milestones), money held, released and refunded |
+| `POST /bookings/:id/confirm` | Guide | – | Confirms a hire; the other offers close |
+| `POST /bookings/:id/decline` | Guide | – | Declines; the tourist is refunded and the request reopens |
+| `POST /bookings/:id/cancel` | Party | `reason` | Cancels (free before the first day; held money returns) |
+| `POST /milestones/:id/request-release` | Guide | – | Asks the tourist to release that day's payment |
+| `POST /milestones/:id/release` | Tourist | – | Releases that day's payment to the guide |
+| `POST /milestones/:id/refund` | Guide | – | Refunds that day to the tourist |
+| `POST /milestones/:id/cash-received` | Guide | – | Marks a cash day as paid |
+| `POST /bookings/:id/report` | Party | `reason` (`no_show`/`not_as_agreed`/`safety`/`payment`/`other`), `details` | Reports a problem; held money stays held until the admin decides |
+| `POST /bookings/:id/review` | Party | `ratings` (keys from `GET /meta`, 1–5 each), `comment`, `hireAgain` | Reviews the other side after the tour |
+
+### Messages, notifications, wallet
+
+| Endpoint | Who | Send | What it does |
+|---|---|---|---|
+| `GET /threads` | Signed in | – | Your chats with unread counts |
+| `POST /threads` | Tourist, Guide | `guideId` or `touristId`, `requestId` (optional) | Opens (or finds) a chat |
+| `GET /threads/:id` | Party | – | A chat's messages, with the offer and booking it is about |
+| `POST /threads/:id/messages` | Tourist, Guide | `body` | Sends a message |
+| `GET /notifications` | Signed in | – | Your notifications |
+| `POST /notifications/read-all` / `POST /notifications/:id/read` | Signed in | – | Marks them read |
+| `GET /wallet` | Tourist, Guide | – | Money held, released, refunded and fees; `available` (what can be withdrawn), `withdrawn`, the saved card, and the history |
+| `POST /wallet/withdraw` | Tourist, Guide | `amount` (optional; default everything available) | Withdraws a guide's earnings, or a tourist's refunds, to the saved card |
+| `GET /dashboard` | Signed in | – | The home screen data for the signed-in role |
+
+### Admin
+
+| Endpoint | Who | Send | What it does |
+|---|---|---|---|
+| `GET /admin/stats` | Admin | – | Platform numbers and statistics per governorate |
+| `GET /admin/settings` / `PUT /admin/settings` | Admin | `guideSubscriptionPrice`, `subscriptionDays`, `promotionPrice`, `promotionDays`, `iqdPerUsd` | Reads / changes prices and the dinar rate |
+| `GET /admin/verifications` | Admin | – | Guides waiting for verification |
+| `POST /admin/guides/:id/verify` | Admin | `approve` (true/false), `note` (reason when rejecting) | Verifies or rejects a guide |
+| `GET /admin/reports` | Admin | – | Reports to decide |
+| `POST /admin/reports/:id/resolve` | Admin | `action` (`refund`/`release`/`dismiss`), `note`, `suspend` | Refunds the tourist, pays the guide, or dismisses; can suspend |
+| `GET /admin/users` | Admin | query: `query` | Searches users |
+| `POST /admin/users/:id/status` | Admin | `status` (`active`/`suspended`) | Suspends or reactivates an account |
+| `GET /admin/cities` / `GET /admin/cities/:slug` | Admin | – | Governorates with their places and photos |
+| `POST /admin/cities` | Admin | `name`, `nameAr`, `places` (`[{name, nameAr, kind}]`, 1–30), `covers` (1–12: data URLs or existing photo names) | Adds a governorate |
+| `PUT /admin/cities/:slug` | Admin | same as above (keep a place's `id` to edit it) | Edits a governorate |
+
+### Using it from an agent or an MCP server
+
+Each endpoint above maps to one tool. A thin MCP server only needs to:
+
+1. Keep a token per user: call `POST /auth/login` once, then send `Authorization: Bearer <token>`.
+2. Expose each endpoint as a tool named after it (for example `post_trip` → `POST /requests`, `send_offer` → `POST /requests/:id/offers`, `hire_offer` → `POST /offers/:id/hire`, `release_day` → `POST /milestones/:id/release`, `withdraw` → `POST /wallet/withdraw`), with the "Send" column as its input.
+3. Call `GET /meta` first to learn the allowed values (governorate slugs, languages, rating keys), and pass errors back as they come (the `error` code says exactly what to fix).
+
+Typical flows:
+
+- **Tourist books a guide:** `GET /meta` → `POST /requests` → wait for offers (`GET /requests/:id`) → `POST /offers/:id/hire` → after each tour day `POST /milestones/:id/release` → `POST /bookings/:id/review`.
+- **Guide finds work:** `GET /requests` → `POST /requests/:id/offers` → `POST /bookings/:id/confirm` → `POST /milestones/:id/request-release` each day → `POST /wallet/withdraw`.
+- **Admin's daily check:** `GET /admin/verifications` → `POST /admin/guides/:id/verify`; `GET /admin/reports` → `POST /admin/reports/:id/resolve`.
+
+To add an endpoint, add one `route(...)` call in `src/core/api.ts`, a test in `src/core/api.test.ts`, and a row in this table.
 
 ## 13. Rules the app enforces
 
