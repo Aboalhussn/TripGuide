@@ -1,477 +1,481 @@
-// The tourist's travel passport: an open notebook of photo memories, with real page turns
-// (buttons, keyboard and dragging by hand), a paper sound, and a closed cover for visitors.
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+// The tourist's travel passport, ported from the passport kit: the open notebook with the holder's
+// page fixed and one photo per page framed as a postage stamp with a postmark; pages turn in 3D
+// (buttons, arrow keys, or dragging a page), with a synthesised paper sound and a closed cover.
+// Looks and turns exactly as in the kit; fonts are the app's (Great Vibes, Aref Ruqaa, Reem Kufi, Thmanyah Sans).
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './lib/app';
 import { useFmt } from './lib/format';
 import { photoSrc } from './assets';
-import { Icon, Modal } from './ui';
+import { Modal } from './ui';
 
 export type PassportPage = { id: number; img: string; place: string; city: string; date: string; note: string };
 export type PassportData = { number: string; pages: PassportPage[]; cities: number };
 type Holder = { id: number; name: string; country: string; avatar?: string | null };
 
-const TURN_MS = 820;
-const SOUND_KEY = 'tg.passport.sound';
-const easeInOut = (k: number) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
-const easeOutCubic = (k: number) => 1 - Math.pow(1 - k, 3);
-const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
-const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-const initials = (name: string) =>
+const TURN_MS = 820; // keep in step with the turn animations in styles.css
+const SOUND_KEY = 'passport_page_sound';
+const readSound = () => {
+  try {
+    return localStorage.getItem(SOUND_KEY) !== 'off';
+  } catch {
+    return true;
+  }
+};
+const reducedMotion = () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+const isRtlDoc = () => typeof document !== 'undefined' && document.documentElement.dir === 'rtl';
+
+// ---------------------------------------------------------------- helpers
+function formatDate(d: string, opts: Intl.DateTimeFormatOptions, rtl: boolean) {
+  if (!d) return '';
+  const date = d.length === 10 ? new Date(`${d}T00:00:00`) : new Date(d);
+  return date.toLocaleDateString(rtl ? 'ar-IQ-u-nu-latn' : 'en-GB', opts);
+}
+const initials = (name = '?') =>
   name
+    .trim()
     .split(/\s+/)
-    .filter(Boolean)
     .slice(0, 2)
     .map((w) => w[0])
     .join('')
-    .toUpperCase();
-// "Ishtar Gate (reconstruction)" → "Ishtar Gate"
-const cleanPlace = (s: string) => s.replace(/\s*[([].*?[)\]]\s*/g, ' ').trim();
-const isArabic = (s: string) => /[؀-ۿ]/.test(s);
+    .toUpperCase() || '?';
+// Each governorate stamps in its own ink colour.
+const INKS: Record<string, string> = { baghdad: '#7A2E1F', najaf: '#0F5E54', karbala: '#2F6B4F', babylon: '#1D3A8C', samarra: '#5E3D0B', erbil: '#7A2E1F', basra: '#0F5E54', mosul: '#2F6B4F' };
+const FALLBACK_INKS = ['#1D3A8C', '#7A2E1F', '#0F5E54', '#2F6B4F', '#5E3D0B'];
+const cityInk = (slug: string) => INKS[slug] || FALLBACK_INKS[[...slug].reduce((a, c) => a + c.charCodeAt(0), 0) % FALLBACK_INKS.length];
 
 // ---------------------------------------------------------------- sound
-// A paper page turn made with the Web Audio API (no audio files): a rising rustle as the page lifts,
-// a few crackles while it bends, an airy swish in the middle and a soft thump when it lands.
+// Page-turn sound, synthesised with the Web Audio API (no audio files). Four layers of shaped noise:
+// lift (a rising rustle), crackle (sparse fibre clicks), swish (air through the swing), flap (the landing).
 let audio: AudioContext | null = null;
-export function playPageTurn(ms = TURN_MS) {
+const noiseCache = new WeakMap<BaseAudioContext, Record<string, AudioBuffer>>();
+function noise(c: BaseAudioContext, kind: 'white' | 'sparse' | 'brown') {
+  let set = noiseCache.get(c);
+  if (!set) noiseCache.set(c, (set = {}));
+  if (!set[kind]) {
+    const len = Math.floor(c.sampleRate * 1.5);
+    const buf = c.createBuffer(1, len, c.sampleRate);
+    const d = buf.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < len; i++) {
+      const white = Math.random() * 2 - 1;
+      if (kind === 'sparse') d[i] = Math.random() < 0.004 ? white : white * 0.04;
+      else {
+        last = (last + 0.02 * white) / 1.02;
+        d[i] = kind === 'brown' ? last * 3.5 : white;
+      }
+    }
+    set[kind] = buf;
+  }
+  return set[kind];
+}
+type Layer = { kind: 'white' | 'sparse' | 'brown'; start: number; dur: number; type: BiquadFilterType; freq: number; freqTo?: number; q?: number; gain: number; attack: number; release: number };
+function layer(c: BaseAudioContext, out: AudioNode, { kind, start, dur, type, freq, freqTo, q = 0.7, gain, attack, release }: Layer) {
+  const src = c.createBufferSource();
+  src.buffer = noise(c, kind);
+  const filter = c.createBiquadFilter();
+  filter.type = type;
+  filter.Q.value = q;
+  filter.frequency.setValueAtTime(freq, start);
+  if (freqTo) filter.frequency.exponentialRampToValueAtTime(freqTo, start + dur);
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.0001, start);
+  g.gain.exponentialRampToValueAtTime(gain, start + attack);
+  g.gain.setValueAtTime(gain, start + Math.max(attack, dur - release));
+  g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+  src.connect(filter).connect(g).connect(out);
+  src.start(start, Math.random() * 0.4);
+  src.stop(start + dur + 0.05);
+}
+function scheduleTurn(c: BaseAudioContext, t0: number, d = 0.82) {
+  const out = c.createGain();
+  const comp = c.createDynamicsCompressor();
+  comp.threshold.value = -18;
+  comp.ratio.value = 3;
+  out.connect(comp).connect(c.destination);
+  layer(c, out, { kind: 'white', start: t0, dur: d * 0.55, type: 'bandpass', freq: 1300, freqTo: 3000, q: 0.8, gain: 0.2, attack: 0.06, release: d * 0.25 });
+  layer(c, out, { kind: 'sparse', start: t0 + 0.03, dur: d * 0.6, type: 'highpass', freq: 2800, gain: 0.32, attack: 0.05, release: d * 0.3 });
+  layer(c, out, { kind: 'white', start: t0 + d * 0.15, dur: d * 0.7, type: 'bandpass', freq: 1000, freqTo: 520, q: 0.55, gain: 0.26, attack: d * 0.3, release: d * 0.28 });
+  layer(c, out, { kind: 'brown', start: t0 + d * 0.1, dur: d * 0.72, type: 'lowpass', freq: 900, q: 0.5, gain: 0.12, attack: d * 0.25, release: d * 0.3 });
+  layer(c, out, { kind: 'brown', start: t0 + d * 0.8, dur: 0.16, type: 'lowpass', freq: 420, q: 0.8, gain: 0.5, attack: 0.008, release: 0.12 });
+  layer(c, out, { kind: 'white', start: t0 + d * 0.8, dur: 0.07, type: 'bandpass', freq: 2600, q: 1.2, gain: 0.07, attack: 0.004, release: 0.05 });
+}
+/** Plays a page turn now (duration in seconds). Silent where audio isn't available or is blocked. */
+export function playPageTurn(duration = 0.82) {
   try {
     const AC: typeof AudioContext | undefined = (window as any).AudioContext || (window as any).webkitAudioContext;
     if (!AC) return;
     audio ||= new AC();
     if (audio.state === 'suspended') audio.resume();
-    const ac = audio;
-    const t0 = ac.currentTime + 0.01;
-    const d = Math.max(0.25, ms / 1000);
-    const comp = ac.createDynamicsCompressor();
-    comp.threshold.value = -22;
-    comp.ratio.value = 3;
-    comp.connect(ac.destination);
-    const master = ac.createGain();
-    master.gain.value = 0.5;
-    master.connect(comp);
-    const noise = (len: number) => {
-      const b = ac.createBuffer(1, Math.max(1, Math.ceil(ac.sampleRate * len)), ac.sampleRate);
-      const ch = b.getChannelData(0);
-      for (let i = 0; i < ch.length; i++) ch[i] = Math.random() * 2 - 1;
-      return b;
-    };
-    const layer = (start: number, dur: number, type: BiquadFilterType, f1: number, f2: number, q: number, peak: number, attack: number) => {
-      const src = ac.createBufferSource();
-      src.buffer = noise(dur + 0.05);
-      const f = ac.createBiquadFilter();
-      f.type = type;
-      f.Q.value = q;
-      f.frequency.setValueAtTime(f1, start);
-      f.frequency.exponentialRampToValueAtTime(f2, start + dur);
-      const g = ac.createGain();
-      g.gain.setValueAtTime(0.0001, start);
-      g.gain.exponentialRampToValueAtTime(peak, start + Math.max(0.004, dur * attack));
-      g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
-      src.connect(f).connect(g).connect(master);
-      src.start(start);
-      src.stop(start + dur + 0.05);
-    };
-    layer(t0, d * 0.45, 'bandpass', 1400, 4200, 0.9, 0.32, 0.75); // rustle as the page lifts
-    for (let i = 0; i < 6; i++) layer(t0 + d * (0.12 + Math.random() * 0.55), 0.01 + Math.random() * 0.014, 'highpass', 2800, 3600, 1, 0.18 + Math.random() * 0.3, 0.12); // crackles
-    layer(t0 + d * 0.32, d * 0.42, 'highpass', 2200, 5600, 0.5, 0.22, 0.5); // swish
-    layer(t0 + d * 0.86, 0.17, 'lowpass', 420, 110, 0.9, 0.55, 0.12); // soft landing thump
+    scheduleTurn(audio, audio.currentTime + 0.01, duration);
   } catch {
-    /* sound is a nice extra; never break the page for it */
+    /* audio is a nicety */
   }
 }
 
-function useSound(): [boolean, () => void] {
-  const [on, setOn] = useState(() => {
-    try {
-      return localStorage.getItem(SOUND_KEY) !== 'off';
-    } catch {
-      return true;
-    }
-  });
-  const toggle = () =>
-    setOn((v) => {
-      try {
-        localStorage.setItem(SOUND_KEY, v ? 'off' : 'on');
-      } catch {
-        /* private mode */
-      }
-      return !v;
-    });
-  return [on, toggle];
-}
-
-const SoundIcon = ({ on }: { on: boolean }) => (
-  <svg aria-hidden="true" width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
-    <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" />
-    {on ? <path d="M15.5 9a4 4 0 0 1 0 6M18.2 6.5a7.5 7.5 0 0 1 0 11" /> : <path d="M16 9.5l5 5M21 9.5l-5 5" />}
-  </svg>
-);
-
-// ---------------------------------------------------------------- pages
-function HolderPage({ holder, data, trips }: { holder: Holder; data: PassportData; trips: number }) {
-  const { t } = useApp();
-  const fmt = useFmt();
+// ---------------------------------------------------------------- icons, seal, gate
+const ICONS: Record<string, (string | { r: number[] } | { c: number[] })[]> = {
+  back: ['M15 5l-7 7 7 7'],
+  forward: ['M9 5l7 7-7 7'],
+  volume: ['M4 9h4l5-4v14l-5-4H4z', 'M16.5 8.5a5 5 0 0 1 0 7', 'M19 6a8.5 8.5 0 0 1 0 12'],
+  mute: ['M4 9h4l5-4v14l-5-4H4z', 'M17 9l5 6', 'M22 9l-5 6'],
+  image: [{ r: [3, 5, 18, 14, 2] }, { c: [8.5, 10, 1.5] }, 'M21 16l-5-5-8 8'],
+  camera: ['M4 8h3l2-3h6l2 3h3v11H4z', { c: [12, 13, 3.5] }],
+  plus: ['M12 5v14M5 12h14'],
+};
+function PIcon({ name, size = 20, stroke = 1.9, className }: { name: string; size?: number; stroke?: number; className?: string }) {
   return (
-    <div className="pp-holder">
-      <div className="pp-eyebrow">{t('pp.eyebrow')}</div>
-      <div className="pp-title">{t('pp.title')}</div>
-      <div className="pp-holder-mid">
-        <dl className="pp-fields">
-          <div>
-            <dt>{t('pp.name')}</dt>
-            <dd>
-              <bdi>{holder.name}</bdi>
-            </dd>
-          </div>
-          <div>
-            <dt>{t('pp.nationality')}</dt>
-            <dd>
-              <bdi>{holder.country || '—'}</bdi>
-            </dd>
-          </div>
-          <div>
-            <dt>{t('pp.number')}</dt>
-            <dd className="pp-mono" dir="ltr">
-              {data.number}
-            </dd>
-          </div>
-        </dl>
-        <div className="pp-photo">{holder.avatar ? <img src={holder.avatar} alt="" draggable={false} /> : <span>{initials(holder.name)}</span>}</div>
-      </div>
-      <div className="pp-stats">
-        <div>
-          <b>{fmt.num(data.pages.length)}</b>
-          <span>{t('pp.stat_memories')}</span>
-        </div>
-        <div>
-          <b>{fmt.num(data.cities)}</b>
-          <span>{t('pp.stat_cities')}</span>
-        </div>
-        <div>
-          <b>{fmt.num(trips)}</b>
-          <span>{t('pp.stat_trips')}</span>
-        </div>
-      </div>
-      <div className="pp-sign">
-        <span className="pp-sign-name" dir="auto">
-          {holder.name}
-        </span>
-        <span className="pp-sign-label">{t('pp.signature')}</span>
-      </div>
-    </div>
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className} focusable="false" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round">
+      {(ICONS[name] || []).map((p, i) =>
+        typeof p === 'string' ? <path key={i} d={p} /> : 'c' in p ? <circle key={i} cx={p.c[0]} cy={p.c[1]} r={p.c[2]} /> : <rect key={i} x={p.r[0]} y={p.r[1]} width={p.r[2]} height={p.r[3]} rx={p.r[4]} />,
+      )}
+    </svg>
   );
 }
 
-function MemoryPage({ page, n, total, onOpen }: { page: PassportPage; n: number; total: number; onOpen(): void }) {
-  const { t } = useApp();
-  const fmt = useFmt();
-  const [broken, setBroken] = useState(false);
-  const name = cleanPlace(page.place);
-  const size = name.length > 22 ? ' xs' : name.length > 13 ? ' sm' : '';
-  return (
-    <div className="pp-leaf-in">
-      <div className="pp-leaf-head">
-        <span>{t('pp.page_n', { n, total })}</span>
-        <span>{fmt.city(page.city)}</span>
-      </div>
-      <button type="button" className={'pp-mount ink-' + page.city} onClick={onOpen} aria-label={t('pp.open_memory', { place: name })}>
-        <span className="pp-tape" aria-hidden="true" />
-        <span className="pp-shot">
-          {broken ? (
-            <span className="pp-shot-fallback">
-              <Icon name="image" size={28} />
-            </span>
-          ) : (
-            <img src={photoSrc(page.img)} alt="" draggable={false} onError={() => setBroken(true)} />
-          )}
-          <span className="pp-vignette" aria-hidden="true" />
-          <span className={'pp-script' + size + (isArabic(name) ? ' ar' : '')} dir="auto">
-            {name}
-          </span>
-        </span>
-        <span className="pp-mount-foot" aria-hidden="true">
-          <span>IRAQ · العراق</span>
-          <span>№ {n}</span>
-        </span>
-        <i className="pp-corner a" aria-hidden="true" />
-        <i className="pp-corner b" aria-hidden="true" />
-        <i className="pp-corner c" aria-hidden="true" />
-        <i className="pp-corner d" aria-hidden="true" />
-      </button>
-      <div className="pp-caption">
-        <strong dir="auto">{name}</strong>
-        <span>
-          {fmt.city(page.city)} · {fmt.date(page.date, { day: 'numeric', month: 'short', year: 'numeric' })}
-        </span>
-        {page.note && <p dir="auto">{page.note}</p>}
-      </div>
-    </div>
-  );
+// Splits a place name into at most two short lines for the inside of a postmark.
+function sealLines(name = ''): [string, string?] {
+  const clean = name.replace(/\(.*?\)/g, '').trim();
+  const words = clean.split(/\s+/);
+  if (clean.length <= 12 || words.length === 1) return [clean.slice(0, 16)];
+  let first = '';
+  let i = 0;
+  while (i < words.length && (first + ' ' + words[i]).trim().length <= 13) {
+    first = (first + ' ' + words[i]).trim();
+    i += 1;
+  }
+  if (!first) {
+    first = words[0];
+    i = 1;
+  }
+  const rest = words.slice(i).join(' ');
+  return [first, rest.length > 15 ? `${rest.slice(0, 14)}…` : rest];
 }
 
-function BlankPage({ empty, editable, onAdd }: { empty: boolean; editable: boolean; onAdd?(): void }) {
-  const { t } = useApp();
+/** A round postmark: two ink rings, the place name and the date. */
+function Seal({ name, date, ink = '#1D3A8C', rotate = -6, size = 92, rtl }: { name: string; date: string; ink?: string; rotate?: number; size?: number; rtl?: boolean }) {
+  const [l1, l2] = sealLines(name);
+  const upper = !rtl;
+  const longest = Math.max(l1.length, (l2 || '').length);
+  const fs = Math.min(l2 ? 10.5 : 11.5, 62 / (longest * (upper ? 0.68 : 0.55)));
+  const dfs = date ? Math.min(8, 50 / (String(date).length * (rtl ? 0.5 : 0.7))) : 8;
   return (
-    <div className="pp-leaf-in pp-blank">
-      <div className="pp-blank-frame">
-        <Icon name="camera" size={30} />
-        <strong>{empty ? t('pp.first_page') : t('pp.next_page')}</strong>
-        <span>{editable ? t('pp.blank_owner') : t('pp.blank_visitor')}</span>
-        {editable && onAdd && (
-          <button type="button" className="pp-add" onClick={onAdd}>
-            <Icon name="plus" size={16} stroke={2.4} /> {t('pp.add')}
-          </button>
+    <svg width={size} height={size} viewBox="0 0 92 92" aria-hidden="true" style={{ transform: `rotate(${rotate}deg)`, display: 'block' }}>
+      <circle cx="46" cy="46" r="42" fill="none" stroke={ink} strokeWidth="3.5" opacity="0.88" />
+      <circle cx="46" cy="46" r="35" fill="none" stroke={ink} strokeWidth="1" opacity="0.88" />
+      <g fill={ink} opacity="0.92" fontFamily="Reem Kufi, Thmanyah Sans, sans-serif" fontWeight="600" textAnchor="middle">
+        {l2 ? (
+          <>
+            <text x="46" y="41" fontSize={fs}>
+              {upper ? l1.toUpperCase() : l1}
+            </text>
+            <text x="46" y="54" fontSize={fs}>
+              {upper ? l2.toUpperCase() : l2}
+            </text>
+          </>
+        ) : (
+          <text x="46" y="50" fontSize={fs}>
+            {upper ? l1.toUpperCase() : l1}
+          </text>
         )}
-      </div>
-    </div>
+        {date && (
+          <text x="46" y="69" fontSize={dfs} fontFamily="Thmanyah Sans, sans-serif" letterSpacing={rtl ? 0 : 0.4}>
+            {date}
+          </text>
+        )}
+      </g>
+    </svg>
+  );
+}
+
+/** The Ishtar Gate emblem used on the cover. */
+function GateArt({ width = 200, tower = '#14306F', arch = '#0F1E4A', line = '#F2C66B', reliefs = false }: { width?: number; tower?: string; arch?: string; line?: string; reliefs?: boolean }) {
+  const height = Math.round((width * 230) / 250);
+  return (
+    <svg width={width} height={height} viewBox="0 0 250 230" aria-hidden="true" focusable="false" style={{ display: 'block' }}>
+      <path d="M20 230V40h18V22h16v18h16V22h16v18h18v190z" fill={tower} />
+      <path d="M144 230V40h18V22h16v18h16V22h16v18h18v190z" fill={tower} />
+      <path d="M86 230V120a39 39 0 0 1 78 0v110z" fill={arch} />
+      <path d="M86 230V120a39 39 0 0 1 78 0v110" fill="none" stroke={line} strokeWidth="3.5" />
+      {reliefs && (
+        <g fill="none" stroke={line} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M38 86h28M38 150h28M184 86h28M184 150h28" />
+          <path d="M42 112c4-6 12-6 16 0l4 6M188 112c4-6 12-6 16 0l4 6" />
+          <path d="M42 176c4-6 12-6 16 0l4 6M188 176c4-6 12-6 16 0l4 6" />
+        </g>
+      )}
+    </svg>
   );
 }
 
 // ---------------------------------------------------------------- the book
-type Turn = { dir: 'next' | 'prev' };
+type Page = { kind: 'photo'; page: PassportPage; n: number } | { kind: 'next'; n: number };
+type Turn = { from: number; to: number; dir: 'next' | 'prev'; manual?: boolean };
 
 export function PassportBook({ holder, data, trips, editable = false, onAdd, onDelete }: { holder: Holder; data: PassportData; trips: number; editable?: boolean; onAdd?(): void; onDelete?(id: number): void }) {
   const { t } = useApp();
   const fmt = useFmt();
-  const pages = data.pages;
-  const total = pages.length; // the page after the last memory is the blank one
-  const [index, setIndex] = useState(Math.max(0, total - 1)); // opens on the newest memory
-  const [turn, setTurn] = useState<Turn | null>(null);
-  const [open, setOpen] = useState<PassportPage | null>(null);
-  const [sound, toggleSound] = useSound();
-  const rtl = typeof document !== 'undefined' && document.documentElement.dir === 'rtl';
+  const isRtl = isRtlDoc();
+  // Oldest first, like a real passport filling up; then one blank page for the next photo.
+  const pages = useMemo<Page[]>(() => {
+    const list: Page[] = [...data.pages].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id)).map((p, i) => ({ kind: 'photo', page: p, n: i + 1 }));
+    list.push({ kind: 'next', n: list.length + 1 });
+    return list;
+  }, [data.pages]);
+  const count = data.pages.length;
 
+  // Open on the newest page.
+  const [index, setIndex] = useState(() => Math.max(0, count - 1));
+  const [turn, setTurn] = useState<Turn | null>(null);
+  const [sound, setSound] = useState(readSound);
+  const [open, setOpen] = useState<PassportPage | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const toggleSound = () =>
+    setSound((on) => {
+      try {
+        localStorage.setItem(SOUND_KEY, on ? 'off' : 'on');
+      } catch {
+        /* private mode */
+      }
+      return !on;
+    });
+
+  useEffect(() => {
+    setIndex((i) => Math.min(i, pages.length - 1));
+  }, [pages.length]);
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  const turnRef = useRef<Turn | null>(null);
+  const finish = useCallback(() => {
+    clearTimeout(timer.current);
+    const tr = turnRef.current;
+    if (!tr) return;
+    turnRef.current = null;
+    setIndex(tr.to);
+    setTurn(null);
+  }, []);
+
+  const go = useCallback(
+    (to: number) => {
+      if (turnRef.current || to < 0 || to >= pages.length || to === index) return;
+      if (reducedMotion()) {
+        setIndex(to);
+        return;
+      }
+      const tr: Turn = { from: index, to, dir: to > index ? 'next' : 'prev' };
+      turnRef.current = tr;
+      setTurn(tr);
+      if (sound) playPageTurn(TURN_MS / 1000);
+      timer.current = setTimeout(finish, TURN_MS + 150); // in case animationend never fires
+    },
+    [pages.length, index, finish, sound],
+  );
+  const next = () => go(index + 1);
+  const prev = () => go(index - 1);
+
+  // ---- Drag to turn: the point you grabbed stays under your finger (its distance from the spine's
+  // middle is cos(angle) × the grab distance). On release it finishes or springs back from there.
   const bookRef = useRef<HTMLDivElement>(null);
   const spineRef = useRef<HTMLDivElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
-  const shadeHold = useRef<HTMLDivElement>(null);
-  const shadeLeaf = useRef<HTMLDivElement>(null);
-  const shadeFront = useRef<HTMLDivElement>(null);
-  const shadeBack = useRef<HTMLDivElement>(null);
-  const frontRef = useRef<HTMLDivElement>(null);
-  const backRef = useRef<HTMLDivElement>(null);
-  const angle = useRef(0);
+  const drag = useRef<null | { phase: 'pending' | 'active'; dir: 'next' | 'prev'; id: number; x0: number; y0: number; lastX: number; lastT: number; v: number; angle: number; pivot?: number; grab?: number }>(null);
+  const dragged = useRef(false);
   const raf = useRef(0);
-  const live = useRef({ index, turn, total, sound });
-  live.current = { index, turn, total, sound };
-  const drag = useRef<null | { id: number; x0: number; y0: number; dir: Turn['dir']; mid: number; grab: number; started: boolean; lastD: number; lastT: number; lastMove: number; v: number }>(null);
-  const swallowClick = useRef(false);
-
-  // Keep the page in range when memories are added or removed.
-  useEffect(() => {
-    setIndex((i) => clamp(i, 0, Math.max(0, total)));
-  }, [total]);
   useEffect(() => () => cancelAnimationFrame(raf.current), []);
 
-  // Draws the sheet at an angle (0 = lying on the memory side, 180 = lying on the holder's page) and its shadows.
-  const apply = useCallback(
-    (a: number) => {
-      angle.current = a;
-      const p = a / 180;
-      if (sheetRef.current) sheetRef.current.style.transform = `rotateY(${rtl ? a : -a}deg)`;
-      if (shadeLeaf.current) shadeLeaf.current.style.opacity = String((1 - p) * 0.55); // page being uncovered
-      if (shadeHold.current) shadeHold.current.style.opacity = String(p * 0.45); // page being covered
-      const bend = Math.sin((a * Math.PI) / 180);
-      if (shadeFront.current) shadeFront.current.style.opacity = String(p < 0.5 ? bend * 0.32 : 0);
-      if (shadeBack.current) shadeBack.current.style.opacity = String(p >= 0.5 ? bend * 0.32 : 0);
-      // Show one face at a time ourselves instead of trusting backface-visibility, which some phone
-      // browsers get wrong (the page would vanish mid-turn). Past 90° the back (the holder's page) shows.
-      if (frontRef.current) frontRef.current.style.visibility = a < 90 ? 'visible' : 'hidden';
-      if (backRef.current) backRef.current.style.visibility = a < 90 ? 'hidden' : 'visible';
-    },
-    [rtl],
-  );
+  const applyAngle = (deg: number) => {
+    if (drag.current) drag.current.angle = deg;
+    if (sheetRef.current) sheetRef.current.style.transform = `rotateY(${isRtl ? deg : -deg}deg)`;
+    bookRef.current?.style.setProperty('--p', String(deg / 180));
+  };
+  const lastAngle = useRef(0);
+  // The sheet mounts on the render after a drag starts: put it at the drag's angle straight away.
+  useLayoutEffect(() => {
+    if (turn?.manual) applyAngle(drag.current ? drag.current.angle : lastAngle.current);
+  });
 
-  const finish = (dir: Turn['dir'], done: boolean) => {
-    if (done) setIndex((i) => (dir === 'next' ? i + 1 : i - 1));
-    setTurn(null);
-    // The sheet is gone: clear the cast shadows so no page stays darkened.
-    if (shadeLeaf.current) shadeLeaf.current.style.opacity = '0';
-    if (shadeHold.current) shadeHold.current.style.opacity = '0';
+  const onPointerDown = (e: React.PointerEvent) => {
+    dragged.current = false;
+    if (turnRef.current || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    const target = e.target as HTMLElement;
+    const onLeaf = target.closest('.leaf-stack');
+    const onHolder = !onLeaf && target.closest('.book > .identity');
+    const dir = onLeaf ? 'next' : onHolder ? 'prev' : null;
+    if (!dir || (dir === 'next' && index >= pages.length - 1) || (dir === 'prev' && index === 0)) return;
+    drag.current = { phase: 'pending', dir, id: e.pointerId, x0: e.clientX, y0: e.clientY, lastX: e.clientX, lastT: e.timeStamp, v: 0, angle: dir === 'next' ? 0 : 180 };
   };
 
-  const runTo = (from: number, to: number, ms: number, ease: (k: number) => number, done: () => void) => {
-    cancelAnimationFrame(raf.current);
-    const start = performance.now();
+  const onPointerMove = (e: React.PointerEvent) => {
+    const d = drag.current;
+    if (!d || e.pointerId !== d.id) return;
+    if (d.phase === 'pending') {
+      const dx = e.clientX - d.x0;
+      const dy = e.clientY - d.y0;
+      if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx)) {
+        drag.current = null; // scrolling, not turning
+        return;
+      }
+      if (Math.abs(dx) < 8) return;
+      const towardSpine = isRtl ? dx > 0 : dx < 0;
+      if ((d.dir === 'next') !== towardSpine) {
+        drag.current = null;
+        return;
+      }
+      const spine = spineRef.current!.getBoundingClientRect();
+      d.pivot = spine.left + spine.width / 2;
+      d.grab = Math.max(30, Math.abs(d.x0 - d.pivot));
+      d.phase = 'active';
+      dragged.current = true;
+      try {
+        bookRef.current!.setPointerCapture(e.pointerId);
+      } catch {
+        /* not supported */
+      }
+      const tr: Turn = { from: index, to: d.dir === 'next' ? index + 1 : index - 1, dir: d.dir, manual: true };
+      turnRef.current = tr;
+      setTurn(tr);
+    }
+    const along = isRtl ? d.pivot! - e.clientX : e.clientX - d.pivot!;
+    const cos = Math.max(-1, Math.min(1, along / d.grab!));
+    applyAngle((Math.acos(cos) * 180) / Math.PI);
+    const dt = Math.max(1, e.timeStamp - d.lastT);
+    d.v = 0.7 * d.v + 0.3 * ((e.clientX - d.lastX) / dt); // px per ms, smoothed
+    d.lastX = e.clientX;
+    d.lastT = e.timeStamp;
+  };
+
+  const onPointerUp = (e: React.PointerEvent) => {
+    const d = drag.current;
+    if (!d || e.pointerId !== d.id) return;
+    drag.current = null;
+    if (d.phase !== 'active') return;
+    // A quick flick toward the other side turns the page even before halfway, but only if the
+    // finger is still moving when it lets go (a pause before release means "put it back").
+    const v = e.timeStamp - d.lastT > 90 ? 0 : d.v;
+    const speed = isRtl ? -v : v; // positive = moving toward the photo page
+    const complete = d.dir === 'next' ? d.angle > 90 || speed < -0.3 : d.angle < 90 || speed > 0.3;
+    const target = (d.dir === 'next') === complete ? 180 : 0;
+    const from = d.angle;
+    const ms = 140 + (380 * Math.abs(target - from)) / 180;
+    if (complete && sound) playPageTurn(Math.max(0.25, ms / 1000));
+    const t0 = performance.now();
     const step = (now: number) => {
-      const k = Math.min(1, (now - start) / ms);
-      apply(from + (to - from) * ease(k));
-      if (k < 1) raf.current = requestAnimationFrame(step);
-      else done();
+      const k = Math.min(1, (now - t0) / ms);
+      const ease = 1 - Math.pow(1 - k, 3);
+      const a = from + (target - from) * ease;
+      lastAngle.current = a;
+      applyAngle(a);
+      if (k < 1) {
+        raf.current = requestAnimationFrame(step);
+        return;
+      }
+      const tr = turnRef.current;
+      turnRef.current = null;
+      if (complete && tr) setIndex(tr.to);
+      setTurn(null);
+      bookRef.current?.style.removeProperty('--p');
     };
+    lastAngle.current = from;
     raf.current = requestAnimationFrame(step);
   };
 
-  // A turn started by a button or a key: the sheet swings the whole way in 820 ms.
-  const pending = useRef<null | Turn['dir']>(null);
-  const go = (dir: Turn['dir']) => {
-    const { index: i, turn: busy, total: n } = live.current;
-    if (busy || (dir === 'next' ? i >= n : i <= 0)) return;
-    if (reducedMotion()) {
-      setIndex(dir === 'next' ? i + 1 : i - 1);
-      return;
+  // A drag ends with a click on whatever was under the finger; don't let it open a photo.
+  const onClickCapture = (e: React.MouseEvent) => {
+    if (dragged.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      dragged.current = false;
     }
-    pending.current = dir;
-    setTurn({ dir });
   };
-  useLayoutEffect(() => {
-    if (!turn) return;
-    const from = turn.dir === 'next' ? 0 : 180;
-    if (pending.current) {
-      const dir = pending.current;
-      pending.current = null;
-      apply(from);
-      if (live.current.sound) playPageTurn(TURN_MS);
-      runTo(from, dir === 'next' ? 180 : 0, TURN_MS, easeInOut, () => finish(dir, true));
-    } else apply(angle.current);
-  }, [turn]);
-
-  // ---- dragging a page by hand (mouse, touch and pen)
-  const onPointerDown = (e: React.PointerEvent) => {
-    if (live.current.turn || (e.pointerType === 'mouse' && e.button !== 0)) return;
-    const side = (e.target as HTMLElement).closest('[data-side]')?.getAttribute('data-side');
-    const { index: i, total: n } = live.current;
-    const dir: Turn['dir'] | null = side === 'leaf' && i < n ? 'next' : side === 'hold' && i > 0 ? 'prev' : null;
-    if (!dir || !spineRef.current) return;
-    const r = spineRef.current.getBoundingClientRect();
-    const mid = r.left + r.width / 2;
-    const d0 = (e.clientX - mid) * (rtl ? -1 : 1);
-    drag.current = { id: e.pointerId, x0: e.clientX, y0: e.clientY, dir, mid, grab: Math.max(30, Math.abs(d0)), started: false, lastD: d0, lastT: performance.now(), lastMove: performance.now(), v: 0 };
-  };
-  const onPointerMove = (e: React.PointerEvent) => {
-    const g = drag.current;
-    if (!g || g.id !== e.pointerId) return;
-    if (!g.started) {
-      const dx = Math.abs(e.clientX - g.x0);
-      const dy = Math.abs(e.clientY - g.y0);
-      if (dy > 12 && dy > dx) {
-        drag.current = null; // a scroll, not a page turn
-        return;
-      }
-      if (dx < 8) return;
-      g.started = true;
-      swallowClick.current = true;
-      try {
-        bookRef.current?.setPointerCapture(e.pointerId);
-      } catch {
-        /* older browsers */
-      }
-      angle.current = g.dir === 'next' ? 0 : 180;
-      setTurn({ dir: g.dir });
-    }
-    e.preventDefault();
-    const d = (e.clientX - g.mid) * (rtl ? -1 : 1);
-    const now = performance.now();
-    const dt = Math.max(1, now - g.lastT);
-    if (Math.abs(d - g.lastD) > 0.5) g.lastMove = now;
-    g.v = g.v * 0.6 + ((d - g.lastD) / dt) * 0.4; // smoothed speed along the page, px/ms
-    g.lastD = d;
-    g.lastT = now;
-    // The point you grabbed stays under your finger.
-    const a = (Math.acos(clamp(d / g.grab, -1, 1)) * 180) / Math.PI;
-    apply(a);
-  };
-  const onPointerUp = (e: React.PointerEvent) => {
-    const g = drag.current;
-    drag.current = null;
-    if (!g || g.id !== e.pointerId || !g.started) return;
-    const a = angle.current;
-    const flicking = performance.now() - g.lastMove < 90;
-    const done = g.dir === 'next' ? a > 90 || (flicking && g.v < -0.3) : a < 90 || (flicking && g.v > 0.3);
-    const target = g.dir === 'next' ? (done ? 180 : 0) : done ? 0 : 180;
-    const ms = 140 + 380 * (Math.abs(target - a) / 180);
-    if (done && live.current.sound) playPageTurn(ms);
-    runTo(a, target, ms, easeOutCubic, () => finish(g.dir, done));
-  };
-
   const onKeyDown = (e: React.KeyboardEvent) => {
-    const fwd = rtl ? 'ArrowLeft' : 'ArrowRight';
-    const back = rtl ? 'ArrowRight' : 'ArrowLeft';
+    const fwd = isRtl ? 'ArrowLeft' : 'ArrowRight';
+    const back = isRtl ? 'ArrowRight' : 'ArrowLeft';
     if (e.key === fwd || e.key === 'PageDown') {
       e.preventDefault();
-      go('next');
-    } else if (e.key === back || e.key === 'PageUp') {
+      next();
+    }
+    if (e.key === back || e.key === 'PageUp') {
       e.preventDefault();
-      go('prev');
+      prev();
     }
   };
 
-  const leaf = (i: number) =>
-    i >= total ? <BlankPage empty={total === 0} editable={editable} onAdd={onAdd} /> : <MemoryPage page={pages[i]} n={i + 1} total={total} onOpen={() => setOpen(pages[i])} />;
-  const under = turn ? (turn.dir === 'next' ? index + 1 : index) : index;
-  const front = turn ? (turn.dir === 'next' ? index : index - 1) : -1;
-  const label = index >= total ? (total ? t('pp.page_blank') : t('pp.first_page')) : t('pp.page_n', { n: index + 1, total });
+  const shownIndex = turn ? (turn.dir === 'next' ? turn.to : turn.from) : index;
+  const turningIndex = turn ? (turn.dir === 'next' ? turn.from : turn.to) : null;
+  const current = pages[turn ? turn.to : index];
+
+  const render = (i: number | null) => {
+    const p = i === null ? null : pages[i];
+    if (!p) return null;
+    return p.kind === 'photo' ? (
+      <PhotoPage key={`p${p.page.id}`} page={p.page} n={p.n} count={count} onOpen={() => setOpen(p.page)} />
+    ) : (
+      <NextPage key="next" first={count === 0} editable={editable} onAdd={onAdd} />
+    );
+  };
+  const holderPage = <IdentityPage holder={holder} count={count} cities={data.cities} trips={trips} number={data.number} />;
 
   return (
-    <div className="pp-wrap">
-      <div
-        ref={bookRef}
-        className={'pp-book' + (turn ? ' turning' : '')}
-        tabIndex={0}
-        role="group"
-        aria-roledescription={t('pp.book')}
-        aria-label={t('pp.book_label', { name: holder.name })}
-        onKeyDown={onKeyDown}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-        onClickCapture={(e) => {
-          if (swallowClick.current) {
-            swallowClick.current = false;
-            e.stopPropagation();
-            e.preventDefault();
-          }
-        }}
-      >
-        <div className="pp-spread">
-          <div className="pp-page pp-hold" data-side="hold">
-            <HolderPage holder={holder} data={data} trips={trips} />
-            <div ref={shadeHold} className="pp-cast hold" aria-hidden="true" style={{ opacity: 0 }} />
-          </div>
-          <div ref={spineRef} className="pp-spine" aria-hidden="true">
+    <div className="tg-passport" dir={isRtl ? 'rtl' : 'ltr'}>
+      <div className="book-wrap">
+        <div
+          ref={bookRef}
+          className={`book ${turn ? `is-turning turning-${turn.dir}` : ''} ${turn?.manual ? 'manual' : ''} ${index > 0 ? 'can-prev' : ''} ${index < pages.length - 1 ? 'can-next' : ''}`}
+          role="region"
+          aria-roledescription={t('pp.book')}
+          aria-label={t('pp.book_label', { name: holder.name })}
+          tabIndex={0}
+          onKeyDown={onKeyDown}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+          onClickCapture={onClickCapture}
+        >
+          {holderPage}
+          <div ref={spineRef} className="book-spine" aria-hidden="true">
             {Array.from({ length: 9 }, (_, i) => (
-              <i key={i} />
+              <span key={i} className="ring" />
             ))}
           </div>
-          <div className="pp-page pp-leaf" data-side="leaf" aria-live="polite">
-            {leaf(under)}
-            <div ref={shadeLeaf} className="pp-cast leaf" aria-hidden="true" style={{ opacity: 0 }} />
+          <div className="leaf-stack">
+            <div className="leaf base">{render(shownIndex)}</div>
+            {turn && (
+              <div
+                ref={sheetRef}
+                className={`leaf turning turn-${turn.dir} ${turn.manual ? 'manual' : ''}`}
+                onAnimationEnd={(e) => {
+                  if (!turn.manual && e.target === e.currentTarget) finish();
+                }}
+                aria-hidden="true"
+              >
+                <div className="face front">{render(turningIndex)}</div>
+                <div className="face back">{holderPage}</div>
+              </div>
+            )}
           </div>
-          {turn && front >= 0 && (
-            <div ref={sheetRef} className="pp-sheet" data-side={turn.dir === 'next' ? 'leaf' : 'hold'} aria-hidden="true">
-              <div ref={frontRef} className="pp-face front pp-page">
-                {leaf(front)}
-                <div ref={shadeFront} className="pp-face-shade" />
-              </div>
-              <div ref={backRef} className="pp-face back pp-page" style={{ visibility: 'hidden' }}>
-                <HolderPage holder={holder} data={data} trips={trips} />
-                <div ref={shadeBack} className="pp-face-shade" />
-              </div>
-            </div>
-          )}
         </div>
-      </div>
 
-      <div className="pp-controls">
-        <button type="button" className="pp-ctl" onClick={() => go('prev')} disabled={!!turn || index <= 0} aria-label={t('pp.prev')}>
-          <Icon name="back" size={20} className="flip" />
-        </button>
-        <span className="pp-count" aria-live="polite">
-          {label}
-        </span>
-        <button type="button" className="pp-ctl" onClick={() => go('next')} disabled={!!turn || index >= total} aria-label={t('pp.next')}>
-          <Icon name="next" size={20} className="flip" />
-        </button>
-        <button type="button" className="pp-ctl" onClick={toggleSound} aria-pressed={sound} aria-label={sound ? t('pp.sound_off') : t('pp.sound_on')}>
-          <SoundIcon on={sound} />
-        </button>
+        <div className="book-controls">
+          <button type="button" className="pp-icon-btn" onClick={prev} disabled={index === 0 || !!turn} aria-label={t('pp.prev')}>
+            <PIcon name="back" className="pp-flip-rtl" />
+          </button>
+          <span className="pp-small pp-count" aria-live="polite">
+            {current?.kind === 'photo' ? t('pp.page_n', { n: current.n, total: count }) : count === 0 ? t('pp.first_page') : t('pp.page_blank')}
+          </span>
+          <button type="button" className="pp-icon-btn" onClick={next} disabled={index >= pages.length - 1 || !!turn} aria-label={t('pp.next')}>
+            <PIcon name="forward" className="pp-flip-rtl" />
+          </button>
+          <button type="button" className="pp-icon-btn" onClick={toggleSound} aria-pressed={sound} aria-label={sound ? t('pp.sound_off') : t('pp.sound_on')}>
+            <PIcon name={sound ? 'volume' : 'mute'} size={18} />
+          </button>
+        </div>
+        {pages.length > 1 && <p className="pp-small pp-muted book-hint">{t('pp.hint')}</p>}
       </div>
-      <p className="pp-hint">{t('pp.hint')}</p>
 
       {open && (
-        <Modal title={cleanPlace(open.place)} onClose={() => setOpen(null)}>
+        <Modal title={open.place} onClose={() => setOpen(null)}>
           <div className="stack pp-detail">
-            <img src={photoSrc(open.img)} alt={cleanPlace(open.place)} />
+            <img src={photoSrc(open.img)} alt={open.place} />
             <span className="small muted">
               {fmt.city(open.city)} · {fmt.date(open.date, { day: 'numeric', month: 'long', year: 'numeric' })}
             </span>
@@ -485,7 +489,7 @@ export function PassportBook({ holder, data, trips, editable = false, onAdd, onD
                   setOpen(null);
                 }}
               >
-                <Icon name="trash" size={18} /> {t('pp.remove')}
+                {t('pp.remove')}
               </button>
             )}
           </div>
@@ -495,62 +499,187 @@ export function PassportBook({ holder, data, trips, editable = false, onAdd, onD
   );
 }
 
-// ---------------------------------------------------------------- closed cover
-const Emblem = () => (
-  <svg viewBox="0 0 64 64" aria-hidden="true" className="pp-emblem">
-    <circle cx="32" cy="32" r="29" fill="none" stroke="currentColor" strokeWidth="1.6" />
-    <circle cx="32" cy="32" r="24" fill="none" stroke="currentColor" strokeWidth="0.8" strokeDasharray="1.5 2.5" />
-    <path d="M46 18L28 34M46 18l-11 29-6.5-11.5L17 29z" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
-  </svg>
-);
-
-export function ClosedPassport({ name, pages, onOpen, label }: { name: string; pages: number; onOpen(): void; label?: string }) {
+/** The holder's page: details, photo and signature. It never turns. */
+function IdentityPage({ holder, count, cities, trips, number }: { holder: Holder; count: number; cities: number; trips: number; number: string }) {
   const { t } = useApp();
-  const [opening, setOpening] = useState(false);
-  const open = () => {
-    if (reducedMotion()) return onOpen();
-    setOpening(true);
-    playPageTurnIfOn();
-    setTimeout(onOpen, 560);
-  };
   return (
-    <div className="pp-closed-wrap">
-      <button type="button" className={'pp-closed' + (opening ? ' opening' : '')} onClick={open} aria-label={label || t('pp.open_cover', { name })}>
-        <span className="pp-edges" aria-hidden="true" />
-        <span className="pp-cover">
-          <span className="pp-cover-rings" aria-hidden="true">
-            {Array.from({ length: 9 }, (_, i) => (
-              <i key={i} />
-            ))}
+    <section className="leaf-page identity" aria-label={t('pp.holder')}>
+      <div className="id-head">
+        <span className="id-eyebrow">{t('pp.eyebrow')}</span>
+        <span className="id-title" lang="ar">
+          جواز الرحلات
+        </span>
+      </div>
+      <div className="id-body">
+        <dl className="id-fields">
+          <div>
+            <dt>{t('pp.name')}</dt>
+            <dd>
+              <bdi>{holder.name}</bdi>
+            </dd>
+          </div>
+          <div>
+            <dt>{t('pp.nationality')}</dt>
+            <dd>
+              <bdi>{holder.country || '–'}</bdi>
+            </dd>
+          </div>
+          <div>
+            <dt>{t('pp.number')}</dt>
+            <dd className="pp-num" dir="ltr">
+              {number}
+            </dd>
+          </div>
+          <div className="id-stats">
+            <span>
+              <b className="pp-num">{count}</b>
+              {t('pp.stat_memories')}
+            </span>
+            <span>
+              <b className="pp-num">{cities}</b>
+              {t('pp.stat_cities')}
+            </span>
+            <span>
+              <b className="pp-num">{trips}</b>
+              {t('pp.stat_trips')}
+            </span>
+          </div>
+        </dl>
+        <div className="id-photo">{holder.avatar ? <img src={holder.avatar} alt="" draggable={false} /> : <span aria-hidden="true">{initials(holder.name)}</span>}</div>
+      </div>
+      <div className="id-signature" aria-hidden="true">
+        <span className="id-sign">{holder.name}</span>
+        <span className="id-sign-label">{t('pp.signature')}</span>
+      </div>
+    </section>
+  );
+}
+
+// Calligraphy needs room: shrink long names so they stay inside the photo.
+const nameSize = (n: string) => (n.length > 22 ? 'xl' : n.length > 13 ? 'l' : '');
+
+/** One page: the traveller's own photo, framed as a postage stamp with a postmark. */
+function PhotoPage({ page, n, count, onOpen }: { page: PassportPage; n: number; count: number; onOpen(): void }) {
+  const { t } = useApp();
+  const fmt = useFmt();
+  const isRtl = isRtlDoc();
+  const name = page.place;
+  const stampName = name.replace(/\s*\(.*?\)/g, ''); // "Ishtar Gate (Reconstruction)" → "Ishtar Gate"
+  const city = fmt.city(page.city);
+  const ink = cityInk(page.city);
+  const [failed, setFailed] = useState(false);
+  const photo = page.img && !failed ? photoSrc(page.img) : null;
+  const date = formatDate(page.date, { day: '2-digit', month: 'short', year: 'numeric' }, isRtl);
+  const arabicName = /[؀-ۿ]/.test(stampName);
+  return (
+    <article className="leaf-page stamp-page">
+      <div className="leaf-head">
+        <span className="pp-num">{t('pp.page_n', { n, total: count })}</span>
+        <span>{city}</span>
+      </div>
+
+      <button type="button" className="postage-wrap" onClick={onOpen} aria-label={t('pp.open_memory', { place: name })}>
+        <span className="postage">
+          <span className="postage-photo" style={{ '--ink': ink } as React.CSSProperties}>
+            {photo ? <img src={photo} alt="" draggable={false} onError={() => setFailed(true)} /> : <PIcon name="image" size={40} />}
+            <span className={`postage-name ${nameSize(stampName)}`} lang={arabicName ? 'ar' : 'en'}>
+              {stampName}
+            </span>
           </span>
-          <span className="pp-cover-frame">
-            <span className="pp-cover-title">جواز السفر</span>
-            <Emblem />
-            <span className="pp-cover-en">TRAVEL PASSPORT</span>
-            <span className="pp-cover-brand">Trip guide</span>
+          <span className="postage-foot">
+            <span>IRAQ · العراق</span>
+            <span className="pp-num">№ {n}</span>
           </span>
         </span>
+        <span className="postmark" aria-hidden="true">
+          <svg className="cancel-lines" viewBox="0 0 120 40">
+            <path d="M0 8 q10 -6 20 0 t20 0 t20 0 t20 0 t20 0 t20 0 M0 20 q10 -6 20 0 t20 0 t20 0 t20 0 t20 0 t20 0 M0 32 q10 -6 20 0 t20 0 t20 0 t20 0 t20 0 t20 0" fill="none" stroke={ink} strokeWidth="2.4" />
+          </svg>
+          <Seal name={name} date={isRtl ? date : date.toUpperCase()} ink={ink} rotate={-14} size={92} rtl={arabicName || isRtl} />
+        </span>
       </button>
-      <span className="pp-closed-note">{t('pp.cover_note', { count: pages })}</span>
+
+      <div className="stamp-info">
+        <b className="stamp-info-name" dir="auto">
+          {name}
+        </b>
+        <span className="pp-muted">
+          {city} · {date}
+        </span>
+        {page.note && (
+          <p className="pp-clamp-2" dir="auto">
+            {page.note}
+          </p>
+        )}
+      </div>
+    </article>
+  );
+}
+
+/** The blank page after the last photo: a dashed outline waiting to be filled. */
+function NextPage({ first, editable, onAdd }: { first: boolean; editable: boolean; onAdd?(): void }) {
+  const { t } = useApp();
+  return (
+    <article className="leaf-page stamp-page next-page">
+      <div className="leaf-head">
+        <span>{first ? t('pp.first_page') : t('pp.next_page')}</span>
+        <span />
+      </div>
+      <div className="postage-empty">
+        <PIcon name="camera" size={40} />
+        <span>{editable ? t('pp.blank_owner') : t('pp.blank_visitor')}</span>
+      </div>
+      {editable && onAdd && (
+        <button type="button" className="pp-btn pp-btn-sm" style={{ alignSelf: 'center' }} onClick={onAdd}>
+          <PIcon name="plus" size={16} />
+          {t('pp.add')}
+        </button>
+      )}
+    </article>
+  );
+}
+
+// ---------------------------------------------------------------- closed cover
+/** The passport, closed: a lapis cover with gold blocking. Tapping it opens the book. */
+export function ClosedPassport({ name, pages, onOpen }: { name: string; pages: number; onOpen(): void }) {
+  const { t } = useApp();
+  const isRtl = isRtlDoc();
+  return (
+    <div className="tg-passport" dir={isRtl ? 'rtl' : 'ltr'}>
+      <div className="closed-wrap">
+        <button type="button" className="closed-book" aria-label={t('pp.open_cover', { name })} onClick={onOpen}>
+          <span className="pp-cover-pages" aria-hidden="true" />
+          <span className="pp-cover">
+            <span className="pp-cover-frame" aria-hidden="true" />
+            {/* Brand only: no state names or official passport marks. */}
+            <span className="pp-cover-emblem" aria-hidden="true">
+              <GateArt width={96} tower="rgba(232, 196, 106, 0.2)" arch="rgba(14, 29, 76, 0.6)" line="#E8C46A" reliefs />
+            </span>
+            <span className="pp-cover-title" lang="ar">
+              جواز الرحلات
+            </span>
+            <span className="pp-cover-sub">TRAVEL PASSPORT</span>
+            <span className="pp-cover-brand">TRIP GUIDE</span>
+          </span>
+          <span className="closed-rings" aria-hidden="true">
+            {Array.from({ length: 9 }, (_, i) => (
+              <span key={i} className="ring" />
+            ))}
+          </span>
+        </button>
+        <span className="closed-note">{t('pp.cover_note', { count: pages })}</span>
+      </div>
     </div>
   );
 }
-function playPageTurnIfOn() {
-  try {
-    if (localStorage.getItem(SOUND_KEY) === 'off') return;
-  } catch {
-    /* private mode */
-  }
-  playPageTurn(560);
-}
 
-/** The passport-shaped round button tourists use to add a memory, in the same place as the guide and admin + buttons. */
+/** The passport-shaped + button tourists use on the home screen. */
 export function PassportFabIcon() {
   return (
     <span className="pp-fab-book" aria-hidden="true">
-      <Emblem />
+      <GateArt width={30} tower="rgba(232, 196, 106, 0.25)" arch="rgba(14, 29, 76, 0.6)" line="#E8C46A" />
       <span className="pp-fab-plus">
-        <Icon name="plus" size={12} stroke={3} />
+        <PIcon name="plus" size={12} stroke={3} />
       </span>
     </span>
   );

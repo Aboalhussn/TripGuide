@@ -871,14 +871,16 @@ test('travel passport: the passport button adds a photo; the book turns by butto
   const count = tt.locator('.pp-count');
   await count.getByText(/^Page (\d+) of \1$/).waitFor(); // opens on the newest page
   const total = Number((await count.innerText()).match(/of (\d+)/)![1]);
-  await tt.locator('.pp-leaf .pp-caption strong', { hasText: 'Al-Mutanabbi Street' }).waitFor();
+  await tt.locator('.leaf.base .stamp-info-name', { hasText: 'Al-Mutanabbi Street' }).waitFor();
   await tt.getByRole('button', { name: 'Previous page' }).click();
   await count.getByText(`Page ${total - 1} of ${total}`).waitFor();
-  await tt.locator('.pp-book').focus();
+  await tt.locator('.leaf.turning').waitFor({ state: 'detached' }); // the turn has landed
+  await tt.locator('.book').focus();
   await tt.keyboard.press('ArrowRight');
+  await tt.locator('.leaf.turning').waitFor({ state: 'detached' });
   await count.getByText(`Page ${total} of ${total}`).waitFor();
   // Drag the page by hand toward the spine: it turns to the blank next page.
-  const box = (await tt.locator('.pp-leaf').boundingBox())!;
+  const box = (await tt.locator('.leaf-stack').boundingBox())!;
   const y = box.y + box.height * 0.3;
   await tt.mouse.move(box.x + box.width - 10, y);
   await tt.mouse.down();
@@ -892,8 +894,8 @@ test('travel passport: the passport button adds a photo; the book turns by butto
   await login(g, 'guide@tripguide.demo');
   await go(g, '/users/12');
   await g.getByRole('button', { name: /Open Hannah W\.'s passport/ }).click();
-  await g.locator('.pp-book').waitFor();
-  await g.locator('.pp-caption strong', { hasText: 'Al-Mutanabbi Street' }).waitFor();
+  await g.locator('.book').waitFor();
+  await g.locator('.stamp-info-name', { hasText: 'Al-Mutanabbi Street' }).waitFor();
   assert.equal(await g.getByRole('button', { name: 'Add a memory' }).count(), 0); // visitors can't add pages
   await g.context().close();
 });

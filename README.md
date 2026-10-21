@@ -102,10 +102,10 @@ If something goes wrong, either side can **report a problem**. The held money st
 - **Per-day budget.** Tourists type a budget per day; the app shows the whole-trip total and stores totals, so guides and tourists see the same numbers.
 - **Trip cards.** Requests show as cards with the governorate photo, the tourist's name and photo, title, dates, place, people, budget per day and an action ("Send offer" for guides, offers count for tourists). Tapping opens the trip.
 - **Saved card.** Only the brand, last four digits, name and expiry are kept, never the full number or the security code.
-- **Travel passport.** Its own look, separate from the rest of the app: warm paper pages, a lapis-blue cover with gold, binder rings, script captions (Great Vibes, Aref Ruqaa for Arabic, Reem Kufi for Arabic titles).
+- **Travel passport.** Built from the passport kit (same look and page turning), with its own style apart from the rest of the app: ruled paper pages, a lapis-blue cover with gold and the Ishtar Gate emblem, binder rings, and calligraphy (Great Vibes; Aref Ruqaa for Arabic; Reem Kufi for Arabic titles).
   - Always an open two-page spread that scales as one piece on phones (CSS container queries).
   - The left page is the holder's page: name, nationality, passport number `TG-000123`, counts, photo and signature.
-  - Each right page is one photo memory, mounted with tape and photo corners.
+  - Each right page is one photo memory, framed as a perforated postage stamp with the place name in calligraphy and a round postmark with the place and date, in the governorate's ink colour.
   - Pages turn in 3D around the middle of the spine, by button, keyboard (arrows, PageUp/PageDown), or by dragging the page with a finger. The page follows the finger, and a quick flick finishes the turn.
   - Each turn plays a paper sound made with the Web Audio API (no audio files). It can be muted, and the choice is remembered.
   - Visitors first see the closed cover, and tap it to open.
