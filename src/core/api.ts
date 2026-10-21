@@ -356,6 +356,7 @@ function meView(ctx: Ctx, u: User) {
     email: u.email,
     phone: u.phone,
     savedCard: u.savedCard || null,
+    passport: u.role === 'tourist' ? passportView(u) : null,
     gender: u.gender,
     status: u.status,
     unreadNotifications,
@@ -365,6 +366,35 @@ function meView(ctx: Ctx, u: User) {
 }
 
 route('GET', '/me', (ctx) => meView(ctx, need(ctx)));
+
+// ---------- travel passport: tourists keep photo memories of their trips, shown on their profile ----------
+const PASSPORT_MAX = 30;
+const passportNo = (u: User) => 'TG-' + String(u.id).padStart(6, '0');
+function passportView(u: User) {
+  const pages = [...(u.passport || [])].sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
+  return { number: passportNo(u), pages, cities: new Set(pages.map((p) => p.city)).size };
+}
+route('POST', '/me/passport', (ctx, _p, req) => {
+  const u = needActive(ctx, 'tourist');
+  const b = req.body || {};
+  u.passport ||= [];
+  if (u.passport.length >= PASSPORT_MAX) throw bad('passport_full', { max: PASSPORT_MAX });
+  const img = imageData(b.img, 'img', 400_000);
+  const place = str(b.place, 'place', 2, 60);
+  const city = strList([b.city], 'city', ctx.data.cities.map((c) => c.slug), 1, 1)[0];
+  if (!isDate(b.date)) throw bad('field_invalid', { field: 'date' });
+  if (b.date > ctx.today) throw bad('date_future');
+  const id = u.passport.reduce((a, p) => Math.max(a, p.id), 0) + 1;
+  u.passport.push({ id, img, place, city, date: b.date, note: optStr(b.note, 'note', 160), createdAt: ctx.nowIso });
+  return passportView(u);
+});
+route('DELETE', '/me/passport/:id', (ctx, p) => {
+  const u = need(ctx, 'tourist');
+  const before = (u.passport || []).length;
+  u.passport = (u.passport || []).filter((x) => x.id !== Number(p.id));
+  if (u.passport.length === before) throw notFound();
+  return passportView(u);
+});
 
 route('PUT', '/me', (ctx, _p, req) => {
   const u = need(ctx);
@@ -626,7 +656,7 @@ route('GET', '/users/:id', (ctx, p) => {
   const reviews = ctx.data.reviews
     .filter((r) => r.subjectId === u.id && r.authorRole === 'guide' && reviewVisible(ctx.data, r, ctx.now))
     .map((r) => reviewView(ctx.data, r));
-  return { ...publicUser(u), stats: touristStats(ctx.data, u.id, ctx.now), reviews };
+  return { ...publicUser(u), stats: touristStats(ctx.data, u.id, ctx.now), reviews, passport: passportView(u) };
 });
 
 // ---------- trip requests ----------

@@ -3,9 +3,11 @@ import { brand } from '../config/brand';
 import { useApp } from './lib/app';
 import { api } from './lib/api';
 import { resizeImage } from './lib/image';
-import { Link } from './lib/router';
+import { Link, navigate } from './lib/router';
 import { asset } from './assets';
 import { Field, Icon, LangToggle, Modal } from './ui';
+import { PassportFabIcon } from './passport';
+import { AddMemory } from './pages/Passport';
 import { PullToRefresh } from './PullToRefresh';
 
 type NavItem = { to: string; label: string; icon: string; badge?: number; primary?: boolean; match?: string[] };
@@ -124,6 +126,7 @@ export function Shell({ path, children }: { path: string; children: React.ReactN
         {path === '/' ? <PullToRefresh>{children}</PullToRefresh> : children}
       </main>
       {role === 'guide' && !bare && !chat && path !== '/guide/setup' && <PhotoFab />}
+      {role === 'tourist' && !bare && !chat && path !== '/post' && <PassportFab />}
       {role === 'admin' && !bare && !chat && !path.startsWith('/admin/cities/') && (
         <Link to="/admin/cities/new" className="photo-fab" aria-label={t('city.add')} title={t('city.add')}>
           <Icon name="plus" size={28} stroke={2.4} />
@@ -145,6 +148,29 @@ export function Shell({ path, children }: { path: string; children: React.ReactN
         ))}
       </nav>}
     </div>
+  );
+}
+
+/** Tourists: the passport-shaped button above the tab bar adds a photo memory to their travel passport. */
+function PassportFab() {
+  const { t, refreshMe } = useApp();
+  const [open, setOpen] = React.useState(false);
+  return (
+    <>
+      <button type="button" className="photo-fab pp-fab" aria-label={t('pp.fab')} title={t('pp.fab')} onClick={() => setOpen(true)}>
+        <PassportFabIcon />
+      </button>
+      {open && (
+        <AddMemory
+          onClose={() => setOpen(false)}
+          onDone={async () => {
+            setOpen(false);
+            await refreshMe();
+            navigate('/passport');
+          }}
+        />
+      )}
+    </>
   );
 }
 

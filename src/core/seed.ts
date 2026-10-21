@@ -400,6 +400,15 @@ export function seed(platform: Platform): Data {
 
   // ---- what's happening now ----
   const hannah = T('Hannah'), marco = T('Marco'), lena = T('Lena'), yousef = T('Yousef'), fatima = T('Fatima'), james = T('James'), aiko = T('Aiko'), reza = T('Reza');
+  // Travel passports: a few photo memories (built-in pictures stand in for photos the tourists took).
+  const mem = (u: User, list: [string, string, string, number, string][]) =>
+    (u.passport = list.map(([img, place, city, back, note], i) => ({ id: i + 1, img: 'lib:' + img, place, city, date: addDays(today, -back), note, createdAt: ago(back) })));
+  mem(hannah, [
+    ['malwiya', 'Malwiya Minaret', 'samarra', 400, 'Climbed all the way up at sunset. The wind at the top!'],
+    ['babylon', 'Ancient Babylon', 'babylon', 210, 'Walked the old walls with Zainab. Every brick has a name on it.'],
+    ['ishtar', 'Ishtar Gate', 'babylon', 209, 'The blue tiles look even brighter in person.'],
+  ]);
+  mem(marco, [['ziggurat', 'Borsippa ziggurat', 'babylon', 120, 'Older than I can imagine. Quiet, huge and golden.']]);
   const zainab = G('Zainab'), ali = G('Ali'), omar = G('Omar'), noor = G('Noor'), hussein = G('Hussein'), sara = G('Sara'), layla = G('Layla'), ahmed = G('Ahmed'), hamid = G('Hamid'), yousif = G('Yousif');
 
   // 1. Hannah's open request with four offers to compare.

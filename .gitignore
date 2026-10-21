@@ -6,3 +6,8 @@ data/
 # Thmanyah font files: the licence does not allow redistributing them. See README.
 public/fonts/*.woff2
 public/fonts/*.otf
+# These fonts are under the SIL Open Font Licence and are committed (used by the travel passport).
+!public/fonts/great-vibes.woff2
+!public/fonts/aref-ruqaa-arabic-700.woff2
+!public/fonts/reem-kufi-arabic-600.woff2
+!public/fonts/reem-kufi-latin-600.woff2

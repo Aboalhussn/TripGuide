@@ -298,6 +298,7 @@ function AccountMenu() {
           ]
         : [
             info,
+            { to: '/passport', icon: 'passport', label: t('pp.mine'), sub: t('pp.pages_n', { count: me.passport?.pages?.length || 0 }) },
             { to: '/profile/trips', icon: 'list', label: t('menu.trips'), sub: t('menu.trips_sub') },
             { to: '/wallet', icon: 'wallet', label: t('menu.wallet'), sub: cardSub },
             settings,

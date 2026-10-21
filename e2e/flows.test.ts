@@ -729,7 +729,7 @@ test('tourist profile: a short menu with your info, requests and trips, wallet, 
   await go(p, '/profile');
   assert.deepEqual(
     (await p.locator('.menu-row strong').allInnerTexts()),
-    ['Your info', 'Requests and trips', 'Wallet', 'Settings'],
+    ['Your info', 'Your passport', 'Requests and trips', 'Wallet', 'Settings'],
   );
   // Your info: edit the country, see the error right away for a bad email.
   await p.getByRole('link', { name: /Your info/ }).click();
@@ -851,4 +851,48 @@ test('post: cover photos are grouped by each chosen governorate, and a picked ph
   await first.click();
   assert.equal(await first.getAttribute('aria-pressed'), 'false');
   await tt.context().close();
+});
+
+test('travel passport: the passport button adds a photo; the book turns by button, key and drag; a guide sees it closed, then open', async () => {
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAHElEQVR4nGNk+M9AEmBkYGBgYGBg+P+fgQEAJ/QD/WUX9CIAAAAASUVORK5CYII=', 'base64');
+  const tt = await open();
+  await login(tt, 'tourist@tripguide.demo');
+  await tt.getByRole('button', { name: 'Add to your passport' }).click();
+  const sheet = tt.getByRole('dialog', { name: 'Add to your passport' });
+  await sheet.getByRole('button', { name: 'Add to passport' }).click();
+  await sheet.getByText('Add a photo').waitFor(); // problems show right away
+  await sheet.locator('input[type=file]').setInputFiles({ name: 'gate.png', mimeType: 'image/png', buffer: png });
+  await sheet.locator('.pp-photo-drop img').waitFor();
+  await sheet.getByLabel('Where was it?').fill('Al-Mutanabbi Street');
+  await sheet.getByLabel('Governorate').selectOption('baghdad');
+  await sheet.getByRole('button', { name: 'Add to passport' }).click();
+  await tt.waitForURL((u) => u.hash === '#/passport');
+  const count = tt.locator('.pp-count');
+  await count.getByText(/^Page (\d+) of \1$/).waitFor(); // opens on the newest page
+  const total = Number((await count.innerText()).match(/of (\d+)/)![1]);
+  await tt.locator('.pp-leaf .pp-caption strong', { hasText: 'Al-Mutanabbi Street' }).waitFor();
+  await tt.getByRole('button', { name: 'Previous page' }).click();
+  await count.getByText(`Page ${total - 1} of ${total}`).waitFor();
+  await tt.locator('.pp-book').focus();
+  await tt.keyboard.press('ArrowRight');
+  await count.getByText(`Page ${total} of ${total}`).waitFor();
+  // Drag the page by hand toward the spine: it turns to the blank next page.
+  const box = (await tt.locator('.pp-leaf').boundingBox())!;
+  const y = box.y + box.height * 0.3;
+  await tt.mouse.move(box.x + box.width - 10, y);
+  await tt.mouse.down();
+  for (let k = 1; k <= 16; k++) await tt.mouse.move(box.x + box.width - 10 - (k * box.width * 1.1) / 16, y);
+  await tt.mouse.up();
+  await count.getByText('Blank page').waitFor();
+  await noSideScroll(tt, 'passport');
+  await tt.context().close();
+
+  const g = await open();
+  await login(g, 'guide@tripguide.demo');
+  await go(g, '/users/12');
+  await g.getByRole('button', { name: /Open Hannah W\.'s passport/ }).click();
+  await g.locator('.pp-book').waitFor();
+  await g.locator('.pp-caption strong', { hasText: 'Al-Mutanabbi Street' }).waitFor();
+  assert.equal(await g.getByRole('button', { name: 'Add a memory' }).count(), 0); // visitors can't add pages
+  await g.context().close();
 });

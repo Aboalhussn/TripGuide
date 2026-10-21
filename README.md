@@ -2,51 +2,217 @@
 
 **Post your trip. Iraqi guides send you offers.**
 
-A marketplace that connects tourists in Iraq with local guides, built for the Iraq Culture & Tourism Hackathon. It works like a freelancing marketplace: the tourist is the client and the guide is the freelancer. Tourists post a trip, guides send offers with a day-by-day plan, the tourist compares, chats and hires, and the payment is held by the platform and released to the guide one tour day at a time.
+Trip guide is a mobile app that connects tourists visiting Iraq with local, verified tour guides. It works like a freelancing marketplace: the **tourist** is the client, the **guide** is the freelancer, and the **admin** keeps the platform safe. A tourist posts a trip, guides answer with offers and a day-by-day plan, the tourist compares, chats and hires, and the money is held by the platform and released to the guide one tour day at a time.
 
-English and Arabic (full right-to-left), phone-first, one command to run.
+It runs on **Android and iOS** (one shared code base, wrapped with Capacitor), and as a website. Every screen is in **English and Arabic** (Arabic is fully right to left).
 
-> Trip guide is an independent platform. It is not run by, or affiliated with, any government body.
+> Trip guide is an independent platform. It is not run by, or affiliated with, any government body. Payments in this version are simulated: no real money moves.
 
-The earlier, broader version of the app (heritage passport, stamps, rewards, groups) is saved on the [`full-app-v1`](../../tree/full-app-v1) branch.
+**Download the latest Android build:** <https://github.com/Aboalhussn/TripGuide/releases/latest/download/trip-guide.apk>
+
+### نبذة بالعربي
+
+تطبيق Trip guide يربط السائح اللي يزور العراق بمرشدين سياحيين محليين موثّقين. السائح ينشر رحلته (المحافظات، التواريخ، عدد الأشخاص، اللغة، الميزانية لليوم)، والمرشدين يرسلون عروض بيها خطة لكل يوم. السائح يقارن ويحچي وياهم ويوظّف واحد، والفلوس تنحجز بالمنصة وتنطي للمرشد يوم بيوم. الأدمن يوثّق المرشدين، ويحسم البلاغات، ويضيف المحافظات وأماكنها التراثية وصورها، ويحدد الأسعار. السائح عنده **جواز رحلات** يرفع بيه صور من رحلاته، ويشوفه أي واحد يفتح ملفه. التطبيق يشتغل على أندرويد وآيفون وكموقع، بالعربي والإنجليزي.
+
+---
 
 ## Contents
-- [How it works](#how-it-works)
-- [Run it](#run-it)
-- [Demo accounts](#demo-accounts)
-- [Tests](#tests)
-- [Fonts](#fonts)
-- [Rename the app](#rename-the-app)
-- [Settings](#settings)
-- [Deploy](#deploy)
-- [Project structure](#project-structure)
-- [Rules the app enforces](#rules-the-app-enforces)
-- [Known limits](#known-limits)
 
-## How it works
+1. [The idea in one minute](#1-the-idea-in-one-minute)
+2. [Who uses it and what they can do](#2-who-uses-it-and-what-they-can-do)
+3. [A trip from start to finish](#3-a-trip-from-start-to-finish)
+4. [Features in detail](#4-features-in-detail)
+5. [How the app is built](#5-how-the-app-is-built)
+6. [Project structure](#6-project-structure)
+7. [Run it on your computer](#7-run-it-on-your-computer)
+8. [Demo accounts](#8-demo-accounts)
+9. [Phone apps and automatic releases](#9-phone-apps-and-automatic-releases)
+10. [Tests](#10-tests)
+11. [Settings, names and fonts](#11-settings-names-and-fonts)
+12. [The API](#12-the-api)
+13. [Rules the app enforces](#13-rules-the-app-enforces)
+14. [Deploy](#14-deploy)
+15. [Known limits](#15-known-limits)
 
-| Freelancing marketplace | Trip guide |
+---
+
+## 1. The idea in one minute
+
+| A freelancing marketplace has… | Trip guide has… |
 |---|---|
-| Post a project | **Post a trip request**: cities and places, dates, group size, languages, interests, budget, "urgent", "female guide preferred" |
-| Browse projects | **Requests feed for guides**, filtered to the guide's cities and languages, with offer count and average |
-| Place a bid with suggested milestones | **Send an offer**: total price, a plan for each day, what's included, a message. Shows the 10% fee and what the guide receives. Editable or withdrawable until someone is hired |
-| Compare bids | **Offers on a request**: sort, shortlist with a star, compare shortlisted offers side by side |
-| Invite to bid | **Invite guides** who cover the trip's cities and languages and are free on its dates |
-| Award, freelancer accepts | **Hire**: the tourist pays into holding; the guide has 48 hours to confirm or decline, otherwise the hire lapses and the money returns |
-| Hire me | **Hire directly** from a guide's profile: a private request only that guide can see and answer |
-| Milestone payments | **Held payments, one per tour day**. The guide asks for a day's payment once it has come; the tourist releases it. The guide can refund a day. All days settled means the tour is complete |
-| Freelancer profile | **Guide profile**: bio in English and Arabic, languages with levels, specialities, cities and places, price per day, availability calendar, photos from past tours, badges, track record (tours done, completion rate, repeat hires, reply rate and time), reviews with sub-ratings |
-| Verification, preferred freelancer | **ID verified** (checked by the team), **phone verified** (code), **payment verified**, and **Top guide** (verified, 8+ tours, rating 4.7+) |
-| Search freelancers | **Find guides**: search by name, city or place; filter by city, language, speciality, price, rating, dates available, verified, female guides; sort by match, rating, price, tours |
-| Messages | **Chat** per tourist, guide and request, with unread counts and the offer and booking shown at the top |
-| Two-way feedback | **Reviews both ways** after the tour. Each side's review stays hidden until both are written, or 14 days pass |
-| Dispute resolution | **Report a problem** on a booking. Held money stays held; the admin refunds the tourist, pays the guide, or dismisses, and can suspend the account |
-| Dashboards, notifications | **Tourist and guide dashboards**, a **wallet** with held, released and refunded money and fees, and **notifications** for every step |
-| Trust and safety | **Admin**: verify guides, resolve reports, search and suspend users |
+| A client posts a project | A **tourist posts a trip request** |
+| Freelancers send bids | **Guides send offers** with a price and a plan for each day |
+| The client compares and hires | The tourist **compares offers, chats, and hires** a guide |
+| Milestone payments | **The money is held, then released one tour day at a time** |
+| Ratings both ways | **Reviews both ways** after the tour |
+| Support and disputes | **Reports** that the admin resolves (refund, pay, or dismiss) |
 
-Payments are simulated. No payment provider is connected and no real money moves.
+Why it is useful: a tourist gets several offers to compare instead of searching guide by guide, and both sides are protected because the money is held by the platform until each day of the tour has happened.
 
-## Run it
+## 2. Who uses it and what they can do
+
+### Tourist (السائح)
+- **Post a trip** in four short steps: title and governorates (with a cover photo picked from that governorate's photos), dates and group size (up to 10 people), languages and an optional day-by-day plan, then a budget **per day**.
+- **Hire a guide directly** from the guide's page: the request goes only to that guide.
+- **Compare offers**: sort, star a shortlist, compare side by side, chat with any guide.
+- **Hire and pay**: by card (a saved card can be reused) or in cash with guides who accept cash. The money is held, and the tourist releases each day after it has happened.
+- **Travel passport**: a passport-shaped button above the tab bar adds a photo from a trip (place, governorate, date, short note). The passport opens like a real notebook with turning pages, and anyone who opens the tourist's profile can see it.
+- **Profile menu**: your info, your passport, requests and trips, wallet (saved card), settings (language), sign out.
+
+### Guide (المرشد)
+- **Sign up** with a strong password, then fill the profile in three steps: about you, where you guide, languages and price per day. Then **ask for verification** (the team checks within 24 hours).
+- **Requests feed**: trip cards that match the guide's cities and languages, with "Send offer".
+- **Send an offer**: total price, a plan per day, what is included, a message. Shows the fee and what the guide receives. Editable or withdrawable until someone is hired.
+- **Confirm or decline a hire** within 48 hours, ask for each day's payment, refund a day, or mark cash received.
+- **Profile**: photos from past tours (the round + button above the tab bar adds one), days off, profile and cover photos.
+- **Plans**: a subscription to accept cash bookings, and paid featuring on the home screen.
+
+### Admin (الإدارة)
+- **Home**: what needs attention first (guides waiting for verification, open reports), platform numbers, and governorate statistics.
+- **Verify guides** and **resolve reports** (refund the tourist, pay the guide, or dismiss; suspend accounts).
+- **Users**: search, open profiles, suspend or reactivate.
+- **City statistics**: visitors, trips, requests, guides and money per governorate.
+- **Governorates**: the round + button adds a governorate in three steps (name in Arabic and English, its heritage places, its photos). Tourists can pick it at once, and its photos become the trip cover choices. Existing governorates can be edited the same way.
+- **Prices**: the guide subscription, featuring price and length, and the dollar-to-dinar rate shown next to prices.
+
+### Guest (not signed in)
+Can browse guides and the home screen, and is asked to sign in before posting or hiring.
+
+## 3. A trip from start to finish
+
+```
+Tourist posts a trip ──► Guides send offers ──► Tourist compares, chats
+        │                                              │
+        │                         Tourist hires one offer (money is held)
+        │                                              │
+        │                       Guide confirms within 48 hours ── or declines / lapses → money returns, request reopens
+        │                                              │
+        │                         Tour days happen: guide asks for each day's payment,
+        │                         tourist releases it (or the guide refunds it)
+        │                                              │
+        └──────────────────────────────► All days settled → tour complete → both review each other
+```
+
+If something goes wrong, either side can **report a problem**. The held money stays held until the admin decides.
+
+## 4. Features in detail
+
+- **Two languages.** Every text lives in `src/web/strings.ts` in English and Arabic. `npm run check` fails if any text is missing in either language. Layouts use logical CSS properties so Arabic mirrors correctly.
+- **Strict, live validation.** Mistakes show while typing, not only on submit. When a limit is reached (for example 3 languages on a trip, or 10 people) the remaining options lock until one is removed. The server checks the same limits.
+- **Per-day budget.** Tourists type a budget per day; the app shows the whole-trip total and stores totals, so guides and tourists see the same numbers.
+- **Trip cards.** Requests show as cards with the governorate photo, the tourist's name and photo, title, dates, place, people, budget per day and an action ("Send offer" for guides, offers count for tourists). Tapping opens the trip.
+- **Saved card.** Only the brand, last four digits, name and expiry are kept, never the full number or the security code.
+- **Travel passport.** Its own look, separate from the rest of the app: warm paper pages, a lapis-blue cover with gold, binder rings, script captions (Great Vibes, Aref Ruqaa for Arabic, Reem Kufi for Arabic titles).
+  - Always an open two-page spread that scales as one piece on phones (CSS container queries).
+  - The left page is the holder's page: name, nationality, passport number `TG-000123`, counts, photo and signature.
+  - Each right page is one photo memory, mounted with tape and photo corners.
+  - Pages turn in 3D around the middle of the spine, by button, keyboard (arrows, PageUp/PageDown), or by dragging the page with a finger. The page follows the finger, and a quick flick finishes the turn.
+  - Each turn plays a paper sound made with the Web Audio API (no audio files). It can be muted, and the choice is remembered.
+  - Visitors first see the closed cover, and tap it to open.
+- **Fixed controls.** Wizard step bars stay at the top; the step buttons, and the Message / Hire buttons on a guide's page, stay right above the tab bar while scrolling. The open chat fills the screen, with the header pinned and the message box pinned above the keyboard.
+- **Pull to refresh** on the home screen, with the logo bird spinning.
+- **Demo sign-in.** "Try the demo" opens a sheet: pick tourist, guide or admin (a check marks your choice), then "Enter as…".
+
+## 5. How the app is built
+
+Plain language first: the **whole marketplace logic** (every rule, price and check) is written once in `src/core`. That same code runs in two places:
+
+1. **On a Node server** (`src/server/index.ts`), which saves the data in one JSON file. Used when the app is hosted as a website or the phone apps are pointed at a server.
+2. **Inside the app itself** (`src/web/demo.tsx`), with the data saved in the phone's browser storage. This is how the phone apps and the demo page work today, **fully offline**, with no server needed.
+
+The screens (`src/web`) are a React app. They call the API through `src/web/lib/api.ts`, which talks to the server if there is one, or to the built-in engine if not. Because both paths use the same `src/core/api.ts`, the app behaves the same either way.
+
+| Part | Technology | Why |
+|---|---|---|
+| Screens | React 19 + TypeScript | One code base for phone and web |
+| Styling | One CSS file with design tokens, logical properties | Right-to-left Arabic for free, no CSS framework needed |
+| Logic and data | `src/core` (TypeScript, no dependencies) | Runs on the server and on the phone |
+| Server | Node's built-in `http` module | No framework, nothing to install |
+| Build | esbuild (`scripts/build.mjs`) | Builds everything in about a second |
+| Phone apps | Capacitor 7 | Wraps the web app as real Android and iOS apps |
+| Tests | Node's test runner + Playwright | Rules tests and real-browser tests |
+| Releases | GitHub Actions | Every push to `main` builds and publishes the APK |
+
+Routing uses the address hash (`#/requests/12`), so it works inside the phone apps without server setup.
+
+## 6. Project structure
+
+```
+TripGuide/
+├── README.md                  this guide
+├── MOBILE.md                  building the phone apps by hand (Android Studio, Xcode)
+├── package.json               commands (npm start, npm test, …) and dependencies
+├── capacitor.config.ts        phone app id, name, keyboard and splash settings
+├── render.yaml                one-click hosting on Render
+├── tsconfig.json              TypeScript settings
+│
+├── src/
+│   ├── config/
+│   │   └── brand.ts           app name, colours and business settings (fee, rates, time limits)
+│   │
+│   ├── core/                  THE MARKETPLACE: every rule, shared by server and phone
+│   │   ├── api.ts             all API routes: sign-in, trips, offers, hiring, payments, chat,
+│   │   │                      reviews, reports, admin, governorates, travel passport
+│   │   ├── types.ts           the shape of every record (User, TripRequest, Offer, Booking, …)
+│   │   ├── views.ts           what each side may see; ratings, completion rate, reply time
+│   │   ├── catalog.ts         built-in governorates, places, languages, interests, cover photos
+│   │   ├── seed.ts            demo data (guides, tourists, trips, chats), dated relative to today
+│   │   ├── util.ts            small helpers: validation, dates, money, errors
+│   │   └── api.test.ts        rules tests
+│   │
+│   ├── server/
+│   │   └── index.ts           Node web server: serves the app and /api, saves data/db.json
+│   │
+│   └── web/                   THE SCREENS (React)
+│       ├── main.tsx           entry point and the list of screens (routes)
+│       ├── demo.tsx           entry for the offline build: runs src/core inside the app
+│       ├── Shell.tsx          frame of every screen: header, bottom tab bar, the + buttons
+│       ├── Splash.tsx         launch screen
+│       ├── PullToRefresh.tsx  pull down on home to refresh
+│       ├── passport.tsx       the travel passport book, page turns, sound, closed cover
+│       ├── ui.tsx             shared pieces: buttons, icons, fields, trip card, modal, …
+│       ├── strings.ts         every text in English and Arabic
+│       ├── styles.css         all styles and design tokens
+│       ├── assets.ts          finds pictures (inlined in the offline build)
+│       ├── lib/
+│       │   ├── api.ts         calls the server or the built-in engine
+│       │   ├── app.tsx        app state: signed-in user, language, toasts, dialogs
+│       │   ├── router.tsx     hash routing (#/path)
+│       │   ├── format.ts      dates, money, plurals, city names in both languages
+│       │   ├── image.ts       shrinks photos in the phone before saving
+│       │   ├── native.ts      phone-only behaviour (status bar, back button, keyboard)
+│       │   └── sha256.ts      password hashing for the offline build
+│       └── pages/             one file per area
+│           ├── Home.tsx       home screens for guest, tourist, guide and admin
+│           ├── Requests.tsx   post a trip (4 steps), trip page, offers, hire, my requests
+│           ├── Guides.tsx     find guides, guide page, tourist profile
+│           ├── Bookings.tsx   bookings, day-by-day payments, reports, reviews
+│           ├── Messages.tsx   chat list and full-screen chat
+│           ├── Account.tsx    sign-in, sign-up, profile menu, guide setup, wallet, settings
+│           ├── Admin.tsx      verify guides, reports, users, statistics, prices, governorates
+│           └── Passport.tsx   the tourist's passport screen and "add to passport" sheet
+│
+├── public/                    files served as they are
+│   ├── index.html             web page shell
+│   ├── img/                   photos (Babylon, Ishtar Gate, Malwiya…) and logos
+│   └── fonts/                 fonts (Thmanyah is not committed, see below)
+│
+├── e2e/
+│   └── flows.test.ts          browser tests: real screens at phone size, English and Arabic
+│
+├── scripts/
+│   ├── build.mjs              builds the website, the server, the offline demo and the phone app files
+│   ├── dev.mjs                rebuilds and restarts on every change
+│   ├── reset.mjs              deletes saved data so the next start has fresh demo data
+│   └── check-strings.ts       fails if a text is missing in English or Arabic
+│
+├── android/  ios/             the native phone projects (made by Capacitor)
+├── assets/                    app icon and splash source images
+└── .github/workflows/
+    └── mobile.yml             on every push: check, test, build APK and iOS app, publish a release
+```
+
+## 7. Run it on your computer
 
 You need [Node.js](https://nodejs.org/) 22 or newer.
 
@@ -55,100 +221,105 @@ npm install
 npm start
 ```
 
-Open **http://localhost:3000**. The first start creates `data/db.json` with demo data: 8 cities, 28 places, 10 guides, 20 tourists, open requests with offers, a tour in progress, a hire waiting for the guide, an open report and a guide waiting for verification. All dates are relative to today, so the demo always looks current.
+Open **http://localhost:3000**. The first start creates `data/db.json` with demo data: 8 governorates and their places, 10 guides, 20 tourists, open requests with offers, a tour in progress, a hire waiting for the guide, an open report and a guide waiting for verification. Dates are relative to today, so the demo always looks current.
 
 | Command | What it does |
 |---|---|
 | `npm start` | Build, then serve the app and API on one port (`PORT`, default 3000) |
-| `npm run dev` | Rebuild the web app and restart the server on every change |
-| `npm run reset` | Delete the saved data; the next start creates fresh demo data |
-| `npm run build:demo` | Build `dist/demo/index.html`: the whole app in one file that runs in the browser with no server, saving to that browser only |
-| `npm test` | Marketplace rules tests |
+| `npm run dev` | Rebuild and restart on every change |
+| `npm run reset` | Delete saved data; the next start creates fresh demo data |
+| `npm run build:demo` | Build `dist/demo/index.html`: the whole app in one file that runs in any browser with no server |
+| `npm run build:app` | Build the files the phone apps use (`dist/app`) |
+| `npm test` | Rules tests |
 | `npm run e2e` | Browser tests (run `npm run build` first; needs `npx playwright install chromium` once) |
-| `npm run check` | Type check, and check that every text exists in English and Arabic |
+| `npm run check` | Type check, and check every text exists in English and Arabic |
 
-## Demo accounts
+## 8. Demo accounts
 
-The sign-in screen has one-tap buttons for these. All passwords are `Demo@1234`.
+On the sign-in screen tap **Try the demo**, pick an account and tap **Enter as…**. All passwords are `Demo@1234`.
 
 | Who | Email | What to try |
 |---|---|---|
-| Hannah, tourist | `tourist@tripguide.demo` | Compare the 4 offers on her Babylon trip, chat, hire. Release day 2 of her Karbala tour. Review her Baghdad food walk |
-| Zainab, guide | `guide@tripguide.demo` | Confirm Marco's hire, answer Lena's invite, edit her profile and availability, see her wallet |
-| Admin | `admin@tripguide.demo` | Verify Noor, resolve Reza's no-show report |
+| Hannah, tourist | `tourist@tripguide.demo` | Compare the offers on her Babylon trip, chat, hire. Release a day of her Karbala tour. Open her passport and turn the pages, or add a photo with the passport button |
+| Zainab, guide | `guide@tripguide.demo` | Send an offer from the requests feed, confirm a hire, add a tour photo with the + button, edit her profile |
+| Admin | `admin@tripguide.demo` | Verify a guide, resolve a report, add a governorate with the + button, change prices |
 
-Other guides: `ali@`, `omar@`, `noor@`, `hussein@`, `sara@`, `yousif@`, `layla@`, `ahmed@`, `hamid@` (all `@tripguide.demo`). Other tourists: `marco@`, `lena@`, `yousef@`, `fatima@`, `james@`, `aiko@`, `reza@`.
+Other guides: `ali@`, `omar@`, `noor@`, `hussein@`, `sara@`, `yousif@`, `layla@`, `ahmed@`, `hamid@`. Other tourists: `marco@`, `lena@`, `yousef@`, `fatima@`, `james@`, `aiko@`, `reza@` (all `@tripguide.demo`).
 
-## Tests
+## 9. Phone apps and automatic releases
 
-- **Rules** (`src/core/api.test.ts`): the full flow from post to reviews, direct hire, the 48-hour lapse, declines, reports and refunds, guide verification, validation, and availability search. A test clock moves time forward.
-- **Browser** (`e2e/flows.test.ts`): starts a real server with fresh data and drives Chromium at phone size: post, offer, chat, hire, confirm, release each day, review both ways; direct hire; guide sign-up and verification; report and refund; withdrawing an offer; releasing a requested day. It also opens every main screen in Arabic at phone and desktop width and fails on sideways scrolling, untranslated text or any JavaScript error.
+The phone apps are the same web app wrapped by Capacitor (`android/`, `ios/`). Without a server address they carry the demo engine inside and work offline.
 
-## Fonts
+On **every push to `main`**, GitHub Actions (`.github/workflows/mobile.yml`):
 
-The design uses **Thmanyah Sans** throughout, as the brand guide does: Black and Bold for headings, Regular and Medium for text. Their licence does not allow redistributing the files, so they are **not in this repository**. Download them from [font.thmanyah.com](https://font.thmanyah.com) and copy these files into `public/fonts/`:
+1. installs, type-checks and runs the rules tests;
+2. builds the Android APK and an unsigned iOS app;
+3. publishes them as a new release (`v1.0.<run number>`), marked as the latest.
 
-```
-thmanyahsans-Regular.woff2   thmanyahsans-Medium.woff2   thmanyahsans-Bold.woff2   thmanyahsans-Black.woff2
-```
+So this link always downloads the newest Android build: <https://github.com/Aboalhussn/TripGuide/releases/latest/download/trip-guide.apk>
 
-Without them the app falls back to system fonts. Check the licence terms before hosting the fonts on a public website.
+To point the apps at a real server, set the repository variable `API_URL`. Building by hand with Android Studio or Xcode is described in [MOBILE.md](MOBILE.md).
 
-## Rename the app
+## 10. Tests
 
-The name is set in one place: `src/config/brand.ts` (`name`, `nameAr`, `tagline`). The logo files are in `public/img`: `tg-logo-horizontal.svg` (header), `tg-logo-stacked.svg` (sign-in), `tg-mark.svg` (the bird alone), and `-white` versions for dark backgrounds. Icons are `public/favicon.png`, `public/apple-touch-icon.png` and `public/icon-512.png`.
+- **Rules** (`src/core/api.test.ts`, `npm test`): the full flow from posting to reviews, direct hire, the 48-hour lapse, declines, reports and refunds, verification, validation and limits, trip covers, governorates added by the admin, the travel passport, saved cards and more. A test clock moves time forward.
+- **Browser** (`e2e/flows.test.ts`, `npm run e2e`): starts a real server with fresh data and drives Chromium at phone size, for example:
+  - post, offer, chat, hire, confirm, release each day, review both ways;
+  - direct hire, guide sign-up and verification, reports and refunds;
+  - strict limits, the hire flow, profile menus and photos, the fixed buttons;
+  - the admin adding a governorate;
+  - the passport turning by button, keyboard and drag.
 
-## Settings
+  It also opens every main screen in Arabic at phone and desktop width, and fails on sideways scrolling, missing translations or any JavaScript error.
 
-In `src/config/brand.ts`:
+## 11. Settings, names and fonts
+
+**Name and logo.** The name is set in `src/config/brand.ts` (`name`, `nameAr`, `tagline`). Logos are in `public/img` (`tg-logo-horizontal.svg`, `tg-logo-stacked.svg`, `tg-mark.svg`, plus `-white` versions). App icons come from `assets/` (`npm run assets` regenerates them).
+
+**Business settings** in `src/config/brand.ts`:
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `feeRate` | `0.1` | Service fee taken from the guide when a payment is released |
-| `iqdPerUsd` | `1310` | Rate used to show approximate dinar prices |
+| `feeRate` | `0.1` | Service fee taken from the guide when a card payment is released |
+| `guideSubscriptionPrice`, `subscriptionDays` | `5`, `30` | Starting price of the cash subscription (the admin can change it) |
+| `promotionPrice`, `promotionDays` | `10`, `7` | Starting price of being featured (the admin can change it) |
+| `iqdPerUsd` | `1310` | Starting dollar-to-dinar rate (the admin can change it) |
 | `confirmWindowHours` | `48` | Time a guide has to confirm a hire |
 | `reviewRevealDays` | `14` | When a one-sided review becomes visible |
 | `demoPhoneCode` | `123456` | Simulated phone verification code |
-| `showDemoLogins` | `true` | One-tap demo sign-in buttons. Turn off for a real launch |
+| `showDemoLogins` | `true` | The "Try the demo" button. Turn off for a real launch |
 
-Environment variables: `PORT`, `DATA_FILE` (path of the JSON data file), `RESET=1` (start with fresh demo data).
+Server environment variables: `PORT`, `DATA_FILE` (path of the JSON data file), `RESET=1` (start with fresh demo data), `ALLOWED_ORIGINS`.
 
-## Deploy
+**Fonts.**
+- **Thmanyah Sans** is the app's main font. Its licence does not allow redistributing the files, so they are not in this repository. Download them from [font.thmanyah.com](https://font.thmanyah.com) and copy `thmanyahsans-Regular/Medium/Bold/Black.woff2` into `public/fonts/`. Without them the app uses system fonts.
+- The passport fonts (**Great Vibes**, **Aref Ruqaa**, **Reem Kufi**) are under the SIL Open Font Licence and are included.
 
-Any host that runs Node 22 works. The build has no native modules.
+## 12. The API
 
-**Render (free):** create a Web Service from this repository with build command `npm install && npm run build` and start command `node dist/server.mjs`. Free instances lose their disk when they restart, which suits a demo: the app recreates fresh demo data on each start. For data that must last, attach a persistent disk and set `DATA_FILE` to a path on it. `render.yaml` sets this up.
+All routes are in `src/core/api.ts` and answer JSON under `/api` (on the server) or inside the app (offline). Signed-in calls send `Authorization: Bearer <token>`.
 
-**No server at all:** run `npm run build:demo` and host `dist/demo/index.html` anywhere (GitHub Pages, Netlify). Each visitor gets their own copy of the demo in their browser.
+| Area | Routes |
+|---|---|
+| Start | `GET /meta` (governorates, places, cover photos, languages, prices, today) |
+| Accounts | `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`, `GET/PUT /me`, `PUT/DELETE /me/card`, `POST /me/verify-phone`, `POST /me/verify-payment` |
+| Travel passport | `POST /me/passport`, `DELETE /me/passport/:id` (shown in `GET /me` and `GET /users/:id`) |
+| Guides | `GET /guides`, `GET /guides/:id`, `PUT /guide/profile`, `POST /guide/photos`, `POST /guide/verification`, `GET/POST /guide/subscription`, `GET/POST /guide/promotion` |
+| Tourists | `GET /users/:id` |
+| Trips | `POST /requests`, `GET /requests`, `GET /requests/mine`, `GET /requests/:id`, `POST /requests/:id/close`, `GET /requests/:id/suggested-guides`, `POST /requests/:id/invite` |
+| Offers | `POST /requests/:id/offers`, `PUT /offers/:id`, `POST /offers/:id/withdraw`, `POST /offers/:id/shortlist`, `GET /offers/mine`, `POST /offers/:id/hire` |
+| Bookings and payments | `GET /bookings`, `GET /bookings/:id`, `POST /bookings/:id/confirm`, `/decline`, `/cancel`, `/report`, `/review`; `POST /milestones/:id/release`, `/request-release`, `/refund`, `/cash-received` |
+| Chat | `GET/POST /threads`, `GET /threads/:id`, `POST /threads/:id/messages` |
+| Other | `GET /notifications`, `POST /notifications/read-all`, `POST /notifications/:id/read`, `GET /wallet`, `GET /dashboard` |
+| Admin | `GET /admin/stats`, `GET/PUT /admin/settings`, `GET /admin/verifications`, `POST /admin/guides/:id/verify`, `GET /admin/reports`, `POST /admin/reports/:id/resolve`, `GET /admin/users`, `POST /admin/users/:id/status`, `GET/POST /admin/cities`, `GET/PUT /admin/cities/:slug` |
 
-## Project structure
+Errors come back as `{ "error": "code", "params": {…} }`; the app turns each code into a sentence in the user's language.
 
-```
-src/
-├── config/brand.ts     name, colours, fee and other settings
-├── core/               the marketplace: runs on the server and in the browser demo
-│   ├── api.ts          every route and rule
-│   ├── views.ts        stats (rating, completion, repeat hires, reply time) and public shapes
-│   ├── seed.ts         demo data, relative to today
-│   ├── catalog.ts      cities, places, languages, interests
-│   └── api.test.ts     rules tests
-├── server/index.ts     Node web server and JSON file storage (no dependencies)
-└── web/                React app
-    ├── pages/          one file per area: Home, Guides, Requests, Bookings, Messages, Account, Admin
-    ├── strings.ts      every interface text in English and Arabic
-    ├── styles.css      design tokens and components (logical properties for right-to-left)
-    ├── ui.tsx          shared components
-    └── demo.tsx        entry for the single-file browser demo
-e2e/flows.test.ts       browser tests
-scripts/                build, dev, reset, translation check
-public/                 index.html, images, logo, fonts (fonts not committed)
-```
-
-## Rules the app enforces
+## 13. Rules the app enforces
 
 | Who | Can | When |
 |---|---|---|
-| Tourist | Post a request | Dates from today, up to 30 days, at least one city and language |
+| Tourist | Post a request | Dates from today, up to 30 days, 1–4 governorates, up to 10 people, 1–3 languages |
 | Guide | Send one offer per request, with a plan for each day | While the request is open; edit or withdraw until someone is hired |
 | Tourist | Hire an offer | Request open, offer waiting, guide free on those dates. Money is held at once |
 | Guide | Confirm or decline a hire | Within 48 hours. Confirming closes the other offers; declining or lapsing refunds the tourist and reopens the request |
@@ -159,13 +330,22 @@ public/                 index.html, images, logo, fonts (fonts not committed)
 | Either | Report a problem | While a hire is waiting or confirmed; held money stays held until the admin decides |
 | Either | Review the other | After the tour is complete, once |
 | Guide | Message a tourist first | Only about a request they offered on, or a booking they share |
+| Tourist | Add a passport page | Up to 30 pages; a real photo, a place, a governorate and a date that is not in the future |
+| Admin | Add or edit a governorate | Unique names in both languages, 1–30 places, 1–12 photos |
 
-Prices are always calculated on the server, and a guide can't be booked on days that overlap another booking or a day they blocked.
+Prices are always calculated on the server, and a guide can't be booked on days that overlap another booking or a day off.
 
-## Known limits
+## 14. Deploy
+
+Any host that runs Node 22 works; there are no native modules.
+
+- **Render (free):** create a Web Service from this repository with build command `npm install && npm run build` and start command `node dist/server.mjs` (`render.yaml` sets this up). Free instances lose their disk on restart, which suits a demo. For data that must last, attach a disk and set `DATA_FILE`.
+- **No server at all:** run `npm run build:demo` and host `dist/demo/index.html` anywhere (GitHub Pages, Netlify). Each visitor gets their own copy of the demo.
+
+## 15. Known limits
 
 - **Payments are simulated.** Connecting a real provider (for example Qi Card or ZainCash) means replacing the hire, release and refund steps with real calls.
-- **Storage is one JSON file**, written after each change. It is fine for a demo and a single server; for real use, move `src/core` onto a database.
-- **Messages and notifications refresh by polling** (every 5 and 15 seconds). Push notifications would need a service worker.
-- **Verification uploads** record file names only; the files are not stored. Guide photos are resized in the browser and stored inline.
-- **Sign-in tokens live in `localStorage`.** Use httpOnly cookies before a public launch, and add password reset and rate limiting.
+- **Storage is one JSON file** on the server, or the phone's storage in the offline app. Fine for a demo; for real use, move `src/core` onto a database.
+- **Photos are stored inline** (shrunk in the phone first). A real launch should move them to file storage.
+- **Messages and notifications refresh by polling.** Push notifications would need a push service.
+- **Sign-in tokens live in local storage.** Use httpOnly cookies on the web, and add password reset and rate limiting before a public launch.

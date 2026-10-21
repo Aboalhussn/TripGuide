@@ -4,7 +4,7 @@ import { seed } from '../core/seed';
 import type { Data, Platform } from '../core/types';
 import { sha256 } from './lib/sha256';
 
-const KEY = 'tg.demo.data.v1';
+const KEY = 'tg.demo.data.v2'; // bump when the demo data changes shape, so phones start from the new demo data
 
 const browserPlatform: Platform = {
   now: () => new Date(),

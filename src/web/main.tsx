@@ -14,6 +14,7 @@ import { MyOffers, PostRequest, RequestDetail, RequestsIndex } from './pages/Req
 import { BookingDetail, BookingsList, Wallet } from './pages/Bookings';
 import { Notifications, Thread, Threads } from './pages/Messages';
 import { Account, GuideEditor, GuidePlans, GuideSetup, Login, ProfileInfo, ProfileSettings, Register, TripsHub, VerifyAccount } from './pages/Account';
+import { PassportScreen } from './pages/Passport';
 import { AdminReports, AdminUsers, AdminVerify, AdminStats, AdminPricing, AdminCities, CityWizard } from './pages/Admin';
 
 function NeedLogin({ path }: { path: string }) {
@@ -62,6 +63,7 @@ function Routes() {
   else if (p('/profile')) page = authed(<Account />);
   else if (p('/profile/info')) page = authed(<ProfileInfo />);
   else if (p('/profile/trips')) page = authed(<TripsHub query={query} />);
+  else if (p('/passport')) page = authed(<PassportScreen />);
   else if (p('/profile/settings')) page = authed(<ProfileSettings />);
   else if (p('/profile/plans')) page = authed(<GuidePlans />);
   else if (p('/profile/guide')) page = authed(<GuideEditor />);

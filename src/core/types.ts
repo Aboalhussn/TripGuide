@@ -12,6 +12,7 @@ export interface User {
   avatar?: string | null; // uploaded profile photo (data URL), if any
   cover?: string | null; // uploaded cover photo shown behind the profile header, if any
   savedCard?: SavedCard | null; // a card kept for faster payments: never the full number or CVC
+  passport?: PassportPage[]; // tourists: their travel passport, one photo memory per page
   phone: string;
   phoneVerified: boolean;
   paymentVerified: boolean;
@@ -216,6 +217,9 @@ export interface PlatformSettings {
   promotionDays: number;
   iqdPerUsd: number; // exchange rate shown next to USD prices, set by the admin
 }
+
+// A page of a tourist's travel passport: a photo they took, where and when.
+export interface PassportPage { id: number; img: string; place: string; city: string; date: string; note: string; createdAt: string }
 
 export interface Session { token: string; userId: number; createdAt: string }
 

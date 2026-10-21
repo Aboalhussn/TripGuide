@@ -4,6 +4,7 @@ import { useApp, useLoad } from '../lib/app';
 import { useFmt } from '../lib/format';
 import { Link, navigate } from '../lib/router';
 import { asset } from '../assets';
+import { TouristPassport } from './Passport';
 import { Avatar, Empty, ErrorState, Field, GuideCard, Icon, Loading, Modal, MonthCalendar, PageHead, Photo, Rating, ResponseTime, Star, VerifiedBadge, useBusy, PromoBand } from '../ui';
 
 const SORTS = ['best', 'rating', 'price_low', 'price_high', 'tours'];
@@ -542,6 +543,7 @@ export function TouristProfile({ id }: { id: string }) {
           <div className="l">{t('tourist.requests')}</div>
         </div>
       </div>
+      <TouristPassport u={u} />
       <h2>{t('tourist.reviews_from_guides')}</h2>
       {u.reviews.length === 0 && <p className="muted small">{t('guide.no_reviews')}</p>}
       {u.reviews.map((r: any) => (

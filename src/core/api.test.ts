@@ -524,3 +524,26 @@ test('trip cover: each governorate brings its photos, one without photos brings 
   assert.equal(s.ok('POST', '/requests', { ...base, cover: 'gate.jpg' }, tt).cover, 'gate.jpg');
   assert.equal(s.ok('POST', '/requests', { ...base, cover: '' }, tt).cover, 'babylon.jpg');
 });
+
+test('travel passport: tourists add photo memories; anyone who opens their profile sees them', () => {
+  const s = setup();
+  const tt = s.login(DEMO_ACCOUNTS.tourist);
+  const g = s.login(DEMO_ACCOUNTS.guide);
+  const me = s.ok('GET', '/me', null, tt);
+  const before = me.passport.pages.length;
+  assert.match(me.passport.number, /^TG-\d{6}$/);
+  const img = 'data:image/jpeg;base64,' + 'C'.repeat(300);
+  const page = { img, place: 'Ishtar Gate', city: 'babylon', date: s.today(), note: 'Blue tiles!' };
+  assert.equal(s.call('POST', '/me/passport', page, g).status, 403);
+  assert.equal(s.call('POST', '/me/passport', { ...page, img: 'http://x/y.jpg' }, tt).body.error, 'photo_invalid');
+  assert.equal(s.call('POST', '/me/passport', { ...page, city: 'atlantis' }, tt).body.error, 'field_invalid');
+  assert.equal(s.call('POST', '/me/passport', { ...page, date: '2999-01-01' }, tt).body.error, 'date_future');
+  const pp = s.ok('POST', '/me/passport', page, tt);
+  assert.equal(pp.pages.length, before + 1);
+  assert.equal(pp.pages.at(-1).place, 'Ishtar Gate'); // oldest first, so today's is last
+  const seen = s.ok('GET', `/users/${me.id}`, null, g).passport;
+  assert.equal(seen.pages.length, before + 1);
+  const id = pp.pages.at(-1).id;
+  assert.equal(s.ok('DELETE', `/me/passport/${id}`, null, tt).pages.length, before);
+  assert.equal(s.call('DELETE', `/me/passport/${id}`, null, tt).status, 404);
+});
