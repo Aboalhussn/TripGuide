@@ -15,7 +15,7 @@ type NavItem = { to: string; label: string; icon: string; badge?: number; primar
 export function Shell({ path, children }: { path: string; children: React.ReactNode }) {
   const { me, t, lang } = useApp();
   // Sign-in and sign-up are full-screen: no bottom tab bar.
-  const bare = path === '/login' || path === '/register';
+  const bare = path === '/login' || path === '/register' || path === '/forgot';
   // An open conversation fills the phone screen like a chat app: no bottom tab bar.
   const chat = /^\/messages\/[^/]+$/.test(path);
   const role = me?.role || 'guest';

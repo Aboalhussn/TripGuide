@@ -329,6 +329,9 @@ Every action in the app is one HTTP endpoint. The screens call these, and an age
 | `POST /auth/register` | Anyone | `role` (`tourist`/`guide`), `name`, `email`, `password` (8+ with upper, lower, number, symbol), `country`, `gender` (`f`/`m`) | Creates an account and signs in; returns `{ token, user }` |
 | `POST /auth/login` | Anyone | `email`, `password` | Signs in; returns `{ token, user }` |
 | `POST /auth/logout` | Signed in | – | Ends this session |
+| `POST /auth/forgot` | Anyone | `email` | Sends a 6-digit reset code (valid 15 minutes; in the demo it is returned as `demoCode`). Same answer whether or not the email exists |
+| `POST /auth/reset` | Anyone | `email`, `code`, `password` | Sets a new password with the code, signs out other sessions, and signs in; returns `{ token, user }` |
+| `POST /me/password` | Signed in | `current`, `password` | Changes the password; other sessions are signed out |
 | `GET /me` | Signed in | – | The signed-in user: profile, saved card (brand and last 4 only), unread counts, guide profile, travel passport |
 | `PUT /me` | Signed in | any of `name`, `email`, `country`, `phone`, `avatar`, `cover` (images as `data:image/...;base64`) | Edits your info and photos |
 | `PUT /me/card` | Tourist, Guide | `number`, `name`, `expiry` (`MM/YY`), `cvc` | Saves a payment card (only brand, last 4, name and expiry are kept) |

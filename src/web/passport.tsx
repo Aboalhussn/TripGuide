@@ -223,8 +223,8 @@ export function PassportBook({ holder, data, trips, editable = false, onAdd, onD
   }, [data.pages]);
   const count = data.pages.length;
 
-  // Open on the newest page.
-  const [index, setIndex] = useState(() => Math.max(0, count - 1));
+  // Always open on the first page.
+  const [index, setIndex] = useState(0);
   const [turn, setTurn] = useState<Turn | null>(null);
   const [sound, setSound] = useState(readSound);
   const [open, setOpen] = useState<PassportPage | null>(null);

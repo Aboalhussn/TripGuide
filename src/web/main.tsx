@@ -13,7 +13,7 @@ import { FindGuides, GuideProfile, TouristProfile } from './pages/Guides';
 import { MyOffers, PostRequest, RequestDetail, RequestsIndex } from './pages/Requests';
 import { BookingDetail, BookingsList, Wallet } from './pages/Bookings';
 import { Notifications, Thread, Threads } from './pages/Messages';
-import { Account, GuideEditor, GuidePlans, GuideSetup, Login, ProfileInfo, ProfileSettings, Register, TripsHub, VerifyAccount, PolicyPage } from './pages/Account';
+import { Account, GuideEditor, GuidePlans, GuideSetup, Login, ProfileInfo, ProfileSettings, Register, TripsHub, VerifyAccount, PolicyPage, ForgotPassword, ChangePassword } from './pages/Account';
 import { PassportScreen } from './pages/Passport';
 import { AdminReports, AdminUsers, AdminVerify, AdminStats, AdminPricing, AdminCities, CityWizard } from './pages/Admin';
 
@@ -73,6 +73,8 @@ function Routes() {
   else if ((m = p('/users/:id'))) page = authed(<TouristProfile id={m.id} />);
   else if (p('/login')) page = <Login query={query} />;
   else if (p('/register')) page = <Register query={query} />;
+  else if (p('/forgot')) page = <ForgotPassword query={query} />;
+  else if (p('/profile/password')) page = authed(<ChangePassword />);
   else if (p('/admin') || p('/admin/verify')) page = authed(<AdminVerify />);
   else if (p('/admin/reports')) page = authed(<AdminReports />);
   else if (p('/admin/users')) page = authed(<AdminUsers />);

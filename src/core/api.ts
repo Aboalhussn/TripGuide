@@ -271,6 +271,14 @@ route('GET', '/meta', (ctx) => ({
 }));
 
 // ---------- auth ----------
+// Strong passwords: 8+ characters with a capital letter, a small letter, a number and a symbol.
+function checkPassword(pw: unknown) {
+  if (typeof pw !== 'string' || pw.length < 8) throw bad('password_short');
+  if (!/[A-Z]/.test(pw) || !/[a-z]/.test(pw) || !/\d/.test(pw) || !/[^A-Za-z0-9]/.test(pw)) throw bad('password_weak');
+  if (pw.length > 200) throw bad('field_too_long', { field: 'password', max: 200 });
+  return pw;
+}
+
 route('POST', '/auth/register', (ctx, _p, req) => {
   const b = req.body || {};
   const role = b.role === 'guide' ? 'guide' : b.role === 'tourist' ? 'tourist' : null;
@@ -278,10 +286,7 @@ route('POST', '/auth/register', (ctx, _p, req) => {
   const name = str(b.name, 'name', 2, 60);
   const email = str(b.email, 'email', 3, 120).toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw bad('email_invalid');
-  if (typeof b.password !== 'string' || b.password.length < 8) throw bad('password_short');
-  // Strong passwords: a capital letter, a small letter, a number and a symbol.
-  if (!/[A-Z]/.test(b.password) || !/[a-z]/.test(b.password) || !/\d/.test(b.password) || !/[^A-Za-z0-9]/.test(b.password)) throw bad('password_weak');
-  if (b.password.length > 200) throw bad('field_too_long', { field: 'password', max: 200 });
+  checkPassword(b.password);
   if (ctx.data.users.some((u) => u.email === email)) throw conflict('email_taken');
   const country = str(b.country, 'country', 2, 60);
   const gender = b.gender === 'f' ? 'f' : b.gender === 'm' ? 'm' : null;
@@ -337,6 +342,48 @@ route('POST', '/auth/login', (ctx, _p, req) => {
   const token = ctx.p.randomToken();
   ctx.data.sessions.push({ token, userId: u.id, createdAt: ctx.nowIso });
   return { token, user: meView(ctx, u) };
+});
+
+// Forgot password: sends a 6-digit code to the email (in the demo, with no email service, the code is
+// returned as demoCode). The answer is the same whether or not the email has an account.
+route('POST', '/auth/forgot', (ctx, _p, req) => {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw bad('email_invalid');
+  const u = ctx.data.users.find((x) => x.email === email && x.role !== 'admin');
+  if (!u) return { sent: true };
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  ctx.data.resets = (ctx.data.resets || []).filter((r) => r.userId !== u.id);
+  ctx.data.resets.push({ userId: u.id, codeHash: ctx.p.hashPassword(code), expiresAt: new Date(ctx.now.getTime() + 15 * 60_000).toISOString(), tries: 0 });
+  return { sent: true, ...(settings.showDemoLogins ? { demoCode: code } : {}) };
+});
+
+// Sets a new password with the code from the email, signs out everywhere else, and signs in.
+route('POST', '/auth/reset', (ctx, _p, req) => {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  const u = ctx.data.users.find((x) => x.email === email);
+  const r = u && (ctx.data.resets || []).find((x) => x.userId === u.id);
+  if (!u || !r || r.expiresAt < ctx.nowIso || r.tries >= 5) throw bad('reset_code_invalid');
+  if (!ctx.p.verifyPassword(String(req.body?.code || '').trim(), r.codeHash)) {
+    r.tries += 1;
+    throw bad('reset_code_invalid');
+  }
+  u.passwordHash = ctx.p.hashPassword(checkPassword(req.body?.password));
+  ctx.data.resets = (ctx.data.resets || []).filter((x) => x !== r);
+  ctx.data.sessions = ctx.data.sessions.filter((s) => s.userId !== u.id);
+  const token = ctx.p.randomToken();
+  ctx.data.sessions.push({ token, userId: u.id, createdAt: ctx.nowIso });
+  return { token, user: meView(ctx, u) };
+});
+
+// Change password while signed in: the current one first; other sessions are signed out.
+route('POST', '/me/password', (ctx, _p, req) => {
+  const u = need(ctx);
+  if (!ctx.p.verifyPassword(String(req.body?.current || ''), u.passwordHash)) throw bad('password_wrong');
+  const pw = checkPassword(req.body?.password);
+  if (ctx.p.verifyPassword(pw, u.passwordHash)) throw bad('password_same');
+  u.passwordHash = ctx.p.hashPassword(pw);
+  ctx.data.sessions = ctx.data.sessions.filter((s) => s.userId !== u.id || s.token === req.token);
+  return { ok: true };
 });
 
 route('POST', '/auth/logout', (ctx, _p, req) => {

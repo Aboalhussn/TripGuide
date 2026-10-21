@@ -1084,3 +1084,7 @@ html:has(.post-wizard) { scroll-padding: 110px 0 170px; }
 .withdraw-card { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .withdraw-amount { font-size: 26px; font-weight: 800; color: var(--navy); }
 .withdraw-need { max-width: 160px; }
+.auth-top .login-brand { margin: 0; }
+.forgot-link { align-self: flex-end; margin-top: -6px; font-size: 14px; font-weight: 700; color: var(--navy); }
+.demo-code strong { font-size: 18px; letter-spacing: 3px; }
+.auth-page .auth-top { align-items: center; } .auth-top .login-brand { display: flex; align-items: center; }

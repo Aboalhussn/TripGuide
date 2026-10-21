@@ -575,3 +575,22 @@ test('wallet: a guide withdraws released earnings to a saved card; a tourist kee
   s.ok('PUT', '/me/card', { number: '4242424242424242', name: 'Tourist Card', expiry: '12/30', cvc: '123' }, tt);
   assert.equal(s.ok('POST', '/wallet/withdraw', { amount: 10 }, tt).available, Math.round((m2.amount - 10) * 100) / 100);
 });
+
+test('passwords: forgot sends a code (shown in the demo), reset signs in with the new one; change needs the current one', () => {
+  const s = setup();
+  assert.deepEqual(s.ok('POST', '/auth/forgot', { email: 'nobody@example.com' }), { sent: true }); // same answer for unknown emails
+  const f = s.ok('POST', '/auth/forgot', { email: DEMO_ACCOUNTS.tourist });
+  assert.match(f.demoCode, /^\d{6}$/);
+  const wrong = f.demoCode === '000000' ? '111111' : '000000';
+  assert.equal(s.call('POST', '/auth/reset', { email: DEMO_ACCOUNTS.tourist, code: wrong, password: 'New#Pass123' }).body.error, 'reset_code_invalid');
+  assert.equal(s.call('POST', '/auth/reset', { email: DEMO_ACCOUNTS.tourist, code: f.demoCode, password: 'weak' }).body.error, 'password_short');
+  const r = s.ok('POST', '/auth/reset', { email: DEMO_ACCOUNTS.tourist, code: f.demoCode, password: 'New#Pass123' });
+  assert.ok(r.token);
+  assert.equal(s.call('POST', '/auth/reset', { email: DEMO_ACCOUNTS.tourist, code: f.demoCode, password: 'Other#Pass1' }).body.error, 'reset_code_invalid'); // used once
+  assert.equal(s.call('POST', '/auth/login', { email: DEMO_ACCOUNTS.tourist, password: 'Demo@1234' }).status, 401);
+  const tk = s.ok('POST', '/auth/login', { email: DEMO_ACCOUNTS.tourist, password: 'New#Pass123' }).token;
+  assert.equal(s.call('POST', '/me/password', { current: 'nope', password: 'Third#Pass1' }, tk).body.error, 'password_wrong');
+  assert.equal(s.call('POST', '/me/password', { current: 'New#Pass123', password: 'New#Pass123' }, tk).body.error, 'password_same');
+  s.ok('POST', '/me/password', { current: 'New#Pass123', password: 'Third#Pass1' }, tk);
+  assert.equal(s.call('POST', '/auth/login', { email: DEMO_ACCOUNTS.tourist, password: 'Third#Pass1' }).status, 200);
+});

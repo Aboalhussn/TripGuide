@@ -730,7 +730,7 @@ test('tourist profile: a short menu with your info, requests and trips, wallet, 
   await go(p, '/profile');
   assert.deepEqual(
     (await p.locator('.menu-row strong').allInnerTexts()),
-    ['Your info', 'Your passport', 'Requests and trips', 'Wallet', 'Notifications', 'Privacy policy and terms', 'Settings'],
+    ['Your info', 'Your passport', 'Requests and trips', 'Wallet', 'Notifications', 'Change password', 'Privacy policy and terms', 'Settings'],
   );
   // Your info: edit the country, see the error right away for a bad email.
   await p.getByRole('link', { name: /Your info/ }).click();
@@ -775,7 +775,7 @@ test('guide and admin profiles use the same menu', async () => {
   const g = await open();
   await login(g, 'guide@tripguide.demo');
   await go(g, '/profile');
-  assert.deepEqual(await g.locator('.menu-row strong').allInnerTexts(), ['Your info', 'Your guide profile', 'Photos and days off', 'Your tours', 'Wallet', 'Subscription and featuring', 'Verification', 'Notifications', 'Privacy policy and terms', 'Settings']);
+  assert.deepEqual(await g.locator('.menu-row strong').allInnerTexts(), ['Your info', 'Your guide profile', 'Photos and days off', 'Your tours', 'Wallet', 'Subscription and featuring', 'Verification', 'Notifications', 'Change password', 'Privacy policy and terms', 'Settings']);
   await g.getByRole('link', { name: /Your tours/ }).click();
   await g.getByRole('tab', { name: 'Upcoming', selected: true }).waitFor();
   await g.locator('.card.link').first().waitFor();
@@ -787,7 +787,7 @@ test('guide and admin profiles use the same menu', async () => {
   const a = await open();
   await login(a, 'admin@tripguide.demo');
   await go(a, '/profile');
-  assert.deepEqual(await a.locator('.menu-row strong').allInnerTexts(), ['Your info', 'Governorates', 'Prices and subscriptions', 'City statistics', 'Notifications', 'Privacy policy and terms', 'Settings']);
+  assert.deepEqual(await a.locator('.menu-row strong').allInnerTexts(), ['Your info', 'Governorates', 'Prices and subscriptions', 'City statistics', 'Notifications', 'Change password', 'Privacy policy and terms', 'Settings']);
   await a.getByRole('link', { name: /City statistics/ }).click();
   await a.getByRole('heading', { name: 'City statistics' }).waitFor();
   await go(a, '/profile');
@@ -878,9 +878,14 @@ test('travel passport: the passport button adds a photo; the book turns by butto
   await sheet.getByRole('button', { name: 'Add to passport' }).click();
   await tt.waitForURL((u) => u.hash === '#/passport');
   const count = tt.locator('.pp-count');
-  await count.getByText(/^Page (\d+) of \1$/).waitFor(); // opens on the newest page
+  await count.getByText(/^Page 1 of \d+$/).waitFor(); // always opens on the first page
   const total = Number((await count.innerText()).match(/of (\d+)/)![1]);
-  await tt.locator('.leaf.base .stamp-info-name', { hasText: 'Al-Mutanabbi Street' }).waitFor();
+  for (let i = 1; i < total; i++) {
+    await tt.getByRole('button', { name: 'Next page' }).click();
+    await tt.locator('.leaf.turning').waitFor({ state: 'detached' });
+  }
+  await count.getByText(`Page ${total} of ${total}`).waitFor();
+  await tt.locator('.leaf.base .stamp-info-name', { hasText: 'Al-Mutanabbi Street' }).waitFor(); // the newest is last
   await tt.getByRole('button', { name: 'Previous page' }).click();
   await count.getByText(`Page ${total - 1} of ${total}`).waitFor();
   await tt.locator('.leaf.turning').waitFor({ state: 'detached' }); // the turn has landed
@@ -904,7 +909,7 @@ test('travel passport: the passport button adds a photo; the book turns by butto
   await go(g, '/users/12');
   await g.getByRole('button', { name: /Open Hannah W\.'s passport/ }).click();
   await g.locator('.book').waitFor();
-  await g.locator('.stamp-info-name', { hasText: 'Al-Mutanabbi Street' }).waitFor();
+  await g.locator('.pp-count').getByText(/^Page 1 of \d+$/).waitFor(); // visitors also start on the first page
   assert.equal(await g.getByRole('button', { name: 'Add a memory' }).count(), 0); // visitors can't add pages
   await g.context().close();
 });
@@ -923,5 +928,38 @@ test('wallet: a guide withdraws earnings to the saved card', async () => {
   await p.getByText(/is on its way to your card/).waitFor();
   await card.getByRole('button', { name: 'Withdraw to card' }).and(p.locator(':disabled')).waitFor();
   await p.locator('.list-item', { hasText: 'Withdrawn to card' }).first().waitFor();
+  await p.context().close();
+});
+
+test('sign-in and sign-up: logo and language button sit on one line above the title; forgot password resets with a code', async () => {
+  for (const route of ['/login', '/register']) {
+    const p = await open();
+    await go(p, route);
+    const logo = (await p.locator('.auth-top .login-brand img').boundingBox())!;
+    const lang = (await p.locator('.auth-top .lang-toggle').boundingBox())!;
+    const title = (await p.locator('.auth-head h1').boundingBox())!;
+    assert.ok(Math.abs(logo.y + logo.height / 2 - (lang.y + lang.height / 2)) < 4, `${route}: logo and language button line up`);
+    assert.ok(logo.y + logo.height < title.y, `${route}: the logo is above the title, not over it`);
+    await p.context().close();
+  }
+  const p = await open();
+  await go(p, '/login');
+  await p.getByRole('link', { name: 'Forgot your password?' }).click();
+  await p.getByLabel('Email').fill('marco@tripguide.demo');
+  await p.getByRole('button', { name: 'Send the code' }).click();
+  const code = (await p.locator('.demo-code strong').innerText()).trim();
+  await p.getByLabel('6-digit code').fill(code);
+  await p.getByLabel('New password', { exact: true }).fill('Fresh#Pass42');
+  await p.getByLabel('Repeat the new password').fill('Fresh#Pass42');
+  await p.getByRole('button', { name: 'Save the new password' }).click();
+  await p.waitForFunction(() => !!localStorage.getItem('tg.token'));
+  // Change it again from the profile.
+  await go(p, '/profile');
+  await p.locator('.menu-row', { hasText: 'Change password' }).click();
+  await p.getByLabel('Current password').fill('Fresh#Pass42');
+  await p.getByLabel('New password', { exact: true }).fill('Demo@1234');
+  await p.getByLabel('Repeat the new password').fill('Demo@1234');
+  await p.getByRole('button', { name: 'Save the new password' }).click();
+  await p.getByText('Your password is changed').waitFor();
   await p.context().close();
 });

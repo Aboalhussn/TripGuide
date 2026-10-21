@@ -224,6 +224,9 @@ export interface PassportPage { id: number; img: string; place: string; city: st
 // Money taken out of the wallet to the saved card: a guide's earnings, or a tourist's refunds.
 export interface Withdrawal { id: number; userId: number; amount: number; brand: string; last4: string; createdAt: string }
 
+// A forgot-password code: kept hashed, valid for a short time, used once.
+export interface PasswordReset { userId: number; codeHash: string; expiresAt: string; tries: number }
+
 export interface Session { token: string; userId: number; createdAt: string }
 
 export interface Data {
@@ -236,6 +239,7 @@ export interface Data {
   places: Place[];
   media?: Media[];
   withdrawals?: Withdrawal[];
+  resets?: PasswordReset[];
   requests: TripRequest[];
   offers: Offer[];
   bookings: Booking[];

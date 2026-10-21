@@ -57,6 +57,9 @@ export function Login({ query }: { query: Record<string, string> }) {
               <Icon name={showPw ? 'eyeOff' : 'eye'} size={20} />
             </button>
           </div>
+          <Link to={'/forgot' + (email ? '?email=' + encodeURIComponent(email) : '')} className="forgot-link">
+            {t('auth.forgot')}
+          </Link>
           {err && !demoOpen && (
             <div className="note danger" role="alert" dir="auto">
               {err}
@@ -323,6 +326,7 @@ function AccountMenu() {
   const info = { to: '/profile/info', icon: 'user', label: t('menu.info'), sub: t('menu.info_sub') };
   const settings = { to: '/profile/settings', icon: 'globe', label: t('menu.settings'), sub: lang === 'ar' ? 'العربية' : 'English' };
   const notes = { to: '/notifications', icon: 'bell', label: t('notifications.title'), sub: me.unreadNotifications ? t('menu.unread', { count: me.unreadNotifications }) : t('notifications.none'), badge: me.unreadNotifications ? <span className="pill gold">{me.unreadNotifications}</span> : null };
+  const pwRow = { to: '/profile/password', icon: 'eye', label: t('pw.change'), sub: t('pw.change_sub') };
   const policy = { to: '/profile/policy', icon: 'shield', label: t('menu.policy'), sub: t('menu.policy_sub') };
   const cardSub = me.savedCard ? `${me.savedCard.brand} •••• ${me.savedCard.last4}` : t('menu.wallet_add');
   const g = me.guide;
@@ -343,6 +347,7 @@ function AccountMenu() {
             badge: g?.verification === 'verified' ? <VerifiedBadge size={18} /> : g?.verification === 'pending' ? <span className="pill gold">{t('verify.short.pending')}</span> : null,
           },
           notes,
+          pwRow,
           policy,
           settings,
         ]
@@ -353,6 +358,7 @@ function AccountMenu() {
             { to: '/admin/pricing', icon: 'money', label: t('admin.pricing'), sub: t('menu.pricing_sub') },
             { to: '/admin/stats', icon: 'chart', label: t('stats.title'), sub: t('menu.stats_sub') },
             notes,
+            pwRow,
             policy,
             settings,
           ]
@@ -362,6 +368,7 @@ function AccountMenu() {
             { to: '/profile/trips', icon: 'list', label: t('menu.trips'), sub: t('menu.trips_sub') },
             { to: '/wallet', icon: 'wallet', label: t('menu.wallet'), sub: cardSub },
             notes,
+            pwRow,
             policy,
             settings,
           ];
@@ -1360,6 +1367,161 @@ export function PolicyPage() {
           </ul>
         </section>
       ))}
+    </div>
+  );
+}
+
+/** A new password field with the eye button and the live strength bar. */
+function NewPassword({ id, value, onChange, label, tried }: { id: string; value: string; onChange(v: string): void; label: string; tried: boolean }) {
+  const { t } = useApp();
+  const [show, setShow] = useState(false);
+  const rules = passwordRules(value);
+  const strong = rules.every((r) => r.ok);
+  return (
+    <>
+      <div className="field">
+        <label htmlFor={id}>{label}</label>
+        <div className="pw-wrap">
+          <input id={id} className="input" type={show ? 'text' : 'password'} autoComplete="new-password" value={value} onChange={(e) => onChange(e.target.value)} aria-describedby="pw-meter" aria-invalid={tried && !strong ? true : undefined} />
+          <button type="button" className="pw-eye" aria-label={show ? t('auth.hide_pw') : t('auth.show_pw')} aria-pressed={show} onClick={() => setShow(!show)}>
+            <Icon name={show ? 'eyeOff' : 'eye'} size={20} />
+          </button>
+        </div>
+        {tried && !strong && <span className="err">{t('err.password_weak')}</span>}
+      </div>
+      <PasswordMeter rules={rules} typed={!!value} warn={tried && !strong} />
+    </>
+  );
+}
+
+/** Forgot password: the email gets a 6-digit code (shown on screen in the demo), then a new password. */
+export function ForgotPassword({ query }: { query: Record<string, string> }) {
+  const { t, signIn, errorText, toast } = useApp();
+  const [email, setEmail] = useState(query.email || '');
+  const [step, setStep] = useState<'email' | 'code'>('email');
+  const [demoCode, setDemoCode] = useState<string | null>(null);
+  const [code, setCode] = useState('');
+  const [pw, setPw] = useState('');
+  const [pw2, setPw2] = useState('');
+  const [tried, setTried] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim());
+  const strong = passwordRules(pw).every((r) => r.ok);
+  const send = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    setErr(null);
+    setTried(true);
+    if (!emailOk) return;
+    setBusy(true);
+    try {
+      const r = await api('POST', '/auth/forgot', { email: email.trim() });
+      setDemoCode(r.demoCode || null);
+      setStep('code');
+      setTried(false);
+    } catch (x) {
+      setErr(errorText(x));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const reset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErr(null);
+    setTried(true);
+    if (!/^\d{6}$/.test(code.trim()) || !strong || pw !== pw2) return;
+    setBusy(true);
+    try {
+      const r = await api('POST', '/auth/reset', { email: email.trim(), code: code.trim(), password: pw });
+      signIn(r.token, r.user);
+      toast(t('pw.reset_done'));
+      navigate('/', { replace: true });
+    } catch (x) {
+      setErr(errorText(x));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="auth-page slide">
+      <AuthHero small img="malwiya.jpg" title={t('pw.forgot_title')} text={step === 'email' ? t('pw.forgot_text') : t('pw.code_text', { email: email.trim() })} />
+      <section className="auth-sheet">
+        {step === 'email' ? (
+          <form className="stack" onSubmit={send} noValidate>
+            <Field label={t('field.email')} error={tried && !emailOk ? t('err.email_invalid') : undefined}>
+              <input id="fp-email" className="input login-input" type="email" inputMode="email" autoComplete="email" placeholder="name@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+            </Field>
+            {err && <div className="note danger" role="alert">{err}</div>}
+            <button className="btn lg" disabled={busy}>{t('pw.send_code')}</button>
+          </form>
+        ) : (
+          <form className="stack" onSubmit={reset} noValidate>
+            {demoCode && (
+              <div className="note demo-code" role="status">
+                {t('pw.demo_code')} <strong dir="ltr">{demoCode}</strong>
+              </div>
+            )}
+            <Field label={t('pw.code')} error={tried && !/^\d{6}$/.test(code.trim()) ? t('pw.v_code') : undefined}>
+              <input id="fp-code" className="input login-input" inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="123456" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} />
+            </Field>
+            <NewPassword id="fp-pw" label={t('pw.new')} value={pw} onChange={setPw} tried={tried} />
+            <Field label={t('pw.repeat')} error={tried && pw2 !== pw ? t('pw.v_match') : undefined}>
+              <input id="fp-pw2" className="input" type="password" autoComplete="new-password" value={pw2} onChange={(e) => setPw2(e.target.value)} />
+            </Field>
+            {err && <div className="note danger" role="alert">{err}</div>}
+            <button className="btn lg" disabled={busy}>{t('pw.save_new')}</button>
+            <button type="button" className="linkish center" onClick={() => send()} disabled={busy}>{t('pw.resend')}</button>
+          </form>
+        )}
+        <p className="small center">
+          <Link to="/login">{t('pw.back_login')}</Link>
+        </p>
+      </section>
+    </div>
+  );
+}
+
+/** Change password while signed in: the current one, then the new one twice. */
+export function ChangePassword() {
+  const { t, toast, errorText } = useApp();
+  const [cur, setCur] = useState('');
+  const [pw, setPw] = useState('');
+  const [pw2, setPw2] = useState('');
+  const [tried, setTried] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const strong = passwordRules(pw).every((r) => r.ok);
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErr(null);
+    setTried(true);
+    if (!cur || !strong || pw !== pw2) return;
+    setBusy(true);
+    try {
+      await api('POST', '/me/password', { current: cur, password: pw });
+      toast(t('pw.changed'));
+      navigate('/profile', { replace: true });
+    } catch (x) {
+      setErr(errorText(x));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="page" style={{ maxWidth: 560, margin: '0 auto', width: '100%' }}>
+      <PageHead title={t('pw.change')} backTo="/profile" />
+      <form className="card stack" onSubmit={save} noValidate>
+        <Field label={t('pw.current')} error={tried && !cur ? t('pw.v_current') : undefined}>
+          <input id="cp-cur" className="input" type="password" autoComplete="current-password" value={cur} onChange={(e) => setCur(e.target.value)} />
+        </Field>
+        <NewPassword id="cp-pw" label={t('pw.new')} value={pw} onChange={setPw} tried={tried} />
+        <Field label={t('pw.repeat')} error={tried && pw2 !== pw ? t('pw.v_match') : undefined}>
+          <input id="cp-pw2" className="input" type="password" autoComplete="new-password" value={pw2} onChange={(e) => setPw2(e.target.value)} />
+        </Field>
+        {err && <div className="note danger" role="alert">{err}</div>}
+        <button className="btn lg" disabled={busy}>{t('pw.save_new')}</button>
+        <Link to="/forgot" className="small center">{t('auth.forgot')}</Link>
+      </form>
     </div>
   );
 }
