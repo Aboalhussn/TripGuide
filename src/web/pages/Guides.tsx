@@ -406,7 +406,7 @@ export function GuideProfile({ id }: { id: string }) {
         </div>
 
         <aside style={{ padding: '0 16px' }}>
-          <div className="sticky-actions" style={{ flexDirection: 'column' }}>
+          <div className="gp-panel">
             <div className="between">
               <span>
                 <strong style={{ fontSize: 22 }}>{fmt.usd(g.pricePerDay)}</strong> <span className="muted small">{t('common.per_day')}</span>
@@ -414,24 +414,27 @@ export function GuideProfile({ id }: { id: string }) {
               <Rating rating={s.rating} count={s.reviewsCount} />
             </div>
             {isMe ? (
-              <Link to="/guide/setup" className="btn">
-                {t('guide.edit_mine')}
-              </Link>
+              <div className="gp-actions">
+                <Link to="/guide/setup" className="btn lg" style={{ flex: 1 }}>
+                  {t('guide.edit_mine')}
+                </Link>
+              </div>
             ) : canHire && !g.suspended ? (
-              <div className="row" style={{ flexWrap: 'nowrap' }}>
-                <button type="button" className="btn outline" style={{ flex: 1 }} onClick={message} disabled={busy}>
+              // Fixed right above the tab bar, like the buttons when posting a trip.
+              <div className="gp-actions">
+                <button type="button" className="btn lg outline" style={{ flex: 1 }} onClick={message} disabled={busy}>
                   {t('guide.message')}
                 </button>
                 {g.forMe?.booking ? (
-                  <Link to={`/bookings/${g.forMe.booking.id}`} className="btn" style={{ flex: 1.4 }}>
+                  <Link to={`/bookings/${g.forMe.booking.id}`} className="btn lg" style={{ flex: 1.4 }}>
                     {g.forMe.booking.status === 'awaiting_guide' ? t('guide.hired_waiting', { name: first }) : t('guide.see_booking')}
                   </Link>
                 ) : g.forMe?.offer ? (
-                  <Link to={`/requests/${g.forMe.offer.requestId}?hire=${g.forMe.offer.id}`} className="btn" style={{ flex: 1.4 }}>
+                  <Link to={`/requests/${g.forMe.offer.requestId}?hire=${g.forMe.offer.id}`} className="btn lg" style={{ flex: 1.4 }}>
                     {t('offer.hire_for', { amount: fmt.usd(g.forMe.offer.price) })}
                   </Link>
                 ) : (
-                  <Link to={me ? `/post?guide=${g.id}` : `/login?next=${encodeURIComponent('/post?guide=' + g.id)}`} className="btn" style={{ flex: 1.4 }}>
+                  <Link to={me ? `/post?guide=${g.id}` : `/login?next=${encodeURIComponent('/post?guide=' + g.id)}`} className="btn lg" style={{ flex: 1.4 }}>
                     {t('guide.hire', { name: first })}
                   </Link>
                 )}

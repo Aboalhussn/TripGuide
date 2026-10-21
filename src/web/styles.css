@@ -792,3 +792,15 @@ html:has(.post-wizard) { scroll-padding: 110px 0 170px; }
 .btn.signout-btn { background: #f3f5f6; color: #c62828; border: 1.5px solid #c62828; font-weight: 700; }
 .btn.signout-btn:hover { background: #eceff1; color: #b71c1c; }
 .btn.signout-btn:active { background: #e5e9eb; }
+/* Guide page: price and rating stay in the page; Message / Hire are fixed right above the tab bar, like the post-trip buttons. */
+.gp-panel { display: flex; flex-direction: column; gap: 10px; padding: 12px 0 0; }
+.gp-actions { display: flex; gap: 10px; flex-wrap: nowrap; position: fixed; z-index: 15; left: 0; right: 0; bottom: calc(75px + env(safe-area-inset-bottom, 0px)); padding: 10px max(18px, env(safe-area-inset-right, 0px)) 10px max(18px, env(safe-area-inset-left, 0px)); pointer-events: none; }
+.gp-actions .btn { pointer-events: auto; box-shadow: 0 6px 18px -8px rgba(5,63,92,.45); min-width: 0; }
+.gp-actions .btn.outline { background: #fff; }
+.page:has(.gp-actions) { padding-bottom: 110px; }
+@media (min-width: 960px) {
+  .gp-actions { position: static; padding: 0; pointer-events: auto; }
+  .gp-actions .btn { box-shadow: none; }
+  .page:has(.gp-actions) { padding-bottom: 24px; }
+}
+@media (max-width: 959px) { .gp-panel { padding-bottom: 84px; } }
