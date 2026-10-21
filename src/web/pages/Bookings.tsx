@@ -483,7 +483,7 @@ export function Wallet() {
   return (
     <div className="page" style={{ maxWidth: 760, margin: '0 auto', width: '100%' }}>
       <PageHead title={t('wallet.title')} backTo={guide ? '/' : '/profile'} />
-      {!guide && <PaymentCard />}
+      <PaymentCard />
       <section className="card dark grid-2" style={{ gap: 16, padding: 18 }}>
         <div>
           <div className="small muted">{guide ? t('wallet.earned') : t('wallet.paid_guides')}</div>

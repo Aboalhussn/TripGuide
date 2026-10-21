@@ -219,19 +219,49 @@ export function Register({ query }: { query: Record<string, string> }) {
 
 /* ---------- Tourist profile: a short menu, each row opens its own page ---------- */
 
-function TouristAccount() {
+function AccountMenu() {
   const { t, me, lang, signOut, ask } = useApp();
   const signOutNow = async () => {
     if (!(await ask(t('account.sign_out_confirm'), t('account.sign_out'), { danger: true }))) return;
     navigate('/login', { replace: true });
     await signOut();
   };
-  const rows = [
-    { to: '/profile/info', icon: 'user', label: t('menu.info'), sub: t('menu.info_sub') },
-    { to: '/profile/trips', icon: 'list', label: t('menu.trips'), sub: t('menu.trips_sub') },
-    { to: '/wallet', icon: 'wallet', label: t('menu.wallet'), sub: me.savedCard ? `${me.savedCard.brand} •••• ${me.savedCard.last4}` : t('menu.wallet_add') },
-    { to: '/profile/settings', icon: 'globe', label: t('menu.settings'), sub: lang === 'ar' ? 'العربية' : 'English' },
-  ];
+  const info = { to: '/profile/info', icon: 'user', label: t('menu.info'), sub: t('menu.info_sub') };
+  const settings = { to: '/profile/settings', icon: 'globe', label: t('menu.settings'), sub: lang === 'ar' ? 'العربية' : 'English' };
+  const cardSub = me.savedCard ? `${me.savedCard.brand} •••• ${me.savedCard.last4}` : t('menu.wallet_add');
+  const g = me.guide;
+  const rows: { to: string; icon: string; label: string; sub: string; badge?: React.ReactNode }[] =
+    me.role === 'guide'
+      ? [
+          info,
+          { to: '/guide/setup', icon: 'edit', label: t('menu.guide_profile'), sub: g?.profileComplete ? t('menu.guide_profile_sub') : t('dash.finish_profile'), badge: !g?.profileComplete ? <span className="pill gold">{t('menu.todo')}</span> : null },
+          { to: '/profile/guide', icon: 'image', label: t('editor.title_media'), sub: t('menu.media_sub', { count: g?.photos?.length || 0 }) },
+          { to: '/profile/trips', icon: 'calendar', label: t('menu.tours'), sub: t('menu.tours_sub') },
+          { to: '/wallet', icon: 'wallet', label: t('menu.wallet'), sub: t('menu.wallet_guide_sub') },
+          { to: '/profile/plans', icon: 'money', label: t('menu.plans'), sub: g?.cashOpen ? t('menu.plans_cash_on') : t('menu.plans_sub') },
+          {
+            to: '/verify',
+            icon: 'shield',
+            label: t('menu.verification'),
+            sub: t('verify.short.' + (g?.verification || 'none')),
+            badge: g?.verification === 'verified' ? <VerifiedBadge size={18} /> : g?.verification === 'pending' ? <span className="pill gold">{t('verify.short.pending')}</span> : null,
+          },
+          settings,
+        ]
+      : me.role === 'admin'
+        ? [
+            info,
+            { to: '/admin/pricing', icon: 'money', label: t('admin.pricing'), sub: t('menu.pricing_sub') },
+            { to: '/admin/stats', icon: 'chart', label: t('stats.title'), sub: t('menu.stats_sub') },
+            { to: '/notifications', icon: 'bell', label: t('notifications.title'), sub: me.unreadNotifications ? t('menu.unread', { count: me.unreadNotifications }) : t('notifications.none'), badge: me.unreadNotifications ? <span className="pill gold">{me.unreadNotifications}</span> : null },
+            settings,
+          ]
+        : [
+            info,
+            { to: '/profile/trips', icon: 'list', label: t('menu.trips'), sub: t('menu.trips_sub') },
+            { to: '/wallet', icon: 'wallet', label: t('menu.wallet'), sub: cardSub },
+            settings,
+          ];
   return (
     <div className="page" style={{ maxWidth: 720, margin: '0 auto', width: '100%' }}>
       <div className="account-top">
@@ -239,6 +269,11 @@ function TouristAccount() {
         <img src={asset('tg-logo-horizontal.svg')} alt={t('brand.name')} />
       </div>
       <ProfileHeader />
+      {me.role === 'guide' && (
+        <Link to={`/guides/${me.id}`} className="btn ghost sm" style={{ alignSelf: 'flex-start', marginTop: -10 }}>
+          {t('dash.view_public')}
+        </Link>
+      )}
       <nav className="menu-list" aria-label={t('account.title')}>
         {rows.map((r) => (
           <Link key={r.to} to={r.to} className="menu-row">
@@ -247,6 +282,7 @@ function TouristAccount() {
               <strong>{r.label}</strong>
               <span className="xs muted">{r.sub}</span>
             </span>
+            {r.badge}
             <Icon name="next" size={18} className="flip" />
           </Link>
         ))}
@@ -254,6 +290,19 @@ function TouristAccount() {
       <button type="button" className="btn lg red" onClick={signOutNow}>
         <Icon name="logout" size={18} className="flip" /> {t('account.sign_out')}
       </button>
+    </div>
+  );
+}
+
+/** Guides: cash payments subscription and the featured listing, on one page. */
+export function GuidePlans() {
+  const { t, me } = useApp();
+  if (!me || me.role !== 'guide') return null;
+  return (
+    <div className="page" style={{ maxWidth: 720, margin: '0 auto', width: '100%' }}>
+      <PageHead title={t('menu.plans')} backTo="/profile" />
+      <CashPayments />
+      <Promotion />
     </div>
   );
 }
@@ -356,48 +405,55 @@ export function ProfileInfo() {
 
 /** "Requests and trips": switch at the top between trip requests and finished trips. */
 export function TripsHub({ query }: { query: Record<string, string> }) {
-  const { t } = useApp();
+  const { t, me } = useApp();
   const fmt = useFmt();
-  const [tab, setTab] = useState<'requests' | 'done'>(query.tab === 'done' ? 'done' : 'requests');
+  const guide = me?.role === 'guide';
+  const [tab, setTab] = useState<'first' | 'done'>(query.tab === 'done' ? 'done' : 'first');
   const res = useLoad(() => api('GET', '/bookings'), []);
-  const done: any[] = (res.data?.bookings || []).filter((b: any) => b.status === 'completed').sort((a: any, b: any) => b.startDate.localeCompare(a.startDate));
+  const all: any[] = res.data?.bookings || [];
+  const done = all.filter((b) => b.status === 'completed').sort((a, b) => b.startDate.localeCompare(a.startDate));
+  const upcoming = all.filter((b) => ['awaiting_guide', 'confirmed', 'disputed'].includes(b.status)).sort((a, b) => a.startDate.localeCompare(b.startDate));
+  const list = (items: any[], emptyTitle: string, emptyText: string) =>
+    !res.data ? (
+      <div className="skeleton" style={{ height: 160 }} />
+    ) : items.length === 0 ? (
+      <div className="card stack center" style={{ gap: 8 }}>
+        <strong>{emptyTitle}</strong>
+        <span className="small muted">{emptyText}</span>
+      </div>
+    ) : (
+      <div className="cards">
+        {items.map((b) => (
+          <Link key={b.id} to={`/bookings/${b.id}`} className="card link row" style={{ gap: 12, flexWrap: 'nowrap' }}>
+            <div className="date-chip">
+              <div className="xs">{fmt.date(b.startDate, { month: 'short' })}</div>
+              <div style={{ fontSize: 20, fontWeight: 700 }}>{fmt.date(b.startDate, { day: 'numeric' })}</div>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }} className="stack">
+              <strong style={{ lineHeight: 1.3 }}><bdi>{b.title}</bdi></strong>
+              <span className="small muted">{(guide ? b.tourist?.name : b.guide?.name) || ''} · {fmt.usd(b.total)}</span>
+            </div>
+            <BookingStatus status={b.status} />
+          </Link>
+        ))}
+      </div>
+    );
   return (
     <div className="page" style={{ maxWidth: 720, margin: '0 auto', width: '100%' }}>
-      <PageHead title={t('menu.trips')} backTo="/profile" />
+      <PageHead title={guide ? t('menu.tours') : t('menu.trips')} backTo="/profile" />
       <div className="segmented" role="tablist">
-        <button role="tab" aria-selected={tab === 'requests'} onClick={() => setTab('requests')}>
-          {t('menu.tab_requests')}
+        <button role="tab" aria-selected={tab === 'first'} onClick={() => setTab('first')}>
+          {guide ? t('menu.tab_upcoming') : t('menu.tab_requests')}
         </button>
         <button role="tab" aria-selected={tab === 'done'} onClick={() => setTab('done')}>
-          {t('menu.tab_done')}
+          {guide ? t('menu.tab_done_tours') : t('menu.tab_done')}
         </button>
       </div>
-      {tab === 'requests' ? (
-        <MyRequestsList />
-      ) : !res.data ? (
-        <div className="skeleton" style={{ height: 160 }} />
-      ) : done.length === 0 ? (
-        <div className="card stack center" style={{ gap: 8 }}>
-          <strong>{t('menu.no_done')}</strong>
-          <span className="small muted">{t('menu.no_done_text')}</span>
-        </div>
-      ) : (
-        <div className="cards">
-          {done.map((b) => (
-            <Link key={b.id} to={`/bookings/${b.id}`} className="card link row" style={{ gap: 12, flexWrap: 'nowrap' }}>
-              <div className="date-chip">
-                <div className="xs">{fmt.date(b.startDate, { month: 'short' })}</div>
-                <div style={{ fontSize: 20, fontWeight: 700 }}>{fmt.date(b.startDate, { day: 'numeric' })}</div>
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }} className="stack">
-                <strong style={{ lineHeight: 1.3 }}><bdi>{b.title}</bdi></strong>
-                <span className="small muted">{b.guide?.name} · {fmt.usd(b.total)}</span>
-              </div>
-              <span className="pill sky">{t('booking.status.completed')}</span>
-            </Link>
-          ))}
-        </div>
-      )}
+      {tab === 'first'
+        ? guide
+          ? list(upcoming, t('menu.no_upcoming'), t('menu.no_upcoming_text'))
+          : <MyRequestsList />
+        : list(done, guide ? t('menu.no_done_tours') : t('menu.no_done'), t('menu.no_done_text'))}
     </div>
   );
 }
@@ -571,150 +627,9 @@ function ProfileHeader() {
 }
 
 export function Account() {
-  const { t, me, setLang, lang, signOut, refreshMe, toast, ask } = useApp();
-  const [f, setF] = useState({ name: me?.name || '', country: me?.country || '', phone: me?.phone || '' });
-  const [code, setCode] = useState('');
-  const [showCode, setShowCode] = useState(false);
-  const { busy, run } = useBusy();
-  const { meta } = useApp();
+  const { me } = useApp();
   if (!me) return null; // the router sends signed-out visitors to sign in
-  if (me.role === 'tourist') return <TouristAccount />;
-  return (
-    <div className="page" style={{ maxWidth: 720, margin: '0 auto', width: '100%' }}>
-      <PageHead title={t('account.title')} />
-      <ProfileHeader />
-
-      {me.role === 'guide' && (
-        <div className="card stack">
-          <div className="between">
-            <strong>{t('account.guide_profile')}</strong>
-            {me.guide.verification === 'verified' && (
-              <span className="pill sky">
-                <VerifiedBadge size={14} /> {t('badge.verified')}
-              </span>
-            )}
-          </div>
-          <p className="small muted">{me.guide.profileComplete ? t('account.guide_profile_text') : t('dash.finish_profile_text')}</p>
-          <div className="row">
-            <Link to="/guide/setup" className="btn sm">
-              {t('dash.edit_profile')}
-            </Link>
-            <Link to="/profile/guide" className="btn sm outline">
-              {t('editor.title_media')}
-            </Link>
-            <Link to={`/guides/${me.id}`} className="btn sm ghost">
-              {t('dash.view_public')}
-            </Link>
-          </div>
-        </div>
-      )}
-
-      {(me.role === 'tourist' || me.role === 'guide') && <MyTrips guide={me.role === 'guide'} />}
-      {(me.role === 'tourist' || me.role === 'guide') && <PaymentCard />}
-
-      {me.role === 'guide' && <CashPayments />}
-      {me.role === 'guide' && <Promotion />}
-
-      <div className="cards">
-        {me.role !== 'admin' && (
-          <Link to="/wallet" className="card link row">
-            <Icon name="wallet" /> <strong>{t('wallet.title')}</strong>
-          </Link>
-        )}
-        <Link to="/notifications" className="card link row">
-          <Icon name="bell" /> <strong style={{ flex: 1 }}>{t('notifications.title')}</strong>
-          {me.unreadNotifications > 0 && <span className="pill gold">{me.unreadNotifications}</span>}
-        </Link>
-        {me.role === 'admin' && (
-          <Link to="/" className="card link row">
-            <Icon name="shield" /> <strong>{t('nav.admin')}</strong>
-          </Link>
-        )}
-      </div>
-
-      <form
-        className="card stack"
-        onSubmit={(e) => {
-          e.preventDefault();
-          run(async () => {
-            await api('PUT', '/me', f);
-            await refreshMe();
-          }, t('common.saved'));
-        }}
-      >
-        <h2>{t('account.details')}</h2>
-        <Field label={t('field.name')}>
-          <input className="input" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
-        </Field>
-        <Field label={t('field.country')}>
-          <input className="input" value={f.country} onChange={(e) => setF({ ...f, country: e.target.value })} />
-        </Field>
-        <Field label={t('field.phone')} hint={me.phoneVerified ? t('account.phone_verified') : t('account.phone_unverified')}>
-          <input className="input ltr" type="tel" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} />
-        </Field>
-        <div className="row">
-          <button className="btn" disabled={busy}>
-            {t('common.save')}
-          </button>
-          {me.phone && !me.phoneVerified && f.phone === me.phone && (
-            <button type="button" className="btn outline" onClick={() => setShowCode(true)}>
-              {t('account.verify_phone')}
-            </button>
-          )}
-        </div>
-      </form>
-
-      <div className="card stack">
-        <h2>{t('account.language')}</h2>
-        <div className="row">
-          <button type="button" className="toggle-chip" aria-pressed={lang === 'en'} onClick={() => setLang('en')}>
-            English
-          </button>
-          <button type="button" className="toggle-chip" aria-pressed={lang === 'ar'} onClick={() => setLang('ar')}>
-            العربية
-          </button>
-        </div>
-      </div>
-
-      <button
-        type="button"
-        className="btn lg red"
-        onClick={async () => {
-          if (!(await ask(t('account.sign_out_confirm'), t('account.sign_out'), { danger: true }))) return;
-          navigate('/login', { replace: true }); // land on sign-in, not on a page that needs an account
-          await signOut();
-        }}
-      >
-        <Icon name="logout" size={18} className="flip" /> {t('account.sign_out')}
-      </button>
-      <BrandFooter />
-
-      {showCode && (
-        <Modal title={t('account.verify_phone')} onClose={() => setShowCode(false)}>
-          <p className="small">{t('account.code_sent', { phone: me.phone })}</p>
-          <p className="note small">{t('account.demo_code', { code: meta.demoPhoneCode })}</p>
-          <Field label={t('account.code')}>
-            <input className="input ltr" inputMode="numeric" value={code} onChange={(e) => setCode(e.target.value)} />
-          </Field>
-          <button
-            type="button"
-            className="btn"
-            disabled={busy}
-            onClick={() =>
-              run(async () => {
-                await api('POST', '/me/verify-phone', { code });
-                await refreshMe();
-                setShowCode(false);
-                toast(t('account.phone_done'));
-              })
-            }
-          >
-            {t('account.confirm_code')}
-          </button>
-        </Modal>
-      )}
-    </div>
-  );
+  return <AccountMenu />;
 }
 
 

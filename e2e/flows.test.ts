@@ -256,7 +256,7 @@ test('a new guide signs up, fills the profile, asks for verification and the adm
   await g.locator('.note.warn').getByText('Sent for review').waitFor();
   // "Edit profile" opens the same steps, filled in; changes are optional.
   await go(g, '/profile');
-  await g.getByRole('link', { name: 'Edit profile' }).click();
+  await g.getByRole('link', { name: /Your guide profile/ }).click();
   await g.getByText('Edit your guide profile').waitFor();
   assert.equal(await g.getByLabel('Headline', { exact: true }).inputValue(), 'Kufa and Najaf by bicycle');
   await g.getByRole('button', { name: 'Next' }).click();
@@ -365,6 +365,7 @@ test('cash: a subscribed guide takes cash, the tourist books paying cash', async
   await login(z, 'guide@tripguide.demo');
   await go(z, '/profile');
   await z.getByRole('heading', { name: 'Profile' }).waitFor();
+  await z.getByRole('link', { name: /Subscription and featuring/ }).click();
   await z.getByText('Cash payments').first().waitFor();
   await z.getByRole('button', { name: /^(Subscribe|Renew) for/ }).click();
   await z.getByRole('button', { name: 'Use test card' }).click();
@@ -757,4 +758,28 @@ test('tourist profile: a short menu with your info, requests and trips, wallet, 
   assert.match((await p.getByRole('alertdialog').getByRole('button', { name: 'Sign out' }).getAttribute('class')) || '', /\bred\b/);
   await p.getByRole('alertdialog').getByRole('button', { name: 'Cancel' }).click();
   await p.context().close();
+});
+
+test('guide and admin profiles use the same menu', async () => {
+  const g = await open();
+  await login(g, 'guide@tripguide.demo');
+  await go(g, '/profile');
+  assert.deepEqual(await g.locator('.menu-row strong').allInnerTexts(), ['Your info', 'Your guide profile', 'Photos and days off', 'Your tours', 'Wallet', 'Subscription and featuring', 'Verification', 'Settings']);
+  await g.getByRole('link', { name: /Your tours/ }).click();
+  await g.getByRole('tab', { name: 'Upcoming', selected: true }).waitFor();
+  await g.locator('.card.link').first().waitFor();
+  await g.getByRole('tab', { name: 'Finished tours' }).click();
+  await go(g, '/wallet');
+  await g.getByText('Payment card').first().waitFor();
+  await g.context().close();
+
+  const a = await open();
+  await login(a, 'admin@tripguide.demo');
+  await go(a, '/profile');
+  assert.deepEqual(await a.locator('.menu-row strong').allInnerTexts(), ['Your info', 'Prices and subscriptions', 'City statistics', 'Notifications', 'Settings']);
+  await a.getByRole('link', { name: /City statistics/ }).click();
+  await a.getByRole('heading', { name: 'City statistics' }).waitFor();
+  await go(a, '/profile');
+  assert.match((await a.getByRole('button', { name: 'Sign out' }).getAttribute('class')) || '', /\bred\b/);
+  await a.context().close();
 });
