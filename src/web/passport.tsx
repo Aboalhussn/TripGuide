@@ -448,8 +448,8 @@ export function PassportBook({ holder, data, trips, editable = false, onAdd, onD
                 }}
                 aria-hidden="true"
               >
-                <div className="face front">{render(turningIndex)}</div>
-                <div className="face back">{holderPage}</div>
+                <div className="face pp-front">{render(turningIndex)}</div>
+                <div className="face pp-back">{holderPage}</div>
               </div>
             )}
           </div>
