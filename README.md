@@ -27,6 +27,7 @@ It runs on **Android and iOS** (one shared code base, wrapped with Capacitor), a
 7. [Run it on your computer](#7-run-it-on-your-computer)
 8. [Demo accounts](#8-demo-accounts)
 9. [Phone apps and automatic releases](#9-phone-apps-and-automatic-releases)
+   - [The trip assistant (AI)](#the-trip-assistant-ai)
 10. [Tests](#10-tests)
 11. [Settings, names and fonts](#11-settings-names-and-fonts)
 12. [The API: every endpoint, for apps, agents and MCP](#12-the-api)
@@ -112,6 +113,7 @@ If something goes wrong, either side can **report a problem**. The held money st
   - Visitors first see the closed cover, and tap it to open.
 - **Fixed controls.** Wizard step bars stay at the top; the step buttons, and the Message / Hire buttons on a guide's page, stay right above the tab bar while scrolling. The open chat fills the screen, with the header pinned and the message box pinned above the keyboard.
 - **Pull to refresh** on the home screen, with the logo bird spinning.
+- **Trip assistant (AI).** Instead of the form, a tourist can describe the trip in a chat. The assistant asks for anything missing, suggests heritage places, a budget from real guide prices and a day plan, then shows a review page before posting. See [The trip assistant (AI)](#the-trip-assistant-ai) and [docs/AI_ASSISTANT.md](docs/AI_ASSISTANT.md).
 - **Demo sign-in.** "Try the demo" opens a sheet: pick tourist, guide or admin (a check marks your choice), then "Enter as…".
 
 ## 5. How the app is built
@@ -156,13 +158,17 @@ TripGuide/
 │   │   │                      reviews, reports, admin, governorates, travel passport
 │   │   ├── types.ts           the shape of every record (User, TripRequest, Offer, Booking, …)
 │   │   ├── views.ts           what each side may see; ratings, completion rate, reply time
+│   │   ├── draft.ts           the trip assistant's draft: what is missing, cleaning AI output (docs/AI_ASSISTANT.md)
 │   │   ├── catalog.ts         built-in governorates, places, languages, interests, cover photos
 │   │   ├── seed.ts            demo data (guides, tourists, trips, chats), dated relative to today
 │   │   ├── util.ts            small helpers: validation, dates, money, errors
 │   │   └── api.test.ts        rules tests
 │   │
 │   ├── server/
-│   │   └── index.ts           Node web server: serves the app and /api, saves data/db.json
+│   │   ├── index.ts           Node web server: serves the app and /api, saves data/db.json
+│   │   ├── ai.ts              talks to the AI (OpenAI-compatible APIs or Anthropic), set by AI_* variables
+│   │   ├── assistant.ts       the trip assistant: prompt, one chat turn, suggestions, /api/assistant/*
+│   │   └── mock-ai.ts         a pretend AI for tests and demos with no key
 │   │
 │   └── web/                   THE SCREENS (React)
 │       ├── main.tsx           entry point and the list of screens (routes)
@@ -191,7 +197,8 @@ TripGuide/
 │           ├── Messages.tsx   chat list and full-screen chat
 │           ├── Account.tsx    sign-in, sign-up, profile menu, guide setup, wallet, settings
 │           ├── Admin.tsx      verify guides, reports, users, statistics, prices, governorates
-│           └── Passport.tsx   the tourist's passport screen and "add to passport" sheet
+│           ├── Passport.tsx   the tourist's passport screen and "add to passport" sheet
+│           └── Assistant.tsx  the trip assistant chat (#/post/chat) and review page (#/post/review)
 │
 ├── public/                    files served as they are
 │   ├── index.html             web page shell
@@ -247,6 +254,18 @@ On the sign-in screen tap **Try the demo**, pick an account and tap **Enter as�
 
 Other guides: `ali@`, `omar@`, `noor@`, `hussein@`, `sara@`, `yousif@`, `layla@`, `ahmed@`, `hamid@`. Other tourists: `marco@`, `lena@`, `yousef@`, `fatima@`, `james@`, `aiko@`, `reza@` (all `@tripguide.demo`).
 
+### The trip assistant (AI)
+
+The assistant runs on the server, because the AI key must never ship inside the app. So **the server must be running** (`npm start`) and the app must be using it: the website does, and phone apps built with `API_URL` do. The offline phone app has no server, so it hides the assistant and keeps the normal form.
+
+```bash
+AI_PROVIDER=mock npm start      # try it with no key (a simple pretend AI)
+AI_PROVIDER=openai AI_BASE_URL=https://openrouter.ai/api/v1 AI_API_KEY=... AI_MODEL=... npm start   # a free model
+AI_PROVIDER=anthropic AI_API_KEY=... AI_MODEL=claude-haiku-5-5 npm start                          # Claude
+```
+
+Everything about it (how it works, settings, the endpoint, limits, tests) is in [docs/AI_ASSISTANT.md](docs/AI_ASSISTANT.md).
+
 ## 9. Phone apps and automatic releases
 
 The phone apps are the same web app wrapped by Capacitor (`android/`, `ios/`). Without a server address they carry the demo engine inside and work offline.
@@ -263,6 +282,7 @@ To point the apps at a real server, set the repository variable `API_URL`. Build
 
 ## 10. Tests
 
+- **Trip assistant** (`src/core/draft.test.ts`, `src/server/assistant.test.ts`, part of `npm test`): the draft rules, cleaning what the AI says, the mock AI chat in English and Arabic, broken AI answers, who may use it and the limits. No key or internet needed.
 - **Rules** (`src/core/api.test.ts`, `npm test`): the full flow from posting to reviews, direct hire, the 48-hour lapse, declines, reports and refunds, verification, validation and limits, trip covers, governorates added by the admin, the travel passport, saved cards and more. A test clock moves time forward.
 - **Browser** (`e2e/flows.test.ts`, `npm run e2e`): starts a real server with fresh data and drives Chromium at phone size, for example:
   - post, offer, chat, hire, confirm, release each day, review both ways;
@@ -290,7 +310,7 @@ To point the apps at a real server, set the repository variable `API_URL`. Build
 | `demoPhoneCode` | `123456` | Simulated phone verification code |
 | `showDemoLogins` | `true` | The "Try the demo" button. Turn off for a real launch |
 
-Server environment variables: `PORT`, `DATA_FILE` (path of the JSON data file), `RESET=1` (start with fresh demo data), `ALLOWED_ORIGINS`.
+Server environment variables: `PORT`, `DATA_FILE` (path of the JSON data file), `RESET=1` (start with fresh demo data), `ALLOWED_ORIGINS`, and for the trip assistant `AI_PROVIDER`, `AI_API_KEY`, `AI_MODEL`, `AI_BASE_URL` ([docs/AI_ASSISTANT.md](docs/AI_ASSISTANT.md#6-ai-providers-and-settings)).
 
 **Fonts.**
 - **Thmanyah Sans** is the app's main font. Its licence does not allow redistributing the files, so they are not in this repository. Download them from [font.thmanyah.com](https://font.thmanyah.com) and copy `thmanyahsans-Regular/Medium/Bold/Black.woff2` into `public/fonts/`. Without them the app uses system fonts.
@@ -428,6 +448,14 @@ Every action in the app is one HTTP endpoint. The screens call these, and an age
 | `POST /admin/cities` | Admin | `name`, `nameAr`, `places` (`[{name, nameAr, kind}]`, 1–30), `covers` (1–12: data URLs or existing photo names) | Adds a governorate |
 | `PUT /admin/cities/:slug` | Admin | same as above (keep a place's `id` to edit it) | Edits a governorate |
 
+### Trip assistant
+
+| Endpoint | Who | Send | What it does |
+|---|---|---|---|
+| `GET /assistant/context` | Tourist | – | What the assistant needs: allowed values, today, and real guide prices per governorate |
+| `GET /assistant/status` | Anyone | – | `{ enabled }`: whether the server has an AI set up (server only, not in the offline app) |
+| `POST /assistant/trip` | Tourist | `messages` (`[{role, content}]`), `draft`, `lang` (`en`/`ar`) | One chat turn: returns `reply`, the updated `draft`, `missing`, `problems`, `suggestions`, `ready`. Nothing is saved or posted; post with `POST /requests`. Details in [docs/AI_ASSISTANT.md](docs/AI_ASSISTANT.md#7-the-endpoint) |
+
 ### Using it from an agent or an MCP server
 
 Each endpoint above maps to one tool. A thin MCP server only needs to:
@@ -476,5 +504,6 @@ Any host that runs Node 22 works; there are no native modules.
 - **Payments are simulated.** Connecting a real provider (for example Qi Card or ZainCash) means replacing the hire, release and refund steps with real calls.
 - **Storage is one JSON file** on the server, or the phone's storage in the offline app. Fine for a demo; for real use, move `src/core` onto a database.
 - **Photos are stored inline** (shrunk in the phone first). A real launch should move them to file storage.
+- **The trip assistant needs the server** (it holds the AI key), so the offline phone app hides it. Its rate limit is kept in memory and resets when the server restarts.
 - **Messages and notifications refresh by polling.** Push notifications would need a push service.
 - **Sign-in tokens live in local storage.** Use httpOnly cookies on the web, and add password reset and rate limiting before a public launch.

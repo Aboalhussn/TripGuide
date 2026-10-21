@@ -4,7 +4,7 @@ The trip assistant lets a tourist **describe their trip in their own words** ins
 
 The assistant **never posts anything by itself**. Posting still goes through `POST /requests` when the tourist taps "Post trip", so every rule in `src/core/api.ts` still applies.
 
-> Status: being built step by step. Each step below is marked when it is done.
+> Status: working. Try it with no key: `AI_PROVIDER=mock npm start`, sign in as the demo tourist, and tap **Describe your trip in your own words** on the home screen.
 
 ## Contents
 
@@ -179,6 +179,25 @@ The offline phone app runs the marketplace inside the phone with no server, so i
 
 1. ✅ Draft rules in `src/core/draft.ts`, and `GET /assistant/context`, with tests.
 2. ✅ The AI provider adapter, the mock, the assistant and its endpoint, with tests.
-3. The chat screen with the live draft and suggestion chips.
-4. The review screen and posting.
-5. Browser tests with the mock provider, and this guide finished.
+3. ✅ The chat screen with the live draft and suggestion chips.
+4. ✅ The review screen and posting; the four-step form opens prefilled from the review page.
+5. ✅ Browser tests with the mock provider, and this guide finished.
+
+## 11. The screens
+
+| Screen | What the tourist sees |
+|---|---|
+| Home | A card **Describe your trip in your own words** (hidden when the assistant is off) |
+| Post a trip, step 1 | A link **Rather just describe it? Let the assistant fill this in** |
+| `#/post/chat` | A full-screen chat. A greeting, three example trips to tap, the replies, **Ideas for you** chips, a strip with the trip so far (governorates, dates, people, language, budget, places), what is still needed, **Review my trip**, and a bin button to start over |
+| `#/post/review` | The trip card exactly as guides will see it, then Where / When and who / Your guide and plan / Budget, each with **Edit** (opens the form at that step, filled in), and **Post my trip** |
+
+The chat and the draft are kept for the browser tab (`sessionStorage`), so going to the review page or the form and back keeps everything. Posting, from the review page or the form, clears it.
+
+## 12. Ideas for later
+
+- Let the assistant search guides (`GET /requests/:id/suggested-guides`) after posting and offer to invite the best two.
+- Stream the reply word by word.
+- Save chats on the server so they follow the tourist across devices.
+- Voice messages (speech to text) for tourists who prefer to talk.
+- An MCP server over the same API (see README section 12) so other people's AI agents can post trips.
