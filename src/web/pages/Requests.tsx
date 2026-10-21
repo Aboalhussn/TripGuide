@@ -247,7 +247,6 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
               {g.stats.verified && <VerifiedBadge />}
             </div>
             <div className="small muted">{t('post.direct_note', { amount: fmt.usd(g.pricePerDay) })}</div>
-            <div className="xs muted" style={{ marginTop: 4 }}>{t('post.privacy_direct', { name: g.name.split(' ')[0] })}</div>
           </div>
         </div>
       )}
@@ -418,7 +417,6 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
               <span className="small muted">{f.languages.map(fmt.language).join('، ')}</span>
               {usePlan && dayPlan.some((d) => d.title) && <span className="small muted">{t('post.plan_added')}</span>}
             </div>
-            <div className="note">{g ? t('post.privacy_direct', { name: g.name.split(' ')[0] }) : t('post.privacy')}</div>
           </div>
         )}
 
@@ -857,7 +855,6 @@ function CompareModal({ offers, r, onClose, onHire }: { offers: any[]; r: any; o
     [t('compare.tours'), (o) => fmt.num(o.guide.stats.toursCompleted)],
     [t('compare.verified'), (o) => (o.guide.stats.verified ? t('common.yes') : t('common.no'))],
     [t('compare.includes'), (o) => (o.includes.length ? fmt.list(o.includes.map((x: string) => t('include.' + x))) : '—')],
-    [t('compare.reply'), (o) => (o.guide.stats.responseMinutes === null ? '—' : o.guide.stats.responseMinutes < 60 ? t('compare.mins', { count: o.guide.stats.responseMinutes }) : t('compare.hours', { count: Math.round(o.guide.stats.responseMinutes / 60) }))],
     ...offers[0].plan.map((_: any, i: number) => [t('offer.day_n', { count: i + 1 }), (o: any) => o.plan[i]?.title] as [string, (o: any) => React.ReactNode]),
   ];
   return (
@@ -953,7 +950,6 @@ function HireModal({ offer, r, onClose, onDone }: { offer: any; r: any; onClose(
       />
       {method === 'card' ? (
         <>
-          <p className="small">{t('hire.explain', { name: first, hours: meta.confirmWindowHours })}</p>
           <CardForm value={card} onChange={setCard} />
         </>
       ) : (
@@ -1125,7 +1121,6 @@ function GuideRequestView({ r, reload }: { r: any; reload(): void }) {
               {t('offer.message_tourist', { name: r.tourist.name.split(' ')[0] })}
             </button>
           )}
-          <p className="xs muted">{t('offer.guide_note')}</p>
         </aside>
       </div>
     </div>

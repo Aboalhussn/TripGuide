@@ -1069,12 +1069,15 @@ html:has(.post-wizard) { scroll-padding: 110px 0 170px; }
 .pw-chip { padding: 3px 10px; border-radius: 99px; background: #f2f6f8; border: 1px solid #dde7ec; color: var(--navy); font-size: 12px; font-weight: 700; direction: ltr; }
 .pw-meter.warn .pw-chip { background: #fdecea; border-color: #f3c3bd; color: #9b2c2c; }
 
-/* Sign-in fits one screen, no scrolling */
-.auth-page.fit { height: 100dvh; min-height: 0; overflow: hidden; }
-.auth-page.fit .auth-hero { height: clamp(190px, 33dvh, 300px); min-height: 0; flex: none; }
-.auth-page.fit .auth-sheet { gap: clamp(8px, 1.6dvh, 16px); padding-top: clamp(16px, 2.6dvh, 24px); overflow: hidden; }
-.auth-page.fit .login-form { gap: clamp(8px, 1.4dvh, 14px); }
-@media (max-height: 700px) { .auth-page.fit .auth-head p { display: none; } .auth-page.fit .auth-sheet h2 { font-size: 19px; } }
-/* Sign-up: the photo stays put and the white sheet slides up over it */
-.auth-page.slide .auth-hero { position: sticky; top: 0; z-index: 0; }
+/* Sign-in and sign-up: the photo stays put and the white sheet slides up over it.
+   The logo and language button stay pinned on top of everything; once the sheet slides under them
+   they get a navy bar so they stay readable. */
+.auth-page.slide .auth-hero { position: sticky; top: 0; z-index: 0; justify-content: flex-end; padding-top: calc(env(safe-area-inset-top) + 76px); }
 .auth-page.slide .auth-sheet { z-index: 2; box-shadow: 0 -10px 24px -14px rgba(5, 63, 92, .35); min-height: 80dvh; }
+.auth-page .auth-top { position: fixed; z-index: 40; top: 0; left: 0; right: 0; padding: calc(env(safe-area-inset-top) + 14px) 20px 12px; transition: background .2s, box-shadow .2s; }
+.auth-page .auth-top.covered { background: rgba(5, 63, 92, .97); box-shadow: 0 6px 16px -10px rgba(5, 63, 92, .6); }
+.login-slide .auth-hero { height: 42vh; min-height: 280px; }
+.login-slide .auth-sheet { min-height: 75dvh; }
+.auth-sheet .demo-trigger.demo-trigger { margin-top: 4px; }
+.policy-sec h2 { font-size: 18px; margin: 0; }
+.policy-sec ul { margin: 0; padding-inline-start: 20px; display: flex; flex-direction: column; gap: 8px; line-height: 1.6; }

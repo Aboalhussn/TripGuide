@@ -5,7 +5,7 @@ import { useFmt } from '../lib/format';
 import { Link, navigate } from '../lib/router';
 import { asset } from '../assets';
 import { TouristPassport } from './Passport';
-import { Avatar, Empty, ErrorState, Field, GuideCard, Icon, Loading, Modal, MonthCalendar, PageHead, Photo, Rating, ResponseTime, Star, VerifiedBadge, useBusy, PromoBand } from '../ui';
+import { Avatar, Empty, ErrorState, Field, GuideCard, Icon, Loading, Modal, MonthCalendar, PageHead, Photo, Rating, Star, VerifiedBadge, useBusy, PromoBand } from '../ui';
 
 const SORTS = ['best', 'rating', 'price_low', 'price_high', 'tours'];
 
@@ -294,7 +294,6 @@ export function GuideProfile({ id }: { id: string }) {
                 </div>
               ))}
               <div className="small muted stack" style={{ gap: 2 }}>
-                <ResponseTime minutes={s.responseMinutes} />
                 <span>{t('guide.member_since', { date: fmt.date(g.memberSince, { month: 'long', year: 'numeric' }) })}</span>
               </div>
             </section>

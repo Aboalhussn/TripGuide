@@ -224,7 +224,6 @@ function PhotoFab() {
           <Field label={t('editor.caption')}>
             <input className="input" value={caption} onChange={(e) => setCaption(e.target.value)} maxLength={80} placeholder={t('fab.caption_ph')} />
           </Field>
-          <p className="xs muted">{t('fab.note')}</p>
           <button type="button" className="btn lg" onClick={add} disabled={busy}>
             {t('fab.publish')}
           </button>

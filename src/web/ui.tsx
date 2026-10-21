@@ -342,7 +342,6 @@ export function GuideCard({ g, compact = false }: { g: any; compact?: boolean })
       <div className="row small" style={{ gap: 14 }}>
         <Rating rating={g.stats.rating} count={g.stats.reviewsCount} />
         <span>{t('guide.tours', { count: g.stats.toursCompleted })}</span>
-        {!compact && <ResponseTime minutes={g.stats.responseMinutes} />}
       </div>
       {!compact && (
         <div className="chips">
@@ -588,8 +587,7 @@ export function CardForm({ value, onChange, allowSaved = true }: { value: CardVa
         </Field>
       </div>
       {sandbox && (
-        <div className="note small stack" style={{ gap: 6 }}>
-          <span>{t('pay.sandbox_note')}</span>
+        <div className="stack" style={{ gap: 6 }}>
           <button type="button" className="btn sm outline" style={{ alignSelf: 'flex-start' }} onClick={() => onChange({ number: meta.payments.testCards.ok, name: value.name || 'Test Card', expiry: '12/30', cvc: '123' })}>
             {t('pay.use_test_card')}
           </button>

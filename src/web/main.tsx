@@ -13,7 +13,7 @@ import { FindGuides, GuideProfile, TouristProfile } from './pages/Guides';
 import { MyOffers, PostRequest, RequestDetail, RequestsIndex } from './pages/Requests';
 import { BookingDetail, BookingsList, Wallet } from './pages/Bookings';
 import { Notifications, Thread, Threads } from './pages/Messages';
-import { Account, GuideEditor, GuidePlans, GuideSetup, Login, ProfileInfo, ProfileSettings, Register, TripsHub, VerifyAccount } from './pages/Account';
+import { Account, GuideEditor, GuidePlans, GuideSetup, Login, ProfileInfo, ProfileSettings, Register, TripsHub, VerifyAccount, PolicyPage } from './pages/Account';
 import { PassportScreen } from './pages/Passport';
 import { AdminReports, AdminUsers, AdminVerify, AdminStats, AdminPricing, AdminCities, CityWizard } from './pages/Admin';
 
@@ -64,6 +64,7 @@ function Routes() {
   else if (p('/profile/info')) page = authed(<ProfileInfo />);
   else if (p('/profile/trips')) page = authed(<TripsHub query={query} />);
   else if (p('/passport')) page = authed(<PassportScreen />);
+  else if (p('/profile/policy')) page = authed(<PolicyPage />);
   else if (p('/profile/settings')) page = authed(<ProfileSettings />);
   else if (p('/profile/plans')) page = authed(<GuidePlans />);
   else if (p('/profile/guide')) page = authed(<GuideEditor />);

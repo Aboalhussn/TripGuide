@@ -39,7 +39,7 @@ export function Login({ query }: { query: Record<string, string> }) {
   };
   const demo = meta?.demoLogins;
   return (
-    <div className="auth-page fit">
+    <div className="auth-page slide login-slide">
       <AuthHero img="babylon.jpg" title={t('auth.hero_title')} text={t('auth.hero_text')} />
       <section className="auth-sheet">
         <h2>{t('auth.login_btn')}</h2>
@@ -119,10 +119,19 @@ export function Login({ query }: { query: Record<string, string> }) {
 /** Photo header for sign-in and sign-up: the picture under a navy wash, the white logo and a headline. */
 function AuthHero({ img, title, text, small = false }: { img: string; title: string; text: string; small?: boolean }) {
   const { t } = useApp();
+  const ref = React.useRef<HTMLElement>(null);
+  const [covered, setCovered] = useState(false);
+  useEffect(() => {
+    // Once the white sheet slides up under the logo, give the top bar its own navy background.
+    const onScroll = () => setCovered(window.scrollY > (ref.current?.offsetHeight || 300) - 110);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
   return (
-    <header className={'auth-hero' + (small ? ' small' : '')}>
+    <header ref={ref} className={'auth-hero' + (small ? ' small' : '')}>
       <img className="auth-bg" src={asset(img)} alt="" />
-      <div className="auth-top" dir="ltr">
+      <div className={'auth-top' + (covered ? ' covered' : '')} dir="ltr">
         <span className="login-brand"><img src={asset('tg-logo-horizontal-white.svg')} alt={t('brand.name')} /></span>
         <LangToggle />
       </div>
@@ -313,6 +322,8 @@ function AccountMenu() {
   };
   const info = { to: '/profile/info', icon: 'user', label: t('menu.info'), sub: t('menu.info_sub') };
   const settings = { to: '/profile/settings', icon: 'globe', label: t('menu.settings'), sub: lang === 'ar' ? 'العربية' : 'English' };
+  const notes = { to: '/notifications', icon: 'bell', label: t('notifications.title'), sub: me.unreadNotifications ? t('menu.unread', { count: me.unreadNotifications }) : t('notifications.none'), badge: me.unreadNotifications ? <span className="pill gold">{me.unreadNotifications}</span> : null };
+  const policy = { to: '/profile/policy', icon: 'shield', label: t('menu.policy'), sub: t('menu.policy_sub') };
   const cardSub = me.savedCard ? `${me.savedCard.brand} •••• ${me.savedCard.last4}` : t('menu.wallet_add');
   const g = me.guide;
   const rows: { to: string; icon: string; label: string; sub: string; badge?: React.ReactNode }[] =
@@ -331,6 +342,8 @@ function AccountMenu() {
             sub: t('verify.short.' + (g?.verification || 'none')),
             badge: g?.verification === 'verified' ? <VerifiedBadge size={18} /> : g?.verification === 'pending' ? <span className="pill gold">{t('verify.short.pending')}</span> : null,
           },
+          notes,
+          policy,
           settings,
         ]
       : me.role === 'admin'
@@ -339,7 +352,8 @@ function AccountMenu() {
             { to: '/admin/cities', icon: 'pin', label: t('city.title'), sub: t('menu.cities_sub') },
             { to: '/admin/pricing', icon: 'money', label: t('admin.pricing'), sub: t('menu.pricing_sub') },
             { to: '/admin/stats', icon: 'chart', label: t('stats.title'), sub: t('menu.stats_sub') },
-            { to: '/notifications', icon: 'bell', label: t('notifications.title'), sub: me.unreadNotifications ? t('menu.unread', { count: me.unreadNotifications }) : t('notifications.none'), badge: me.unreadNotifications ? <span className="pill gold">{me.unreadNotifications}</span> : null },
+            notes,
+            policy,
             settings,
           ]
         : [
@@ -347,6 +361,8 @@ function AccountMenu() {
             { to: '/passport', icon: 'passport', label: t('pp.mine'), sub: t('pp.pages_n', { count: me.passport?.pages?.length || 0 }) },
             { to: '/profile/trips', icon: 'list', label: t('menu.trips'), sub: t('menu.trips_sub') },
             { to: '/wallet', icon: 'wallet', label: t('menu.wallet'), sub: cardSub },
+            notes,
+            policy,
             settings,
           ];
   return (
@@ -1304,7 +1320,6 @@ export function VerifyAccount() {
                 ))}
               </ul>
             )}
-            <p className="xs muted">{t('verify.demo_note')}</p>
           </section>
           {err && (
             <div className="note danger" role="alert">
@@ -1317,6 +1332,34 @@ export function VerifyAccount() {
           <p className="xs muted center">{t('verifyp.within_note')}</p>
         </>
       )}
+    </div>
+  );
+}
+
+/** Privacy and terms: how the platform handles your details, payments and bookings. Opened from the profile. */
+export function PolicyPage() {
+  const { t, meta } = useApp();
+  const sections: [string, string[]][] = [
+    ['privacy', ['p1', 'p2', 'p3', 'p4', 'p5']],
+    ['payments', ['m1', 'm2', 'm3', 'm4']],
+    ['bookings', ['b1', 'b2', 'b3', 'b4']],
+    ['use', ['u1', 'u2', 'u3']],
+  ];
+  const vars = { hours: meta.confirmWindowHours, fee: Math.round((meta.feeRate || 0.1) * 100) };
+  return (
+    <div className="page policy-page" style={{ maxWidth: 720, margin: '0 auto', width: '100%' }}>
+      <PageHead title={t('policy.title')} backTo="/profile" />
+      <p className="muted" style={{ margin: 0 }}>{t('policy.lede')}</p>
+      {sections.map(([key, items]) => (
+        <section key={key} className="card stack policy-sec">
+          <h2>{t('policy.h_' + key)}</h2>
+          <ul>
+            {items.map((i) => (
+              <li key={i}>{t('policy.' + i, vars)}</li>
+            ))}
+          </ul>
+        </section>
+      ))}
     </div>
   );
 }

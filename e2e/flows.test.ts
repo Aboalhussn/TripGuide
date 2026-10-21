@@ -730,7 +730,7 @@ test('tourist profile: a short menu with your info, requests and trips, wallet, 
   await go(p, '/profile');
   assert.deepEqual(
     (await p.locator('.menu-row strong').allInnerTexts()),
-    ['Your info', 'Your passport', 'Requests and trips', 'Wallet', 'Settings'],
+    ['Your info', 'Your passport', 'Requests and trips', 'Wallet', 'Notifications', 'Privacy policy and terms', 'Settings'],
   );
   // Your info: edit the country, see the error right away for a bad email.
   await p.getByRole('link', { name: /Your info/ }).click();
@@ -746,6 +746,15 @@ test('tourist profile: a short menu with your info, requests and trips, wallet, 
   await p.getByRole('tab', { name: 'Finished trips' }).click();
   await p.getByRole('tab', { name: 'Finished trips', selected: true }).waitFor();
   await p.getByRole('tab', { name: 'Requests' }).click();
+  // Notifications are one tap away from the profile too.
+  await go(p, '/profile');
+  await p.locator('.menu-row', { hasText: 'Notifications' }).click();
+  await p.waitForURL((u) => u.hash === '#/notifications');
+  // Privacy policy and terms: its own page, above Settings.
+  await go(p, '/profile');
+  await p.locator('.menu-row', { hasText: 'Privacy policy and terms' }).click();
+  await p.getByRole('heading', { name: 'Privacy policy and terms' }).waitFor();
+  await p.getByText('Guides see only your first name and country').waitFor();
   // Settings: the language.
   await go(p, '/profile/settings');
   await p.getByRole('radio', { name: /العربية/ }).click();
@@ -766,7 +775,7 @@ test('guide and admin profiles use the same menu', async () => {
   const g = await open();
   await login(g, 'guide@tripguide.demo');
   await go(g, '/profile');
-  assert.deepEqual(await g.locator('.menu-row strong').allInnerTexts(), ['Your info', 'Your guide profile', 'Photos and days off', 'Your tours', 'Wallet', 'Subscription and featuring', 'Verification', 'Settings']);
+  assert.deepEqual(await g.locator('.menu-row strong').allInnerTexts(), ['Your info', 'Your guide profile', 'Photos and days off', 'Your tours', 'Wallet', 'Subscription and featuring', 'Verification', 'Notifications', 'Privacy policy and terms', 'Settings']);
   await g.getByRole('link', { name: /Your tours/ }).click();
   await g.getByRole('tab', { name: 'Upcoming', selected: true }).waitFor();
   await g.locator('.card.link').first().waitFor();
@@ -778,7 +787,7 @@ test('guide and admin profiles use the same menu', async () => {
   const a = await open();
   await login(a, 'admin@tripguide.demo');
   await go(a, '/profile');
-  assert.deepEqual(await a.locator('.menu-row strong').allInnerTexts(), ['Your info', 'Governorates', 'Prices and subscriptions', 'City statistics', 'Notifications', 'Settings']);
+  assert.deepEqual(await a.locator('.menu-row strong').allInnerTexts(), ['Your info', 'Governorates', 'Prices and subscriptions', 'City statistics', 'Notifications', 'Privacy policy and terms', 'Settings']);
   await a.getByRole('link', { name: /City statistics/ }).click();
   await a.getByRole('heading', { name: 'City statistics' }).waitFor();
   await go(a, '/profile');

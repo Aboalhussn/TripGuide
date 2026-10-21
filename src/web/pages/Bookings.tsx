@@ -339,7 +339,6 @@ export function BookingDetail({ id }: { id: string }) {
           <Link to={`/requests/${b.requestId}`} className="small" style={{ fontWeight: 500 }}>
             {t('booking.see_request')}
           </Link>
-          {b.status === 'confirmed' && <p className="xs muted">{started ? t('booking.started_note') : t('booking.cancel_note')}</p>}
         </aside>
       </div>
 
@@ -513,7 +512,6 @@ export function Wallet() {
           </div>
         )}
       </section>
-      <p className="note small">{t('wallet.demo_note')}</p>
       <h2>{t('wallet.history')}</h2>
       {w.transactions.length === 0 && <p className="muted">{t('wallet.none')}</p>}
       <div className="card flush">

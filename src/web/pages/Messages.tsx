@@ -3,7 +3,7 @@ import { api } from '../lib/api';
 import { useApp, useLoad } from '../lib/app';
 import { useFmt } from '../lib/format';
 import { Link, navigate } from '../lib/router';
-import { Avatar, Empty, ErrorState, Icon, Loading, PageHead, ResponseTime, useBusy } from '../ui';
+import { Avatar, Empty, ErrorState, Icon, Loading, PageHead, useBusy } from '../ui';
 
 export function Threads() {
   const { t, me } = useApp();
@@ -125,7 +125,7 @@ export function Thread({ id }: { id: string }) {
           <Link to={th.other.role === 'guide' ? `/guides/${th.other.id}` : `/users/${th.other.id}`} className="bold" style={{ textDecoration: 'none' }}>
             {th.other.name}
           </Link>
-          <div className="xs muted">{th.other.role === 'guide' ? <ResponseTime minutes={th.responseMinutes} /> : th.other.country}</div>
+          <div className="xs muted">{th.other.country}</div>
         </div>
       </div>
       {th.request && (
