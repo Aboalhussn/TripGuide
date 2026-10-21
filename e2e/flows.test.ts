@@ -750,10 +750,11 @@ test('tourist profile: a short menu with your info, requests and trips, wallet, 
   await p.getByRole('radio', { name: /العربية/ }).click();
   await p.getByRole('heading', { name: 'الإعدادات' }).waitFor();
   await p.getByRole('radio', { name: /English/ }).click();
-  // Sign out is red, and so is the confirm button.
+  // Sign out: light button with a red border and red label; the confirm button is red.
   await go(p, '/profile');
   const out = p.getByRole('button', { name: 'Sign out' });
-  assert.match((await out.getAttribute('class')) || '', /\bred\b/);
+  assert.match((await out.getAttribute('class')) || '', /\bsignout-btn\b/);
+  assert.deepEqual(await out.evaluate((el) => { const c = getComputedStyle(el); return [c.color, c.borderTopColor]; }), ['rgb(198, 40, 40)', 'rgb(198, 40, 40)']);
   await out.click();
   assert.match((await p.getByRole('alertdialog').getByRole('button', { name: 'Sign out' }).getAttribute('class')) || '', /\bred\b/);
   await p.getByRole('alertdialog').getByRole('button', { name: 'Cancel' }).click();
@@ -780,7 +781,7 @@ test('guide and admin profiles use the same menu', async () => {
   await a.getByRole('link', { name: /City statistics/ }).click();
   await a.getByRole('heading', { name: 'City statistics' }).waitFor();
   await go(a, '/profile');
-  assert.match((await a.getByRole('button', { name: 'Sign out' }).getAttribute('class')) || '', /\bred\b/);
+  assert.match((await a.getByRole('button', { name: 'Sign out' }).getAttribute('class')) || '', /\bsignout-btn\b/);
   await a.context().close();
 });
 

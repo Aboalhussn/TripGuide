@@ -426,7 +426,7 @@ export function RequestFeedCard({ r }: { r: any }) {
       {t('request.view')}
     </Link>
   ) : (
-    <Link to={`/requests/${r.id}#offer`} className="btn gold tc-action">
+    <Link to={`/requests/${r.id}#offer`} className="btn tc-action tc-send">
       <Icon name="send" size={16} stroke={2.2} /> {t('request.send_offer')}
     </Link>
   );

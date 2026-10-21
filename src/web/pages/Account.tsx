@@ -327,7 +327,7 @@ function AccountMenu() {
           </Link>
         ))}
       </nav>
-      <button type="button" className="btn lg red" onClick={signOutNow}>
+      <button type="button" className="btn lg signout-btn" onClick={signOutNow}>
         <Icon name="logout" size={18} className="flip" /> {t('account.sign_out')}
       </button>
     </div>

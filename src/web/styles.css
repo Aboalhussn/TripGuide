@@ -783,3 +783,12 @@ html:has(.post-wizard) { scroll-padding: 110px 0 170px; }
 .btn.tc-action { min-height: 46px; height: 46px; padding: 0 18px; border-radius: 14px; font-size: 15px; font-weight: 700; gap: 6px; white-space: nowrap; flex: none; }
 .btn.gold.tc-action, .btn.gold.tc-action:hover { background: #f7ad19; color: #053f5c; font-weight: 900; border: none; box-shadow: none; }
 .btn.gold.tc-action:active { transform: scale(.97); }
+/* Send offer, as edited in the design: navy with white bold text. */
+.btn.tc-action.tc-send, .btn.tc-action.tc-send:hover { background: #053f5c; color: #fff; font-weight: 900; border: none; }
+.btn.tc-action.tc-send:active { transform: scale(.97); }
+/* "Send offer" as edited in the design: navy, white bold label. */
+.btn.tc-action.tc-send, .btn.tc-action.tc-send:hover { background: #053f5c; color: #fff; font-weight: 900; border: none; }
+/* Sign out: light grey-white button, red border and red label. */
+.btn.signout-btn { background: #f3f5f6; color: #c62828; border: 1.5px solid #c62828; font-weight: 700; }
+.btn.signout-btn:hover { background: #eceff1; color: #b71c1c; }
+.btn.signout-btn:active { background: #e5e9eb; }
