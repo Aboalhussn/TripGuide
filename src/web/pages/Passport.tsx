@@ -134,7 +134,6 @@ export function PassportScreen() {
   return (
     <div className="page passport-page">
       <PageHead title={t('pp.mine')} backTo="/profile" />
-      <p className="muted small" style={{ margin: 0 }}>{t('pp.mine_text')}</p>
       <PassportBook key={u.passport.pages.length} holder={u} data={u.passport} trips={u.stats.tripsCompleted} editable onAdd={() => setAdding(true)} onDelete={remove} />
       {adding && (
         <AddMemory

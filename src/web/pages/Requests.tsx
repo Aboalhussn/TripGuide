@@ -266,7 +266,6 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
                 <span className="small" style={{ fontWeight: 500 }}>
                   {t('post.cover')}
                 </span>
-                <span className="xs muted" style={{ marginTop: -6 }}>{t('post.cover_pick_hint')}</span>
                 {coverGroups.map((g) => (
                   <div key={g.city} className="stack" style={{ gap: 6 }}>
                     <span className="xs bold cover-city" id={'cover-' + g.city}>{fmt.city(g.city)}</span>
@@ -284,7 +283,6 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
                     </div>
                   </div>
                 ))}
-                <span className="xs muted">{t('post.cover_hint')}</span>
               </div>
             )}
             {f.cities.length > 0 && (
@@ -342,7 +340,6 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
                   {t('post.my_plan')} <span className="muted small">{t('common.optional')}</span>
                 </span>
               </label>
-              <p className="xs muted" style={{ marginTop: -4 }}>{t('post.my_plan_hint')}</p>
               {usePlan && (
                 <ol className="plan-days">
                   {dayPlan.map((d, i) => (
@@ -755,7 +752,6 @@ function TouristRequestView({ r, reload }: { r: any; reload(): void }) {
               </button>
             </div>
           )}
-          <div className="note small">{t('request.how_payment')}</div>
         </aside>
       </div>
       {compare && <CompareModal offers={shortlisted} r={r} onClose={() => setCompare(false)} onHire={(o: any) => { setCompare(false); setHireOffer(o); }} />}
@@ -945,7 +941,6 @@ function HireModal({ offer, r, onClose, onDone }: { offer: any; r: any; onClose(
         value={method}
         onChange={(m) => { setMethod(m); setErr(null); }}
         cashAllowed={cashAllowed}
-        cardHint={t('pay.card_hint')}
         cashHint={t('pay.cash_hint', { name: first, perDay: fmt.usd(offer.perDay) })}
       />
       {method === 'card' ? (

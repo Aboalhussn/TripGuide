@@ -101,6 +101,7 @@ If something goes wrong, either side can **report a problem**. The held money st
 - **Strict, live validation.** Mistakes show while typing, not only on submit. When a limit is reached (for example 3 languages on a trip, or 10 people) the remaining options lock until one is removed. The server checks the same limits.
 - **Per-day budget.** Tourists type a budget per day; the app shows the whole-trip total and stores totals, so guides and tourists see the same numbers.
 - **Trip cards.** Requests show as cards with the governorate photo, the tourist's name and photo, title, dates, place, people, budget per day and an action ("Send offer" for guides, offers count for tourists). Tapping opens the trip.
+- **Wallet and withdrawals.** A guide's released earnings (after the fee) and a tourist's refunds stay in the wallet; either can withdraw them to their saved card when they choose.
 - **Saved card.** Only the brand, last four digits, name and expiry are kept, never the full number or the security code.
 - **Travel passport.** Built from the passport kit (same look and page turning), with its own style apart from the rest of the app: ruled paper pages, a lapis-blue cover with gold and the Ishtar Gate emblem, binder rings, and calligraphy (Great Vibes; Aref Ruqaa for Arabic; Reem Kufi for Arabic titles).
   - Always an open two-page spread that scales as one piece on phones (CSS container queries).
@@ -310,7 +311,7 @@ All routes are in `src/core/api.ts` and answer JSON under `/api` (on the server)
 | Offers | `POST /requests/:id/offers`, `PUT /offers/:id`, `POST /offers/:id/withdraw`, `POST /offers/:id/shortlist`, `GET /offers/mine`, `POST /offers/:id/hire` |
 | Bookings and payments | `GET /bookings`, `GET /bookings/:id`, `POST /bookings/:id/confirm`, `/decline`, `/cancel`, `/report`, `/review`; `POST /milestones/:id/release`, `/request-release`, `/refund`, `/cash-received` |
 | Chat | `GET/POST /threads`, `GET /threads/:id`, `POST /threads/:id/messages` |
-| Other | `GET /notifications`, `POST /notifications/read-all`, `POST /notifications/:id/read`, `GET /wallet`, `GET /dashboard` |
+| Other | `GET /notifications`, `POST /notifications/read-all`, `POST /notifications/:id/read`, `GET /wallet`, `POST /wallet/withdraw`, `GET /dashboard` |
 | Admin | `GET /admin/stats`, `GET/PUT /admin/settings`, `GET /admin/verifications`, `POST /admin/guides/:id/verify`, `GET /admin/reports`, `POST /admin/reports/:id/resolve`, `GET /admin/users`, `POST /admin/users/:id/status`, `GET/POST /admin/cities`, `GET/PUT /admin/cities/:slug` |
 
 Errors come back as `{ "error": "code", "params": {…} }`; the app turns each code into a sentence in the user's language.

@@ -1265,6 +1265,34 @@ route('POST', '/notifications/:id/read', (ctx, p) => {
 });
 
 // ---------- wallet and dashboards ----------
+// What can be taken out of the wallet: a guide's released earnings (after the fee), or a tourist's
+// refunds from card bookings (kept in the wallet until they choose to withdraw), minus earlier withdrawals.
+function walletBalance(ctx: Ctx, u: User) {
+  const bookings = ctx.data.bookings.filter((b) => b.paymentMethod !== 'cash' && (u.role === 'tourist' ? b.touristId : b.guideId) === u.id);
+  const ids = new Map(bookings.map((b) => [b.id, b]));
+  const ms = ctx.data.milestones.filter((m) => ids.has(m.bookingId));
+  const inflow =
+    u.role === 'guide'
+      ? ms.filter((m) => m.status === 'released').reduce((a, m) => a + m.amount * (1 - ids.get(m.bookingId)!.feeRate), 0)
+      : ms.filter((m) => m.status === 'refunded').reduce((a, m) => a + m.amount, 0);
+  const withdrawn = (ctx.data.withdrawals || []).filter((w) => w.userId === u.id).reduce((a, w) => a + w.amount, 0);
+  return { available: money(Math.max(0, inflow - withdrawn)), withdrawn: money(withdrawn) };
+}
+
+route('POST', '/wallet/withdraw', (ctx, _p, req) => {
+  const u = needActive(ctx, 'tourist', 'guide');
+  if (!u.savedCard) throw conflict('card_required');
+  const { available } = walletBalance(ctx, u);
+  const amount = req.body?.amount === undefined ? available : num(req.body.amount, 'amount', 0.01, 1_000_000);
+  if (available <= 0) throw conflict('nothing_to_withdraw');
+  if (amount > available + 1e-9) throw bad('withdraw_too_much', { max: available });
+  ctx.data.withdrawals ||= [];
+  const id = ctx.data.withdrawals.reduce((a, w) => Math.max(a, w.id), 0) + 1;
+  const w = { id, userId: u.id, amount: money(amount), brand: u.savedCard.brand, last4: u.savedCard.last4, createdAt: ctx.nowIso };
+  ctx.data.withdrawals.push(w);
+  return { withdrawal: w, ...walletBalance(ctx, u) };
+});
+
 route('GET', '/wallet', (ctx) => {
   const u = need(ctx, 'tourist', 'guide');
   const bookings = ctx.data.bookings.filter((b) => (u.role === 'tourist' ? b.touristId : b.guideId) === u.id);
@@ -1293,6 +1321,7 @@ route('GET', '/wallet', (ctx) => {
         .filter((p) => (p.purpose === 'subscription' || p.purpose === 'promotion') && p.userId === u.id)
         .map((p) => ({ bookingId: null, title: '', day: 0, kind: p.purpose, amount: -p.amount, at: p.createdAt })),
     )
+    .concat((ctx.data.withdrawals || []).filter((w) => w.userId === u.id).map((w) => ({ bookingId: null, title: `${w.brand} •••• ${w.last4}`, day: 0, kind: 'withdrawn', amount: -w.amount, at: w.createdAt })))
     .sort((a, b) => String(b.at).localeCompare(String(a.at)));
   return {
     role: u.role,
@@ -1307,6 +1336,8 @@ route('GET', '/wallet', (ctx) => {
         ? money(ms.filter((m) => m.status === 'released' && (m.settledAt || '').slice(0, 7) === month).reduce((a, m) => a + m.amount * (1 - bookings.find((b) => b.id === m.bookingId)!.feeRate), 0))
         : null,
     transactions: transactions.slice(0, 80),
+    ...walletBalance(ctx, u),
+    card: u.savedCard ? { brand: u.savedCard.brand, last4: u.savedCard.last4 } : null,
   };
 });
 

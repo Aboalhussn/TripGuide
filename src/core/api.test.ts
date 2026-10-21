@@ -547,3 +547,31 @@ test('travel passport: tourists add photo memories; anyone who opens their profi
   assert.equal(s.ok('DELETE', `/me/passport/${id}`, null, tt).pages.length, before);
   assert.equal(s.call('DELETE', `/me/passport/${id}`, null, tt).status, 404);
 });
+
+test('wallet: a guide withdraws released earnings to a saved card; a tourist keeps refunds in the wallet until withdrawing', () => {
+  const s = setup();
+  const { tt, g, offer } = postAndOffer(s);
+  const b = s.ok('POST', `/offers/${offer.id}/hire`, { confirmPayment: true, card: CARD }, tt);
+  s.ok('POST', `/bookings/${b.id}/confirm`, null, g);
+  const bk = s.ok('GET', `/bookings/${b.id}`, null, tt);
+  const [m1, m2] = bk.milestones;
+  s.ok('POST', `/milestones/${m1.id}/release`, null, tt);
+  s.ok('POST', `/milestones/${m2.id}/refund`, null, g);
+  // Guide: earnings after the fee are ready to withdraw, but only to a saved card.
+  let gw = s.ok('GET', '/wallet', null, g);
+  assert.ok(gw.available > 0);
+  assert.equal(s.call('POST', '/wallet/withdraw', {}, g).body.error, 'card_required');
+  s.ok('PUT', '/me/card', { number: '4242424242424242', name: 'Guide Card', expiry: '12/30', cvc: '123' }, g);
+  assert.equal(s.call('POST', '/wallet/withdraw', { amount: gw.available + 50 }, g).body.error, 'withdraw_too_much');
+  const out = s.ok('POST', '/wallet/withdraw', {}, g);
+  assert.equal(out.available, 0);
+  assert.equal(out.withdrawal.amount, gw.available);
+  gw = s.ok('GET', '/wallet', null, g);
+  assert.ok(gw.transactions.some((x: any) => x.kind === 'withdrawn' && x.amount === -out.withdrawal.amount));
+  assert.equal(s.call('POST', '/wallet/withdraw', {}, g).body.error, 'nothing_to_withdraw');
+  // Tourist: the refunded day stays in the wallet; withdrawing part of it leaves the rest.
+  const tw = s.ok('GET', '/wallet', null, tt);
+  assert.equal(tw.available, m2.amount);
+  s.ok('PUT', '/me/card', { number: '4242424242424242', name: 'Tourist Card', expiry: '12/30', cvc: '123' }, tt);
+  assert.equal(s.ok('POST', '/wallet/withdraw', { amount: 10 }, tt).available, Math.round((m2.amount - 10) * 100) / 100);
+});

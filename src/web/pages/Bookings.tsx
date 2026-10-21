@@ -204,9 +204,6 @@ export function BookingDetail({ id }: { id: string }) {
               </span>
               {b.money.refunded > 0 && <span>{t('booking.refunded', { amount: fmt.usd(b.money.refunded) })}</span>}
             </div>
-            <p className="xs muted" style={{ lineHeight: 1.5 }}>
-              {asGuide ? t('booking.money_note_guide', { pct: Math.round(b.feeRate * 100) }) : t('booking.money_note_tourist', { name: first(other.name) })}
-            </p>
           </section>
           )}
           {!cash && b.cardLast4 && <p className="xs muted" style={{ marginTop: -6 }}>{t('pay.paid_with_card', { last4: b.cardLast4 })}</p>}
@@ -463,6 +460,44 @@ function ReviewModal({ b, asGuide, keys, onClose, onDone }: { b: any; asGuide: b
   );
 }
 
+/** The money that can leave the wallet: a guide's earnings, or a tourist's refunds. Withdrawn to the saved card. */
+function WithdrawCard({ w, guide, onDone }: { w: any; guide: boolean; onDone(): void }) {
+  const { t, ask, toast, errorText, refreshMe } = useApp();
+  const fmt = useFmt();
+  const [busy, setBusy] = React.useState(false);
+  const withdraw = async () => {
+    if (!w.card || w.available <= 0) return;
+    if (!(await ask(t('wallet.withdraw_q', { amount: fmt.usd(w.available), card: `${w.card.brand} •••• ${w.card.last4}` }), t('wallet.withdraw')))) return;
+    setBusy(true);
+    try {
+      await api('POST', '/wallet/withdraw', {});
+      toast(t('wallet.withdrawn_ok', { amount: fmt.usd(w.available) }));
+      await refreshMe();
+      onDone();
+    } catch (x) {
+      toast(errorText(x), 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="card withdraw-card">
+      <div className="stack" style={{ gap: 2, flex: 1, minWidth: 0 }}>
+        <span className="small muted">{guide ? t('wallet.balance_guide') : t('wallet.balance_tourist')}</span>
+        <Money usd={w.available} className="withdraw-amount" />
+        {w.withdrawn > 0 && <span className="xs muted">{t('wallet.withdrawn_total', { amount: fmt.usd(w.withdrawn) })}</span>}
+      </div>
+      {w.card ? (
+        <button type="button" className="btn" onClick={withdraw} disabled={busy || w.available <= 0}>
+          <Icon name="wallet" size={18} /> {t('wallet.withdraw')}
+        </button>
+      ) : (
+        <span className="xs muted withdraw-need">{t('wallet.withdraw_need_card')}</span>
+      )}
+    </section>
+  );
+}
+
 export function Wallet() {
   const { t, me } = useApp();
   const fmt = useFmt();
@@ -477,12 +512,14 @@ export function Wallet() {
       <div className="page" style={{ maxWidth: 640, margin: '0 auto', width: '100%' }}>
         <PageHead title={t('wallet.title')} backTo="/profile" />
         <PaymentCard gate />
+        {w.available > 0 && <WithdrawCard w={w} guide={false} onDone={res.reload} />}
       </div>
     );
   return (
     <div className="page" style={{ maxWidth: 760, margin: '0 auto', width: '100%' }}>
       <PageHead title={t('wallet.title')} backTo={guide ? '/' : '/profile'} />
       <PaymentCard />
+      <WithdrawCard w={w} guide={guide} onDone={res.reload} />
       <section className="card dark grid-2" style={{ gap: 16, padding: 18 }}>
         <div>
           <div className="small muted">{guide ? t('wallet.earned') : t('wallet.paid_guides')}</div>

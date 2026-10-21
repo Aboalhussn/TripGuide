@@ -1081,3 +1081,6 @@ html:has(.post-wizard) { scroll-padding: 110px 0 170px; }
 .auth-sheet .demo-trigger.demo-trigger { margin-top: 4px; }
 .policy-sec h2 { font-size: 18px; margin: 0; }
 .policy-sec ul { margin: 0; padding-inline-start: 20px; display: flex; flex-direction: column; gap: 8px; line-height: 1.6; }
+.withdraw-card { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.withdraw-amount { font-size: 26px; font-weight: 800; color: var(--navy); }
+.withdraw-need { max-width: 160px; }

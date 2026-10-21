@@ -908,3 +908,20 @@ test('travel passport: the passport button adds a photo; the book turns by butto
   assert.equal(await g.getByRole('button', { name: 'Add a memory' }).count(), 0); // visitors can't add pages
   await g.context().close();
 });
+
+test('wallet: a guide withdraws earnings to the saved card', async () => {
+  const p = await open();
+  await login(p, 'guide@tripguide.demo');
+  const token = await p.evaluate(() => localStorage.getItem('tg.token'));
+  await callApi(p, 'PUT', '/me/card', { number: '4242424242424242', name: 'Zainab Card', expiry: '12/30', cvc: '123' }, token!);
+  await go(p, '/wallet');
+  await p.reload();
+  const card = p.locator('.withdraw-card');
+  await card.getByText('Ready to withdraw').waitFor();
+  await card.getByRole('button', { name: 'Withdraw to card' }).click();
+  await p.getByRole('alertdialog').getByRole('button', { name: 'Withdraw to card' }).click();
+  await p.getByText(/is on its way to your card/).waitFor();
+  await card.getByRole('button', { name: 'Withdraw to card' }).and(p.locator(':disabled')).waitFor();
+  await p.locator('.list-item', { hasText: 'Withdrawn to card' }).first().waitFor();
+  await p.context().close();
+});

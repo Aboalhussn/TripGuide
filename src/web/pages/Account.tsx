@@ -1208,7 +1208,7 @@ export function GuideSetup() {
               {f.languages.length >= GUIDE_LIMITS.languages && <LimitNote max={GUIDE_LIMITS.languages} />}
               {show('languages') && <span className="err small">{show('languages')}</span>}
             </div>
-            <Field label={t('field.pricePerDay')} hint={show('price') ? undefined : t('editor.price_hint', { pct: Math.round(meta.feeRate * 100) })} error={show('price')}>
+            <Field label={t('field.pricePerDay')} error={show('price')}>
               <div className="price-input">
                 <span className="bold">$</span>
                 <input inputMode="numeric" value={f.pricePerDay} onChange={(e) => up({ pricePerDay: e.target.value.replace(/\D/g, '').slice(0, 4) })} aria-label={t('field.pricePerDay')} />

@@ -598,10 +598,10 @@ export function CardForm({ value, onChange, allowSaved = true }: { value: CardVa
 }
 
 /** Two big choices: card or cash. */
-export function PayMethodPicker({ value, onChange, cashAllowed, cashHint, cardHint }: { value: 'card' | 'cash'; onChange(v: 'card' | 'cash'): void; cashAllowed: boolean; cashHint: string; cardHint: string }) {
+export function PayMethodPicker({ value, onChange, cashAllowed, cashHint }: { value: 'card' | 'cash'; onChange(v: 'card' | 'cash'): void; cashAllowed: boolean; cashHint: string }) {
   const { t } = useApp();
   const opts: { key: 'card' | 'cash'; icon: string; title: string; text: string; disabled: boolean }[] = [
-    { key: 'card', icon: 'wallet', title: t('pay.card'), text: cardHint, disabled: false },
+    { key: 'card', icon: 'wallet', title: t('pay.card'), text: '', disabled: false },
     { key: 'cash', icon: 'money', title: t('pay.cash'), text: cashAllowed ? cashHint : t('pay.cash_unavailable'), disabled: !cashAllowed },
   ];
   return (
@@ -615,7 +615,7 @@ export function PayMethodPicker({ value, onChange, cashAllowed, cashHint, cardHi
           </span>
           <span style={{ flex: 1, minWidth: 0 }}>
             <strong style={{ display: 'block' }}>{o.title}</strong>
-            <span className="xs muted">{o.text}</span>
+            {o.text && <span className="xs muted">{o.text}</span>}
           </span>
         </label>
       ))}

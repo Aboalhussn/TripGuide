@@ -221,6 +221,9 @@ export interface PlatformSettings {
 // A page of a tourist's travel passport: a photo they took, where and when.
 export interface PassportPage { id: number; img: string; place: string; city: string; date: string; note: string; createdAt: string }
 
+// Money taken out of the wallet to the saved card: a guide's earnings, or a tourist's refunds.
+export interface Withdrawal { id: number; userId: number; amount: number; brand: string; last4: string; createdAt: string }
+
 export interface Session { token: string; userId: number; createdAt: string }
 
 export interface Data {
@@ -232,6 +235,7 @@ export interface Data {
   cities: City[];
   places: Place[];
   media?: Media[];
+  withdrawals?: Withdrawal[];
   requests: TripRequest[];
   offers: Offer[];
   bookings: Booking[];

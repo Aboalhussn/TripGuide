@@ -679,7 +679,6 @@ export function CityWizard({ slug }: { slug?: string }) {
 
         {step === 2 && (
           <div className="stack">
-            <p className="small muted" style={{ margin: 0 }}>{t('city.photos_hint')}</p>
             <div className="city-photos" id="cf-covers" tabIndex={-1}>
               {f.covers.map((c, i) => (
                 <div key={c.slice(-40) + i} className="city-photo">
