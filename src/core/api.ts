@@ -3,6 +3,7 @@ import { settings } from '../config/brand';
 import { AVATAR_COLORS, BUILTIN_COVERS, cityCovers, coversFor, PLACE_KINDS, GUIDE_RATING_KEYS, INCLUDES, INTERESTS, LANGUAGES, LANGUAGE_LEVELS, PHOTO_LIBRARY, TOURIST_RATING_KEYS } from './catalog';
 import type { ApiRequest, ApiResponse, Booking, Data, GuideProfile, Milestone, Offer, PaymentMethod, Platform, Role, TripRequest, User } from './types';
 import { DEMO_ACCOUNTS, DEMO_PASSWORD } from './seed';
+import { TRIP_LIMITS } from './draft';
 import { ApiError, addDays, bad, conflict, dateRange, daysInclusive, forbidden, iraqDate, isDate, money, nextId, notFound, num, optStr, str, strList } from './util';
 import { bookedDates, bookingMoney, cashOpen, guideCard, guideStats, isAvailable, publicUser, reviewView, reviewVisible, touristStats } from './views';
 
@@ -104,8 +105,7 @@ function chargeCard(ctx: Ctx, u: User, card: any, amount: number, purpose: 'book
   ctx.data.payments.push(p);
   return p;
 }
-// The app shows the same limits and locks extra choices once a limit is reached.
-const TRIP_LIMITS = { cities: 4, places: 6, languages: 3, interests: 5, people: 10 };
+// The app shows the same limits (TRIP_LIMITS, shared with the trip assistant's draft) and locks extra choices once a limit is reached.
 const GUIDE_LIMITS = { languages: 5, specialities: 6, places: 12 };
 const MAX_PHOTOS = 12; // tour photos on a guide's profile
 const subActive = (ctx: Ctx, g: GuideProfile) => !!g.subscriptionUntil && g.subscriptionUntil > ctx.nowIso;
@@ -269,6 +269,33 @@ route('GET', '/meta', (ctx) => ({
   demoLogins: settings.showDemoLogins ? { ...DEMO_ACCOUNTS, password: DEMO_PASSWORD } : null,
   today: ctx.today,
 }));
+
+// ---------- trip assistant ----------
+// What the trip assistant (src/server/assistant.ts) needs to fill a draft and make grounded recommendations:
+// the allowed values, today, and what active guides really charge per day in each governorate.
+// Tourists only. See docs/AI_ASSISTANT.md.
+route('GET', '/assistant/context', (ctx) => {
+  const u = needActive(ctx, 'tourist');
+  const guides = ctx.data.guides.filter((g) => userById(ctx.data, g.userId)!.status === 'active' && g.pricePerDay > 0 && g.cities.length);
+  const guidePrices = Object.fromEntries(
+    ctx.data.cities.map((c) => {
+      const prices = guides.filter((g) => g.cities.includes(c.slug)).map((g) => g.pricePerDay).sort((a, b) => a - b);
+      const at = (q: number) => (prices.length ? prices[Math.min(prices.length - 1, Math.floor(q * prices.length))] : null);
+      const langs = [...new Set(guides.filter((g) => g.cities.includes(c.slug)).flatMap((g) => g.languages.map((l) => l.code)))];
+      return [c.slug, { guides: prices.length, low: at(0.25), typical: at(0.5), high: at(0.75), languages: langs }];
+    }),
+  );
+  return {
+    today: ctx.today,
+    tourist: { name: publicUser(u).name, country: u.country },
+    cities: ctx.data.cities.map(({ slug, name, nameAr }) => ({ slug, name, nameAr })),
+    places: ctx.data.places,
+    languages: LANGUAGES,
+    interests: INTERESTS,
+    limits: TRIP_LIMITS,
+    guidePrices,
+  };
+});
 
 // ---------- auth ----------
 // Strong passwords: 8+ characters with a capital letter, a small letter, a number and a symbol.

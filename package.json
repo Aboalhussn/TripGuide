@@ -13,7 +13,7 @@
     "build:demo": "node scripts/build.mjs --demo",
     "dev": "node scripts/build.mjs && node scripts/dev.mjs",
     "reset": "node scripts/reset.mjs",
-    "test": "tsx --test src/core/api.test.ts",
+    "test": "tsx --test src/core/*.test.ts src/server/*.test.ts",
     "e2e": "tsx --test e2e/flows.test.ts",
     "check": "tsc --noEmit -p tsconfig.json && tsx scripts/check-strings.ts",
     "build:app": "node scripts/build.mjs --app",
