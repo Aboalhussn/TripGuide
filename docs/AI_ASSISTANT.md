@@ -47,14 +47,15 @@ One AI call per message. The AI answers in JSON; there is no tool loop. This wor
 | What | Where |
 |---|---|
 | The draft, what is missing, cleaning the AI's output, turning a draft into a `POST /requests` body | `src/core/draft.ts` (pure code, no AI, runs on the server and in the app) |
-| The context the assistant needs (`GET /assistant/context`) | `src/core/api.ts` |
-| Talking to the AI provider (OpenAI-compatible, Anthropic, mock) | `src/server/ai.ts` |
+| The context the assistant needs (`GET /assistant/context`, tourists only) | `src/core/api.ts` |
+| Talking to the AI provider (OpenAI-compatible or Anthropic) | `src/server/ai.ts` |
+| The pretend AI for tests and for trying it with no key (`AI_PROVIDER=mock`) | `src/server/mock-ai.ts` |
 | The assistant itself: prompt, one chat turn, recommendations | `src/server/assistant.ts` |
-| The HTTP route `POST /api/assistant/trip` | `src/server/index.ts` |
+| The HTTP routes `GET /api/assistant/status`, `POST /api/assistant/trip` | `src/server/assistant.ts` (`createAssistantHandler`), plugged into `src/server/index.ts` |
 | Chat screen `#/post/chat` | `src/web/pages/Assistant.tsx` |
 | Review screen `#/post/review` | `src/web/pages/Assistant.tsx` |
 | Texts in English and Arabic | `src/web/strings.ts` (keys starting with `ai.`) |
-| Tests | `src/core/draft.test.ts`, `src/server/assistant.test.ts`, `e2e/flows.test.ts` |
+| Tests | `src/core/draft.test.ts` (draft rules, context endpoint), `src/server/assistant.test.ts` (chat turns, cleaning, limits), `e2e/flows.test.ts` |
 
 ## 3. The draft
 
@@ -100,7 +101,29 @@ The server reads these environment variables. Nothing about the AI is ever sent 
 | `AI_MODEL` | `meta-llama/llama-3.3-70b-instruct:free` | The model name |
 | `AI_BASE_URL` | `https://openrouter.ai/api/v1` | Only for `openai`: any OpenAI-compatible API (OpenRouter, Groq, Gemini, a local Ollama) |
 
-`mock` gives scripted answers with no key and no internet. The tests use it.
+`mock` is a small rule-based stand-in that understands simple English and Arabic messages (governorate names, "December 5", "3 days", "$80", "me and my wife"…). It needs no key and no internet. The tests use it, and it is handy for showing the flow before you have a key.
+
+When the server starts it prints whether the assistant is on, for example `Trip assistant: on (openai, meta-llama/llama-3.3-70b-instruct:free)`.
+
+### Running it on your computer
+
+```bash
+# no key: the pretend AI
+AI_PROVIDER=mock npm start
+
+# a free model through OpenRouter (create a free key at openrouter.ai)
+AI_PROVIDER=openai AI_BASE_URL=https://openrouter.ai/api/v1 AI_API_KEY=sk-or-... AI_MODEL=meta-llama/llama-3.3-70b-instruct:free npm start
+
+# Groq (free tier)
+AI_PROVIDER=openai AI_BASE_URL=https://api.groq.com/openai/v1 AI_API_KEY=gsk_... AI_MODEL=llama-3.3-70b-versatile npm start
+
+# Claude, once you have a key
+AI_PROVIDER=anthropic AI_API_KEY=sk-ant-... AI_MODEL=claude-haiku-5-5 npm start
+```
+
+On Windows PowerShell set each variable first, for example `$env:AI_PROVIDER="mock"`, then `npm start`.
+
+Model names change often; check your provider's model list. Pick a model that is good at following instructions and writing JSON. If a model refuses JSON mode, the server notices and stops asking for it.
 
 ## 7. The endpoint
 
@@ -123,10 +146,18 @@ Get back:
   "reply": "Lovely! Which dates are you thinking of?",
   "draft": { "...the updated draft..." },
   "missing": ["dates", "budget"],
-  "suggestions": [{ "kind": "place", "label": "Ishtar Gate", "patch": { "places": [14] } }],
+  "problems": [],
+  "suggestions": [{ "kind": "place", "placeId": 14 }, { "kind": "budget", "min": 60, "max": 90 }],
   "ready": false
 }
 ```
+
+- `draft` is always a whole, clean draft (section 3). The app keeps it and sends it back with the next message.
+- `missing` lists what is still needed, in asking order: `cities`, `dates`, `groupSize`, `languages`, `budget`, `title`.
+- `problems` explains values that are wrong rather than missing, for example `{ "key": "dates", "code": "date_past" }`.
+- `suggestions` are chips: `{ kind: "place", placeId }`, `{ kind: "budget", min, max }` (per day) or `{ kind: "plan", plan: [{ title, details }] }`. The app writes the label in the tourist's language and applies the chip itself.
+
+Errors: `401` not signed in, `403` not a tourist, `400` no message, `429 too_many_requests`, `503 assistant_off` (no `AI_PROVIDER`), `503 ai_unavailable` (the AI could not be reached or is busy), `504 ai_timeout`.
 
 `GET /api/assistant/status` tells the app whether the assistant is turned on, so it can hide the button when it is not.
 
@@ -136,6 +167,8 @@ Get back:
 - Each message up to 600 characters; up to 30 messages in one chat.
 - Up to 20 assistant calls per user every 10 minutes.
 - If the AI answers with something that is not valid JSON, it is asked once more; after that the draft is kept as it was and the tourist is asked to say it again.
+- Everything the AI puts in the draft goes through `applyPatch` in `src/core/draft.ts`: unknown governorates, places, languages and interests are dropped, numbers outside the limits are ignored, and places must belong to the trip's governorates.
+- Messages from the app are cleaned first: only `user` and `assistant` roles (a `system` message sent by the app is dropped), the last 30 messages, and each message cut to its limit.
 - The key stays on the server.
 
 ## 9. The offline phone app
@@ -144,8 +177,8 @@ The offline phone app runs the marketplace inside the phone with no server, so i
 
 ## 10. Build steps
 
-1. Draft rules in `src/core/draft.ts`, with tests.
-2. The AI provider adapter, the mock, the assistant and its endpoint.
+1. ✅ Draft rules in `src/core/draft.ts`, and `GET /assistant/context`, with tests.
+2. ✅ The AI provider adapter, the mock, the assistant and its endpoint, with tests.
 3. The chat screen with the live draft and suggestion chips.
 4. The review screen and posting.
 5. Browser tests with the mock provider, and this guide finished.

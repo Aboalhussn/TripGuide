@@ -6,6 +6,9 @@ import crypto from 'node:crypto';
 import { createApi } from '../core/api';
 import { seed } from '../core/seed';
 import type { Data, Platform } from '../core/types';
+import { providerFromEnv } from './ai';
+import { createAssistantHandler } from './assistant';
+import { mockProvider } from './mock-ai';
 
 const PORT = Number(process.env.PORT || 3000);
 const ROOT = process.cwd();
@@ -56,6 +59,10 @@ function saveSoon(d: Data) {
 
 const data = load();
 const api = createApi(data, nodePlatform, saveSoon);
+
+// The trip assistant (docs/AI_ASSISTANT.md). Off unless AI_PROVIDER is set.
+const ai = providerFromEnv(process.env, mockProvider);
+const assistant = createAssistantHandler(api, ai);
 
 const TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -130,18 +137,32 @@ const server = http.createServer((req, res) => {
       }
     }
     const auth = req.headers.authorization || '';
-    const result = api({
+    const call = {
       method: req.method || 'GET',
       path: url.pathname.slice(4),
       query: Object.fromEntries(url.searchParams),
       body,
       token: auth.startsWith('Bearer ') ? auth.slice(7) : null,
-    });
+    };
+    // The assistant waits for the AI, so it answers asynchronously; everything else is the marketplace API.
+    if (call.path.startsWith('/assistant/') && call.path !== '/assistant/context') {
+      assistant(call)
+        .then((r) => send(res, r ? r.status : 404, r ? r.body : { error: 'not_found' }))
+        .catch((e) => {
+          console.error('Trip assistant failed:', e);
+          if (!res.headersSent) send(res, 500, { error: 'server_error' });
+        });
+      return;
+    }
+    const result = api(call);
     send(res, result.status, result.body);
   });
 });
 
-server.listen(PORT, () => console.log(`Trip guide is running at http://localhost:${PORT}`));
+server.listen(PORT, () => {
+  console.log(`Trip guide is running at http://localhost:${PORT}`);
+  console.log(ai ? `Trip assistant: on (${ai.name}, ${ai.model})` : 'Trip assistant: off (set AI_PROVIDER to turn it on, see docs/AI_ASSISTANT.md)');
+});
 
 // Write any pending change before exiting.
 for (const sig of ['SIGINT', 'SIGTERM'] as const)
