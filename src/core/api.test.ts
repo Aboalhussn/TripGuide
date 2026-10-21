@@ -468,3 +468,50 @@ test('changing name, country and email from the profile; a taken email is refuse
   assert.equal(s.call('PUT', '/me', { email: 'not-an-email' }, tt).body.error, 'email_invalid');
   assert.equal(s.call('PUT', '/me', { email: DEMO_ACCOUNTS.guide }, tt).body.error, 'email_taken');
 });
+
+test('trip cover: picked from the chosen governorates, checked by the server, with a default', () => {
+  const s = setup();
+  const tt = s.login(DEMO_ACCOUNTS.tourist);
+  const base = { ...tripBody(s.today()), cities: ['babylon'] };
+  assert.equal(s.ok('POST', '/requests', { ...base, cover: 'ishtar.jpg' }, tt).cover, 'ishtar.jpg');
+  assert.equal(s.ok('POST', '/requests', base, tt).cover, 'babylon.jpg');
+  assert.equal(s.call('POST', '/requests', { ...base, cover: 'malwiya.jpg' }, tt).body.error, 'field_invalid');
+  // A governorate without its own photos yet offers the general heritage photos.
+  assert.equal(s.ok('POST', '/requests', { ...base, cities: ['basra'], cover: 'ziggurat.jpg' }, tt).cover, 'ziggurat.jpg');
+  // Older trips without a cover get their first city's picture.
+  assert.ok(s.ok('GET', '/requests/mine', null, tt).requests.every((r: any) => typeof r.cover === 'string' && r.cover.length > 0));
+});
+
+test('governorates: the admin adds one with places and photos; tourists can then pick it and its photos', () => {
+  const s = setup();
+  const ad = s.login(DEMO_ACCOUNTS.admin);
+  const tt = s.login(DEMO_ACCOUNTS.tourist);
+  const img = 'data:image/jpeg;base64,' + 'B'.repeat(300);
+  const body = { name: 'Dhi Qar', nameAr: 'ذي قار', places: [{ name: 'Ziggurat of Ur', nameAr: 'زقورة أور', kind: 'archaeological' }], covers: [img, 'ziggurat.jpg'] };
+  assert.equal(s.call('POST', '/admin/cities', body, tt).status, 403);
+  assert.equal(s.call('POST', '/admin/cities', { ...body, covers: [] }, ad).body.error, 'field_required');
+  assert.equal(s.call('POST', '/admin/cities', { ...body, covers: ['http://x/y.jpg'] }, ad).body.error, 'photo_invalid');
+  const c = s.ok('POST', '/admin/cities', body, ad);
+  assert.equal(c.slug, 'dhi-qar');
+  assert.match(c.covers[0], /^m:\d+$/);
+  assert.equal(s.call('POST', '/admin/cities', { ...body, name: 'Other' }, ad).body.error, 'city_exists');
+  const meta = s.ok('GET', '/meta');
+  assert.ok(meta.cities.some((x: any) => x.slug === 'dhi-qar'));
+  assert.equal(meta.media[c.covers[0]], img);
+  const place = meta.places.find((p: any) => p.city === 'dhi-qar');
+  assert.equal(place.nameAr, 'زقورة أور');
+  // A tourist posts a trip there with the admin's photo as cover; other pictures are refused.
+  const trip = s.ok('POST', '/requests', { ...tripBody(s.today()), cities: ['dhi-qar'], places: [place.id], cover: c.covers[0] }, tt);
+  assert.equal(trip.cover, c.covers[0]);
+  assert.equal(s.call('POST', '/requests', { ...tripBody(s.today()), cities: ['dhi-qar'], cover: 'babylon.jpg' }, tt).body.error, 'field_invalid');
+  // Editing keeps known photos and place ids, adds new ones, and adds photos to built-in governorates too.
+  const ed = s.ok('PUT', '/admin/cities/dhi-qar', { ...body, places: [{ ...place }, { name: 'Ahwar', nameAr: 'الأهوار', kind: 'nature' }], covers: [c.covers[1]] }, ad);
+  assert.deepEqual(ed.covers, ['ziggurat.jpg']);
+  assert.equal(ed.places.length, 2);
+  assert.equal(ed.places[0].id, place.id);
+  const bg = s.ok('GET', '/admin/cities/baghdad', null, ad);
+  const bg2 = s.ok('PUT', '/admin/cities/baghdad', { name: bg.name, nameAr: bg.nameAr, places: bg.places, covers: [img] }, ad);
+  assert.equal(bg2.covers.length, 1);
+  assert.equal(bg2.places.length, bg.places.length);
+  assert.ok(s.ok('GET', '/meta').cityCovers.baghdad[0].startsWith('m:'));
+});

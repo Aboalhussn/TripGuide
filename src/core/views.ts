@@ -1,5 +1,5 @@
 // Read-side helpers: statistics and the public shapes the API returns.
-import { CITIES, GUIDE_RATING_KEYS, PLACES, TOURIST_RATING_KEYS } from './catalog';
+import { GUIDE_RATING_KEYS, TOURIST_RATING_KEYS } from './catalog';
 import type { Booking, Data, GuideProfile, Review, User } from './types';
 import { addDays, avg, iraqDate, median, money, round1 } from './util';
 import { settings } from '../config/brand';
@@ -154,11 +154,6 @@ export function reviewView(data: Data, r: Review) {
   };
 }
 
-export function placeNames(ids: number[]) {
-  return ids.map((id) => PLACES.find((p) => p.id === id)).filter(Boolean);
-}
-
-export const cityExists = (slug: string) => CITIES.some((c) => c.slug === slug);
 
 export function bookingMoney(data: Data, b: Booking) {
   const ms = data.milestones.filter((m) => m.bookingId === b.id);

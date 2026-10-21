@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { api } from '../lib/api';
 import { useApp, useLoad } from '../lib/app';
 import { useFmt } from '../lib/format';
-import { Link } from '../lib/router';
-import { Avatar, Empty, ErrorState, Field, Icon, Loading, PageHead, useBusy } from '../ui';
+import { Link, navigate } from '../lib/router';
+import { coverSrc } from '../assets';
+import { resizeImage } from '../lib/image';
+import { Avatar, Empty, ErrorState, Field, HeroBand, Icon, LimitNote, Loading, PageHead, useBusy } from '../ui';
 import { SubscriptionSettings } from './Home';
 
 function AdminTabs({ active }: { active: string }) {
@@ -455,5 +457,275 @@ function RateSettings({ rate, onSaved }: { rate: number; onSaved(): void }) {
         {msg && <span className="small muted" role="status">{msg}</span>}
       </div>
     </form>
+  );
+}
+
+/* ---------- Governorates: the admin adds governorates, their heritage places and the photos tourists pick from ---------- */
+
+const CITY_LIMITS = { places: 30, covers: 12 };
+
+export function AdminCities() {
+  const { t, meta } = useApp();
+  const fmt = useFmt();
+  const res = useLoad(() => api('GET', '/admin/cities'), []);
+  return (
+    <div className="page">
+      <PageHead title={t('city.title')} />
+      <p className="muted small" style={{ margin: 0 }}>{t('city.lede')}</p>
+      <Link to="/admin/cities/new" className="btn lg block">
+        <Icon name="plus" size={20} /> {t('city.add')}
+      </Link>
+      {res.loading ? (
+        <Loading />
+      ) : res.error ? (
+        <ErrorState error={res.error} onRetry={res.reload} />
+      ) : (
+        <div className="stack city-list">
+          {res.data.map((c: any) => (
+            <Link key={c.slug} to={`/admin/cities/${c.slug}`} className="card link city-row">
+              {c.covers[0] ? <img src={coverSrc(c.covers[0], meta)} alt="" /> : <span className="city-noimg"><Icon name="image" size={22} /></span>}
+              <span className="stack" style={{ gap: 2, flex: 1, minWidth: 0 }}>
+                <strong>{fmt.city(c.slug)}</strong>
+                <span className="xs muted">
+                  {t('city.places_n', { count: c.places.length })} · {t('city.photos_n', { count: c.covers.length })}
+                </span>
+                {!c.covers.length && <span className="xs city-warn">{t('city.no_photos')}</span>}
+              </span>
+              <Icon name="edit" size={18} />
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+type PlaceRow = { id?: number; name: string; nameAr: string; kind: string };
+
+/** Three steps, like posting a trip: the name, the heritage places, then the photos. Also used to edit. */
+export function CityWizard({ slug }: { slug?: string }) {
+  const { t, meta, refreshMeta, toast, errorText } = useApp();
+  const existing = useLoad(() => (slug ? api('GET', `/admin/cities/${slug}`) : Promise.resolve(null)), [slug]);
+  const [f, setF] = useState<{ name: string; nameAr: string; places: PlaceRow[]; covers: string[] } | null>(slug ? null : { name: '', nameAr: '', places: [{ name: '', nameAr: '', kind: 'heritage' }], covers: [] });
+  const [step, setStep] = useState(0);
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [error, setError] = useState<string | null>(null);
+  const { busy, run } = useBusy();
+  React.useEffect(() => {
+    const c = existing.data;
+    if (c) setF({ name: c.name, nameAr: c.nameAr, places: c.places.map((p: any) => ({ id: p.id, name: p.name, nameAr: p.nameAr, kind: p.kind })), covers: [...c.covers] });
+  }, [existing.data]);
+  if (slug && existing.loading) return <Loading />;
+  if (slug && existing.error) return <ErrorState error={existing.error} onRetry={existing.reload} />;
+  if (!f) return <Loading />;
+
+  const up = (patch: Partial<typeof f>) => setF({ ...f, ...patch });
+  const setPlace = (i: number, patch: Partial<PlaceRow>) => up({ places: f.places.map((p, n) => (n === i ? { ...p, ...patch } : p)) });
+  const kinds: string[] = meta.placeKinds || ['archaeological', 'religious', 'heritage', 'nature', 'market'];
+
+  // Live checks, shown as soon as a field is touched.
+  const errors: Record<string, string> = {};
+  if (f.name.trim().length < 2) errors.name = t('city.v_name');
+  if (f.nameAr.trim().length < 2) errors.nameAr = t('city.v_name_ar');
+  const others = meta.cities.filter((c: any) => c.slug !== slug);
+  if (!errors.name && others.some((c: any) => c.name.toLowerCase() === f.name.trim().toLowerCase())) errors.name = t('err.city_exists');
+  if (!errors.nameAr && others.some((c: any) => c.nameAr === f.nameAr.trim())) errors.nameAr = t('err.city_exists');
+  f.places.forEach((p, i) => {
+    if (p.name.trim().length < 2) errors['p' + i + 'n'] = t('city.v_place');
+    if (p.nameAr.trim().length < 2) errors['p' + i + 'a'] = t('city.v_place_ar');
+  });
+  if (!f.places.length) errors.places = t('city.v_places');
+  if (!f.covers.length) errors.covers = t('city.v_photos');
+  const show = (k: string) => (touched[k] || touched.all ? errors[k] : undefined);
+  const touch = (k: string) => setTouched((x) => (x[k] ? x : { ...x, [k]: true }));
+
+  const STEPS = [
+    { key: 'name', img: 'ziggurat.jpg', fields: ['name', 'nameAr'] },
+    { key: 'places', img: 'babylon.jpg', fields: Object.keys(errors).filter((k) => k === 'places' || /^p\d+[na]$/.test(k)) },
+    { key: 'photos', img: 'malwiya.jpg', fields: ['covers'] },
+  ];
+  const last = STEPS.length - 1;
+  const cur = STEPS[step];
+  const toTop = () => document.querySelector('.post-wizard')?.scrollIntoView({ block: 'start' });
+  const goBack = () => {
+    if (step === 0) return navigate('/admin/cities');
+    setStep(step - 1);
+    toTop();
+  };
+  const fullPlaces = f.places.length >= CITY_LIMITS.places;
+  const fullPhotos = f.covers.length >= CITY_LIMITS.covers;
+
+  const addPhotos = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = [...(e.target.files || [])].slice(0, CITY_LIMITS.covers - f.covers.length);
+    e.target.value = '';
+    const out: string[] = [];
+    for (const file of files) {
+      try {
+        out.push(await resizeImage(file, { max: 1200 }));
+      } catch {
+        toast(t('err.photo_invalid'), 'error');
+      }
+    }
+    if (out.length) {
+      touch('covers');
+      setF((x) => (x ? { ...x, covers: [...x.covers, ...out].slice(0, CITY_LIMITS.covers) } : x));
+    }
+  };
+  const src = (c: string) => (c.startsWith('data:') ? c : coverSrc(c, meta));
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    const bad = cur.fields.find((k) => errors[k]);
+    if (bad) {
+      setTouched((x) => ({ ...x, ...Object.fromEntries(cur.fields.map((k) => [k, true])) }));
+      document.getElementById('cf-' + bad)?.focus();
+      return;
+    }
+    if (step < last) {
+      setStep(step + 1);
+      toTop();
+      return;
+    }
+    run(async () => {
+      try {
+        const body = { name: f.name.trim(), nameAr: f.nameAr.trim(), places: f.places.map((p) => ({ ...p, name: p.name.trim(), nameAr: p.nameAr.trim() })), covers: f.covers };
+        await api(slug ? 'PUT' : 'POST', slug ? `/admin/cities/${slug}` : '/admin/cities', body);
+        await refreshMeta();
+        toast(slug ? t('city.saved') : t('city.added', { name: body.nameAr || body.name }));
+        navigate('/admin/cities', { replace: true });
+      } catch (x) {
+        setError(errorText(x));
+        throw x;
+      }
+    });
+  };
+
+  return (
+    <div className="page post-wizard city-wizard" style={{ maxWidth: 640, margin: '0 auto', width: '100%' }}>
+      <div className="wiz-head">
+        <div className="wiz-top">
+          <button type="button" className="back icon-btn" aria-label={step === 0 ? t('common.back') : t('post.prev')} onClick={goBack}>
+            <Icon name="back" />
+          </button>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="xs muted">{slug ? t('city.edit') : t('city.add')}</div>
+            <div className="small bold">{t('post.step_n', { n: step + 1, total: STEPS.length })}</div>
+          </div>
+        </div>
+        <div className="wiz-progress" role="progressbar" aria-valuemin={1} aria-valuemax={STEPS.length} aria-valuenow={step + 1} aria-label={t('post.step_n', { n: step + 1, total: STEPS.length })}>
+          {STEPS.map((st, i) => (
+            <i key={st.key} className={i <= step ? 'on' : ''} />
+          ))}
+        </div>
+      </div>
+      <div className="wiz-hero" key={cur.key}>
+        <HeroBand img={cur.img} title={t(`city.s${step + 1}_title`)} text={t(`city.s${step + 1}_text`)} />
+      </div>
+
+      <form onSubmit={submit} className="stack-lg wiz-body" noValidate>
+        {step === 0 && (
+          <div className="stack">
+            <Field label={t('city.name_ar')} error={show('nameAr')}>
+              <input id="cf-nameAr" className="input" dir="rtl" value={f.nameAr} maxLength={40} placeholder="مثال: ذي قار" onBlur={() => touch('nameAr')} onChange={(e) => up({ nameAr: e.target.value })} />
+            </Field>
+            <Field label={t('city.name_en')} error={show('name')}>
+              <input id="cf-name" className="input" dir="ltr" value={f.name} maxLength={40} placeholder="e.g. Dhi Qar" onBlur={() => touch('name')} onChange={(e) => up({ name: e.target.value })} />
+            </Field>
+          </div>
+        )}
+
+        {step === 1 && (
+          <div className="stack">
+            {f.places.map((p, i) => (
+              <fieldset key={i} className="card stack place-row">
+                <legend className="small bold">{t('city.place_n', { n: i + 1 })}</legend>
+                <Field label={t('city.place_ar')} error={show('p' + i + 'a')}>
+                  <input id={`cf-p${i}a`} className="input" dir="rtl" value={p.nameAr} maxLength={80} onBlur={() => touch('p' + i + 'a')} onChange={(e) => setPlace(i, { nameAr: e.target.value })} />
+                </Field>
+                <Field label={t('city.place_en')} error={show('p' + i + 'n')}>
+                  <input id={`cf-p${i}n`} className="input" dir="ltr" value={p.name} maxLength={80} onBlur={() => touch('p' + i + 'n')} onChange={(e) => setPlace(i, { name: e.target.value })} />
+                </Field>
+                <div className="row" style={{ gap: 10, alignItems: 'flex-end', flexWrap: 'nowrap' }}>
+                  <div style={{ flex: 1 }}>
+                    <Field label={t('city.kind')}>
+                      <select className="input" value={p.kind} onChange={(e) => setPlace(i, { kind: e.target.value })}>
+                        {kinds.map((k) => (
+                          <option key={k} value={k}>
+                            {t('kind.' + k)}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  </div>
+                  {f.places.length > 1 && (
+                    <button type="button" className="icon-btn danger-ghost" aria-label={t('city.remove_place', { n: i + 1 })} onClick={() => up({ places: f.places.filter((_, n) => n !== i) })}>
+                      <Icon name="trash" size={20} />
+                    </button>
+                  )}
+                </div>
+              </fieldset>
+            ))}
+            {show('places') && <span className="err small">{show('places')}</span>}
+            {fullPlaces ? (
+              <LimitNote max={CITY_LIMITS.places} />
+            ) : (
+              <button type="button" className="btn outline block" onClick={() => up({ places: [...f.places, { name: '', nameAr: '', kind: 'heritage' }] })}>
+                <Icon name="plus" size={18} /> {t('city.add_place')}
+              </button>
+            )}
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="stack">
+            <p className="small muted" style={{ margin: 0 }}>{t('city.photos_hint')}</p>
+            <div className="city-photos" id="cf-covers" tabIndex={-1}>
+              {f.covers.map((c, i) => (
+                <div key={c.slice(-40) + i} className="city-photo">
+                  <img src={src(c)} alt={t('post.cover_n', { n: i + 1 })} />
+                  {i === 0 && <span className="pill city-first">{t('city.first')}</span>}
+                  <button type="button" className="city-photo-x" aria-label={t('city.remove_photo', { n: i + 1 })} onClick={() => up({ covers: f.covers.filter((_, n) => n !== i) })}>
+                    <Icon name="close" size={16} stroke={2.6} />
+                  </button>
+                </div>
+              ))}
+              {!fullPhotos && (
+                <label className="city-photo add">
+                  <Icon name="camera" size={26} />
+                  <span className="xs bold">{t('city.add_photos')}</span>
+                  <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="sr-only" onChange={addPhotos} />
+                </label>
+              )}
+            </div>
+            {fullPhotos && <LimitNote max={CITY_LIMITS.covers} />}
+            {show('covers') && <span className="err small">{show('covers')}</span>}
+            <div className="card wiz-summary stack" style={{ gap: 6 }}>
+              <strong>{t('post.summary')}</strong>
+              <span className="bold">
+                <bdi>{f.nameAr}</bdi> · <bdi>{f.name}</bdi>
+              </span>
+              <span className="small muted">{t('city.places_n', { count: f.places.length })} · {t('city.photos_n', { count: f.covers.length })}</span>
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div className="note danger" role="alert">
+            {error}
+          </div>
+        )}
+        <div className="wiz-actions">
+          {step > 0 && (
+            <button type="button" className="btn lg ghost" onClick={goBack}>
+              {t('post.prev')}
+            </button>
+          )}
+          <button type="submit" className="btn lg" disabled={busy} style={{ flex: 1 }}>
+            {step < last ? t('post.next') : slug ? t('city.save') : t('city.publish')}
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }

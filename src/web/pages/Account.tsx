@@ -22,6 +22,7 @@ export function Login({ query }: { query: Record<string, string> }) {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [demoOpen, setDemoOpen] = useState(false);
+  const [demoPick, setDemoPick] = useState<'tourist' | 'guide' | 'admin'>('tourist');
   const go = async (e?: React.FormEvent, creds?: { email: string; password: string }) => {
     e?.preventDefault();
     setErr(null);
@@ -38,63 +39,66 @@ export function Login({ query }: { query: Record<string, string> }) {
   };
   const demo = meta?.demoLogins;
   return (
-    <div className="page login-page" dir="ltr">
-      <div className="login-top">
-        <LangToggle />
-      </div>
-      <div className="login-brand">
-        <img src={asset('tg-logo-stacked.svg')} alt="Trip guide" />
-      </div>
-      <form className="login-form" onSubmit={go}>
-        <input className="input login-input" type="email" inputMode="email" autoComplete="email" placeholder="Email" aria-label="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        <div className="pw-wrap">
-          <input id="login-pw" className="input login-input" type={showPw ? 'text' : 'password'} autoComplete="current-password" placeholder="Password" aria-label="Password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-          <button type="button" className="pw-eye" aria-label={showPw ? t('auth.hide_pw') : t('auth.show_pw')} aria-pressed={showPw} onClick={() => setShowPw(!showPw)}>
-            <Icon name={showPw ? 'eyeOff' : 'eye'} size={20} />
+    <div className="auth-page">
+      <AuthHero img="babylon.jpg" title={t('auth.hero_title')} text={t('auth.hero_text')} />
+      <section className="auth-sheet">
+        <h2>{t('auth.login_btn')}</h2>
+        <form className="login-form" onSubmit={go}>
+          <label className="auth-label">
+            {t('field.email')}
+            <input className="input login-input" type="email" inputMode="email" autoComplete="email" placeholder="name@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          </label>
+          <label className="auth-label" htmlFor="login-pw">
+            {t('field.password')}
+          </label>
+          <div className="pw-wrap" style={{ marginTop: -8 }}>
+            <input id="login-pw" className="input login-input" type={showPw ? 'text' : 'password'} autoComplete="current-password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
+            <button type="button" className="pw-eye" aria-label={showPw ? t('auth.hide_pw') : t('auth.show_pw')} aria-pressed={showPw} onClick={() => setShowPw(!showPw)}>
+              <Icon name={showPw ? 'eyeOff' : 'eye'} size={20} />
+            </button>
+          </div>
+          {err && !demoOpen && (
+            <div className="note danger" role="alert" dir="auto">
+              {err}
+            </div>
+          )}
+          <button className="btn lg block login-submit" disabled={busy}>
+            {t('auth.login_btn')}
+          </button>
+        </form>
+        <div className="auth-links">
+          <Link to={'/register' + (query.next ? '?next=' + encodeURIComponent(query.next) : '')} className="strong-link">{t('auth.create_account')}</Link>
+          <button type="button" className="linkish guest-link" onClick={() => navigate('/', { replace: true })}>
+            {t('auth.guest')}
           </button>
         </div>
-        {err && (
-          <div className="note danger" role="alert" dir="auto">
-            {err}
-          </div>
-        )}
-        <button className="btn lg block login-submit" disabled={busy}>
-          {t('auth.login_btn')}
-        </button>
-      </form>
-      <div className="login-links" dir="auto">
-        <p className="small">
-          {t('auth.no_account')} <Link to={'/register' + (query.next ? '?next=' + encodeURIComponent(query.next) : '')} className="strong-link">{t('auth.create_account')}</Link>
-        </p>
-        <button type="button" className="linkish guest-link" onClick={() => navigate('/', { replace: true })}>
-          {t('auth.guest')}
-        </button>
-      </div>
-      {demo && (
-        <div className="demo-box" dir="auto">
-          <button type="button" className="demo-trigger" onClick={() => setDemoOpen(true)}>
+        {demo && (
+          <button type="button" className="demo-trigger" onClick={() => { setErr(null); setDemoOpen(true); }}>
             <Icon name="send" size={16} /> {t('auth.try_demo')}
           </button>
-        </div>
-      )}
+        )}
+      </section>
       {demo && demoOpen && (
-        // Pop-up sheet with the demo accounts: one tap signs in.
+        // Pop-up sheet: pick a demo account (it gets a check), then "Enter as …".
         <Modal title={t('auth.demo_sheet_title')} onClose={() => setDemoOpen(false)}>
-          <div className="stack demo-sheet" dir="auto" style={{ gap: 10 }}>
-            <p className="small muted" style={{ margin: 0 }}>{t('auth.demo_sheet_text')}</p>
+          <div className="stack demo-sheet" dir="auto" style={{ gap: 10 }} role="radiogroup" aria-label={t('auth.demo_sheet_title')}>
             {([
               ['tourist', demo.tourist, 'auth.demo_tourist', 'auth.demo_tourist_text', 'HW'],
               ['guide', demo.guide, 'auth.demo_guide', 'auth.demo_guide_text', 'ZR'],
               ['admin', demo.admin, 'auth.demo_admin', 'auth.demo_admin_text', 'TG'],
             ] as const).map(([k, mail, label, text, ini]) => (
-              <button key={k} type="button" className={'demo-pick demo-' + k} disabled={busy} onClick={() => go(undefined, { email: mail, password: demo.password })}>
+              <button key={k} type="button" role="radio" aria-checked={demoPick === k} className={'demo-pick demo-' + k + (demoPick === k ? ' on' : '')} onClick={() => setDemoPick(k)}>
                 <span className="demo-av" aria-hidden="true">{ini}</span>
                 <span className="demo-text">
                   <strong>{t(label)}</strong>
                   <span className="xs muted">{t(text)}</span>
                   <span className="xs muted" dir="ltr">{mail}</span>
                 </span>
-                <Icon name="next" size={18} className="flip" />
+                {demoPick === k ? (
+                  <span className="demo-check" aria-hidden="true"><Icon name="check" size={14} stroke={3} /></span>
+                ) : (
+                  <Icon name="next" size={18} className="flip" />
+                )}
               </button>
             ))}
             {err && (
@@ -102,10 +106,31 @@ export function Login({ query }: { query: Record<string, string> }) {
                 {err}
               </div>
             )}
+            <button type="button" className="btn lg demo-go" disabled={busy} onClick={() => go(undefined, { email: (demo as any)[demoPick], password: demo.password })}>
+              {t('auth.enter_as', { role: t('auth.role_short_' + demoPick) })}
+            </button>
           </div>
         </Modal>
       )}
     </div>
+  );
+}
+
+/** Photo header for sign-in and sign-up: the picture under a navy wash, the white logo and a headline. */
+function AuthHero({ img, title, text, small = false }: { img: string; title: string; text: string; small?: boolean }) {
+  const { t } = useApp();
+  return (
+    <header className={'auth-hero' + (small ? ' small' : '')}>
+      <img className="auth-bg" src={asset(img)} alt="" />
+      <div className="auth-top" dir="ltr">
+        <span className="login-brand"><img src={asset('tg-logo-horizontal-white.svg')} alt={t('brand.name')} /></span>
+        <LangToggle />
+      </div>
+      <div className="auth-head">
+        <h1>{title}</h1>
+        <p>{text}</p>
+      </div>
+    </header>
   );
 }
 
@@ -163,9 +188,10 @@ export function Register({ query }: { query: Record<string, string> }) {
     }
   };
   return (
-    <div className="page" style={{ maxWidth: 520, margin: '0 auto', width: '100%' }}>
-      <PageHead title={t('auth.create')} />
-      <form className="card stack" onSubmit={go} noValidate>
+    <div className="auth-page">
+      <AuthHero small img="ishtar.jpg" title={t('auth.create')} text={t('auth.create_text')} />
+      <section className="auth-sheet">
+      <form className="stack" onSubmit={go} noValidate>
         <div className="grid-2" role="radiogroup" aria-label={t('auth.i_am')}>
           {(['tourist', 'guide'] as const).map((r) => (
             <button key={r} type="button" role="radio" aria-checked={f.role === r} className={'btn ' + (f.role === r ? '' : 'ghost')} style={{ flexDirection: 'column', minHeight: 72, gap: 2 }} onClick={() => up({ role: r })}>
@@ -225,6 +251,7 @@ export function Register({ query }: { query: Record<string, string> }) {
         </button>
         <p className="xs muted center">{t('auth.guest_note')}</p>
       </div>
+      </section>
     </div>
   );
 }
@@ -263,6 +290,7 @@ function AccountMenu() {
       : me.role === 'admin'
         ? [
             info,
+            { to: '/admin/cities', icon: 'pin', label: t('city.title'), sub: t('menu.cities_sub') },
             { to: '/admin/pricing', icon: 'money', label: t('admin.pricing'), sub: t('menu.pricing_sub') },
             { to: '/admin/stats', icon: 'chart', label: t('stats.title'), sub: t('menu.stats_sub') },
             { to: '/notifications', icon: 'bell', label: t('notifications.title'), sub: me.unreadNotifications ? t('menu.unread', { count: me.unreadNotifications }) : t('notifications.none'), badge: me.unreadNotifications ? <span className="pill gold">{me.unreadNotifications}</span> : null },

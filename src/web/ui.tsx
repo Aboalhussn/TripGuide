@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from './lib/app';
 import { useFmt } from './lib/format';
 import { Link, back } from './lib/router';
-import { asset, photoSrc } from './assets';
+import { asset, coverSrc, photoSrc } from './assets';
 
 // ---------- icons (one stroke set) ----------
 const P: Record<string, React.ReactNode> = {
@@ -377,6 +377,47 @@ export function OfferStatus({ status }: { status: string }) {
   const { t } = useApp();
   const cls: Record<string, string> = { pending: 'sky', awarded: 'gold', accepted: 'ok', declined: '', withdrawn: '', not_selected: '' };
   return <span className={'pill ' + (cls[status] || '')}>{t('offer.status.' + status)}</span>;
+}
+
+/** Trip card with the trip's cover picture (who posted it over the picture), the title, date, place and
+ *  people, and the per-day budget. The whole card opens the trip; `action` is its own button. */
+export function TripCard({ r, badge, pills, action, footNote }: { r: any; badge?: React.ReactNode; pills?: React.ReactNode; action?: React.ReactNode; footNote?: React.ReactNode }) {
+  const { t, meta } = useApp();
+  const fmt = useFmt();
+  return (
+    <article className="trip-card">
+      <div className="tc-cover">
+        <img src={r.cover ? coverSrc(r.cover, meta) : asset('skyline.jpg')} alt="" loading="lazy" />
+        {badge && <span className="tc-badge">{badge}</span>}
+        {pills && <div className="tc-pills">{pills}</div>}
+        <div className="tc-who">
+          <span className="tc-av"><Avatar user={r.tourist} size={38} /></span>
+          <span className="stack" style={{ gap: 0, minWidth: 0 }}>
+            <strong>{r.tourist.name}</strong>
+            <span className="xs">{r.tourist.country} · {fmt.ago(r.createdAt)}</span>
+          </span>
+        </div>
+      </div>
+      <div className="tc-body">
+        <h3>
+          <Link to={`/requests/${r.id}`} className="tc-link"><bdi>{r.title}</bdi></Link>
+        </h3>
+        <div className="tc-meta">
+          <span><Icon name="calendar" size={18} /><b>{fmt.range(r.startDate, r.endDate)}</b></span>
+          <span><Icon name="pin" size={18} /><b>{fmt.cities(r.cities)}</b></span>
+          <span><Icon name="users" size={18} /><b>{t('request.people', { count: r.groupSize })}</b></span>
+        </div>
+        <div className="tc-foot">
+          <span className="stack" style={{ gap: 0 }}>
+            <span className="xs muted">{t('card.budget_day')}</span>
+            <strong>{perDayRange(r, { ...fmt, perDaySuffix: '' })}</strong>
+          </span>
+          {action}
+        </div>
+        {footNote}
+      </div>
+    </article>
+  );
 }
 
 /** Trip budgets are kept as whole-trip totals and shown per day, which is how guides price. */

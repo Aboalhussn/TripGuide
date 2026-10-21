@@ -56,4 +56,27 @@ export const TOURIST_RATING_KEYS = ['communication', 'punctuality', 'respect'];
 
 export const AVATAR_COLORS = 6;
 
+// Cover photos a tourist can pick for a trip, by governorate (real photos in public/img).
+// A governorate without its own photos yet offers the general heritage photos.
+export const GENERAL_COVERS = ['ziggurat.jpg', 'ishtar.jpg', 'babylon.jpg', 'malwiya.jpg'];
+export const CITY_COVERS: Record<string, string[]> = {
+  babylon: ['babylon.jpg', 'ishtar.jpg', 'gate.jpg', 'brick-bull.jpg'],
+  samarra: ['malwiya.jpg', 'arch.jpg'],
+  baghdad: [],
+  karbala: [],
+  najaf: [],
+  erbil: [],
+  basra: [],
+  mosul: [],
+};
+// Every built-in picture the admin can reuse for any governorate.
+export const BUILTIN_COVERS = () => [...new Set([...GENERAL_COVERS, ...Object.values(CITY_COVERS).flat()])];
+// The admin can add governorates and photos, so the live list is in the data; this falls back to the built-in photos.
+export const cityCovers = (c: City) => c.covers || CITY_COVERS[c.slug] || [];
+export const coversFor = (all: City[], cities: string[]) => {
+  const own = [...new Set(cities.flatMap((slug) => { const c = all.find((x) => x.slug === slug); return c ? cityCovers(c) : []; }))];
+  return own.length ? own : GENERAL_COVERS;
+};
+export const PLACE_KINDS: Place['kind'][] = ['archaeological', 'religious', 'heritage', 'nature', 'market'];
+
 export const PHOTO_LIBRARY = ['ishtar', 'gate', 'babylon', 'arch', 'brick-bull', 'malwiya', 'ziggurat', 'skyline', 'map', 'wing'];

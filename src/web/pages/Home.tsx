@@ -5,7 +5,7 @@ import { useFmt } from '../lib/format';
 import { CityStats } from './Admin';
 import { Link } from '../lib/router';
 import { asset, photoSrc } from '../assets';
-import { Avatar, BookingStatus, Icon, Loading, Money, Rating, RequestFacts, RequestStatus, BrandBar, BrandFooter, VerifiedBadge } from '../ui';
+import { Avatar, BookingStatus, Icon, Loading, Money, Rating, RequestFacts, RequestStatus, BrandBar, BrandFooter, TripCard, VerifiedBadge } from '../ui';
 
 type Slide = { img: string; title: string; text?: string; cta: string; to: string };
 
@@ -411,54 +411,28 @@ export function GuideHome() {
 export function RequestFeedCard({ r }: { r: any }) {
   const { t, me } = useApp();
   const fmt = useFmt();
-  return (
-    <article className="card stack" style={{ gap: 10 }}>
-      <div className="chips">
-        {r.urgent && <span className="pill gold">{t('request.urgent')}</span>}
-        {r.invitedMe && <span className="pill sky">{t('request.invited_you')}</span>}
-        {r.directGuideId === me?.id && <span className="pill navy">{t('request.direct_you')}</span>}
-        {r.femaleGuide && <span className="pill">{t('request.female_pref')}</span>}
-        {r.busyForMe && !r.myOffer && <span className="pill danger">{t('request.busy_pill')}</span>}
-        <span className="xs muted" style={{ marginInlineStart: 'auto' }}>
-          {fmt.ago(r.createdAt)}
-        </span>
-      </div>
-      <Link to={`/requests/${r.id}`} style={{ fontWeight: 700, fontSize: 17, textDecoration: 'none', lineHeight: 1.3 }}>
-        <bdi>{r.title}</bdi>
-      </Link>
-      <RequestFacts r={r} />
-      {r.description && (
-        <p className="small muted" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-          <bdi>{r.description}</bdi>
-        </p>
-      )}
-      <div className="between small">
-        <span>
-          {t('request.offers_n', { count: r.offersCount })}
-          {r.avgOffer !== null && <span className="muted"> · {t('request.avg', { amount: fmt.usd(r.avgOffer) })}</span>}
-        </span>
-      </div>
-      <div className="between" style={{ paddingTop: 10, borderTop: '1px solid var(--line)' }}>
-        <Link to={`/users/${r.tourist.id}`} className="xs muted" style={{ textDecoration: 'none' }}>
-          {r.tourist.name}, {r.tourist.country}
-          {r.tourist.stats.rating !== null ? ` · ${t('request.tourist_rating', { rating: fmt.num(r.tourist.stats.rating) })}` : ` · ${t('request.new_tourist')}`}
-        </Link>
-        {r.myOffer ? (
-          <Link to={`/requests/${r.id}`} className="btn sm ghost">
-            {t('request.your_offer', { amount: fmt.usd(r.myOffer.price) })}
-          </Link>
-        ) : r.busyForMe ? (
-          <Link to={`/requests/${r.id}`} className="btn sm ghost">
-            {t('request.view')}
-          </Link>
-        ) : (
-          <Link to={`/requests/${r.id}#offer`} className="btn sm">
-            {t('request.send_offer')}
-          </Link>
-        )}
-      </div>
-    </article>
+  const pills = (
+    <>
+      {r.urgent && <span className="pill gold">{t('request.urgent')}</span>}
+      {r.invitedMe && <span className="pill sky">{t('request.invited_you')}</span>}
+      {r.directGuideId === me?.id && <span className="pill navy">{t('request.direct_you')}</span>}
+      {r.busyForMe && !r.myOffer && <span className="pill danger">{t('request.busy_pill')}</span>}
+    </>
   );
+  const action = r.myOffer ? (
+    <Link to={`/requests/${r.id}`} className="btn sm ghost tc-action">
+      {t('request.your_offer', { amount: fmt.usd(r.myOffer.price) })}
+    </Link>
+  ) : r.busyForMe ? (
+    <Link to={`/requests/${r.id}`} className="btn sm ghost tc-action">
+      {t('request.view')}
+    </Link>
+  ) : (
+    <Link to={`/requests/${r.id}#offer`} className="btn gold tc-action">
+      <Icon name="send" size={16} /> {t('request.send_offer')}
+    </Link>
+  );
+  return <TripCard r={r} badge={t('request.offers_n', { count: r.offersCount })} pills={pills} action={action} />;
 }
 
 export function AdminHome() {
@@ -534,6 +508,14 @@ export function AdminHome() {
         </div>
         <CityStats limit={5} />
       </section>
+      <Link to="/admin/cities" className="card link row pricing-link" style={{ gap: 12, flexWrap: 'nowrap' }}>
+        <span className="st-ico"><Icon name="pin" size={20} /></span>
+        <span style={{ flex: 1 }} className="stack">
+          <strong>{t('city.title')}</strong>
+          <span className="xs muted">{t('menu.cities_sub')}</span>
+        </span>
+        <Icon name="next" size={18} className="flip" />
+      </Link>
       <Link to="/admin/pricing" className="card link row pricing-link" style={{ gap: 12, flexWrap: 'nowrap' }}>
         <span className="st-ico gold"><Icon name="money" size={20} /></span>
         <span style={{ flex: 1 }} className="stack">

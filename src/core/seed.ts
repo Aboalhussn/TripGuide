@@ -1,5 +1,5 @@
 // Demo data, built relative to "now" so the demo always looks current.
-import { CITIES, PLACES } from './catalog';
+import { CITIES, CITY_COVERS, PLACES } from './catalog';
 import type { Booking, Data, GuideProfile, Offer, Platform, TripRequest, User } from './types';
 import { addDays, dateRange, daysInclusive, iraqDate, money } from './util';
 import { settings } from '../config/brand';
@@ -27,8 +27,9 @@ export function emptyData(now: Date): Data {
     seq: {},
     users: [],
     guides: [],
-    cities: CITIES,
-    places: PLACES,
+    cities: CITIES.map((c) => ({ ...c, covers: [...(CITY_COVERS[c.slug] || [])] })),
+    places: PLACES.map((p) => ({ ...p })),
+    media: [],
     requests: [],
     offers: [],
     bookings: [],

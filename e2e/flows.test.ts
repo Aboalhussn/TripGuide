@@ -776,7 +776,7 @@ test('guide and admin profiles use the same menu', async () => {
   const a = await open();
   await login(a, 'admin@tripguide.demo');
   await go(a, '/profile');
-  assert.deepEqual(await a.locator('.menu-row strong').allInnerTexts(), ['Your info', 'Prices and subscriptions', 'City statistics', 'Notifications', 'Settings']);
+  assert.deepEqual(await a.locator('.menu-row strong').allInnerTexts(), ['Your info', 'Governorates', 'Prices and subscriptions', 'City statistics', 'Notifications', 'Settings']);
   await a.getByRole('link', { name: /City statistics/ }).click();
   await a.getByRole('heading', { name: 'City statistics' }).waitFor();
   await go(a, '/profile');
@@ -784,15 +784,54 @@ test('guide and admin profiles use the same menu', async () => {
   await a.context().close();
 });
 
-test('login: "Try the demo" opens a sheet of demo accounts; one tap signs in', async () => {
+test('login: "Try the demo" opens a sheet; pick an account, then "Enter as …"', async () => {
   const p = await open();
   await go(p, '/login');
   await p.getByRole('button', { name: 'Try the demo' }).click();
   const sheet = p.getByRole('dialog', { name: 'Try the app with a demo account' });
-  await sheet.getByText('No real money is ever charged.').waitFor();
   assert.equal(await sheet.locator('.demo-pick').count(), 3);
+  assert.equal(await sheet.locator('.demo-pick.demo-tourist').getAttribute('aria-checked'), 'true');
   await sheet.locator('.demo-pick.demo-guide').click();
+  assert.equal(await sheet.locator('.demo-pick.demo-guide').getAttribute('aria-checked'), 'true');
+  assert.equal(await p.evaluate(() => localStorage.getItem('tg.token')), null);
+  await sheet.getByRole('button', { name: 'Enter as guide' }).click();
   await p.waitForFunction(() => !!localStorage.getItem('tg.token'));
   await p.getByRole('heading', { name: /Zainab/ }).first().waitFor();
   await p.context().close();
+});
+
+test('admin: the + button adds a governorate in 3 steps (name, heritage places, photos); tourists then pick it and its photo', async () => {
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAHElEQVR4nGNk+M9AEmBkYGBgYGBg+P+fgQEAJ/QD/WUX9CIAAAAASUVORK5CYII=', 'base64');
+  const a = await open();
+  await login(a, 'admin@tripguide.demo');
+  await a.locator('a.photo-fab[href="#/admin/cities/new"]').click();
+  await a.getByRole('heading', { name: 'Which governorate?' }).waitFor();
+  await a.getByRole('button', { name: 'Next' }).click();
+  await a.getByText('Write the Arabic name').waitFor(); // nothing moves on until the names are filled
+  await a.getByLabel('Name in Arabic').fill('ذي قار');
+  await a.getByLabel('Name in English').fill('Dhi Qar');
+  await a.getByRole('button', { name: 'Next' }).click();
+  await a.getByRole('heading', { name: 'Its heritage places' }).waitFor();
+  await a.getByLabel('Place name in Arabic').fill('زقورة أور');
+  await a.getByLabel('Place name in English').fill('Ziggurat of Ur');
+  await a.getByLabel('Type').selectOption('archaeological');
+  await a.getByRole('button', { name: 'Next' }).click();
+  await a.getByRole('heading', { name: 'Its photos' }).waitFor();
+  await a.getByRole('button', { name: 'Add the governorate' }).click();
+  await a.getByText('Add at least one photo').waitFor();
+  await a.locator('.city-photo.add input[type=file]').setInputFiles([{ name: 'ur.png', mimeType: 'image/png', buffer: png }, { name: 'ur2.png', mimeType: 'image/png', buffer: png }]);
+  await a.locator('.city-photo:not(.add) img').nth(1).waitFor();
+  await a.getByRole('button', { name: 'Add the governorate' }).click();
+  await a.waitForURL((u) => u.hash === '#/admin/cities');
+  await a.locator('.city-row', { hasText: 'Dhi Qar' }).getByText('1 place · 2 photos').waitFor();
+  await noSideScroll(a, 'governorates');
+  await a.context().close();
+
+  const tt = await open();
+  await login(tt, 'tourist@tripguide.demo');
+  await go(tt, '/post');
+  await tt.getByRole('button', { name: 'Dhi Qar' }).click();
+  assert.equal(await tt.locator('.cover-opt').count(), 2);
+  assert.ok((await tt.locator('.cover-opt img').first().getAttribute('src'))!.startsWith('data:image/'));
+  await tt.context().close();
 });

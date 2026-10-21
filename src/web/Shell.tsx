@@ -124,6 +124,11 @@ export function Shell({ path, children }: { path: string; children: React.ReactN
         {path === '/' ? <PullToRefresh>{children}</PullToRefresh> : children}
       </main>
       {role === 'guide' && !bare && !chat && path !== '/guide/setup' && <PhotoFab />}
+      {role === 'admin' && !bare && !chat && !path.startsWith('/admin/cities/') && (
+        <Link to="/admin/cities/new" className="photo-fab" aria-label={t('city.add')} title={t('city.add')}>
+          <Icon name="plus" size={28} stroke={2.4} />
+        </Link>
+      )}
       {!bare && !chat && <nav className="tabbar" aria-label={t('nav.main')}>
         {items[role].map((it) => (
           <Link key={it.to} to={it.to} aria-current={activeTab === it.to ? 'page' : undefined}>

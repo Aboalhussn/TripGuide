@@ -48,7 +48,9 @@ export interface GuideProfile {
   promotedUntil: string | null; // ISO time the guide's paid promotion (featured on the home screen) runs until
 }
 
-export interface City { slug: string; name: string; nameAr: string }
+// covers: picture names in public/img, or 'm:<id>' for a photo the admin uploaded (kept in Data.media).
+export interface City { slug: string; name: string; nameAr: string; covers?: string[] }
+export interface Media { id: number; img: string }
 export interface Place { id: number; city: string; name: string; nameAr: string; kind: 'archaeological' | 'religious' | 'heritage' | 'nature' | 'market' }
 
 export type RequestStatus = 'open' | 'awarded' | 'hired' | 'closed';
@@ -72,6 +74,7 @@ export interface TripRequest {
   status: RequestStatus;
   directGuideId: number | null; // set when the tourist hires a guide straight from their profile
   plan: PlanDay[]; // the tourist's own day-by-day wishes (optional; empty when none)
+  cover?: string; // cover picture chosen from the trip's governorates (CITY_COVERS)
   invited: number[];
   createdAt: string;
 }
@@ -224,6 +227,7 @@ export interface Data {
   guides: GuideProfile[];
   cities: City[];
   places: Place[];
+  media?: Media[];
   requests: TripRequest[];
   offers: Offer[];
   bookings: Booking[];

@@ -14,7 +14,7 @@ import { MyOffers, PostRequest, RequestDetail, RequestsIndex } from './pages/Req
 import { BookingDetail, BookingsList, Wallet } from './pages/Bookings';
 import { Notifications, Thread, Threads } from './pages/Messages';
 import { Account, GuideEditor, GuidePlans, GuideSetup, Login, ProfileInfo, ProfileSettings, Register, TripsHub, VerifyAccount } from './pages/Account';
-import { AdminReports, AdminUsers, AdminVerify, AdminStats, AdminPricing } from './pages/Admin';
+import { AdminReports, AdminUsers, AdminVerify, AdminStats, AdminPricing, AdminCities, CityWizard } from './pages/Admin';
 
 function NeedLogin({ path }: { path: string }) {
   React.useEffect(() => navigate('/login?next=' + encodeURIComponent(path), { replace: true }), [path]);
@@ -75,6 +75,9 @@ function Routes() {
   else if (p('/admin/users')) page = authed(<AdminUsers />);
   else if (p('/admin/stats')) page = authed(<AdminStats />);
   else if (p('/admin/pricing')) page = authed(<AdminPricing />);
+  else if (p('/admin/cities')) page = authed(<AdminCities />);
+  else if (p('/admin/cities/new')) page = authed(<CityWizard />);
+  else if ((m = p('/admin/cities/:slug'))) page = authed(<CityWizard slug={m.slug} />);
 
   // Re-mount pages on navigation so each route starts fresh.
   return (

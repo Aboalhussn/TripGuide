@@ -1,6 +1,6 @@
 // The whole marketplace: every rule lives here, and the same code runs on the server and in the browser demo.
 import { settings } from '../config/brand';
-import { AVATAR_COLORS, CITIES, GUIDE_RATING_KEYS, INCLUDES, INTERESTS, LANGUAGES, LANGUAGE_LEVELS, PHOTO_LIBRARY, PLACES, TOURIST_RATING_KEYS } from './catalog';
+import { AVATAR_COLORS, BUILTIN_COVERS, cityCovers, coversFor, PLACE_KINDS, GUIDE_RATING_KEYS, INCLUDES, INTERESTS, LANGUAGES, LANGUAGE_LEVELS, PHOTO_LIBRARY, TOURIST_RATING_KEYS } from './catalog';
 import type { ApiRequest, ApiResponse, Booking, Data, GuideProfile, Milestone, Offer, PaymentMethod, Platform, Role, TripRequest, User } from './types';
 import { DEMO_ACCOUNTS, DEMO_PASSWORD } from './seed';
 import { ApiError, addDays, bad, conflict, dateRange, daysInclusive, forbidden, iraqDate, isDate, money, nextId, notFound, num, optStr, str, strList } from './util';
@@ -184,6 +184,7 @@ function requestSummary(ctx: Ctx, r: TripRequest) {
     ...r,
     tourist: { ...publicUser(tourist), stats: touristStats(ctx.data, tourist.id, ctx.now) },
     days: daysInclusive(r.startDate, r.endDate),
+    cover: coverOf(ctx, r),
     offersCount: offers.length,
     avgOffer: offers.length ? Math.round(offers.reduce((a, o) => a + o.price, 0) / offers.length) : null,
     directGuide: r.directGuideId ? publicUser(userById(ctx.data, r.directGuideId)!) : null,
@@ -241,8 +242,12 @@ function validPlan(v: unknown, days: number) {
 // =====================================================================
 // Meta
 route('GET', '/meta', (ctx) => ({
-  cities: CITIES,
-  places: PLACES,
+  cities: ctx.data.cities.map(({ covers, ...c }) => c),
+  cityCovers: Object.fromEntries(ctx.data.cities.map((c) => [c.slug, cityCovers(c)])),
+  generalCovers: coversFor([], []),
+  media: Object.fromEntries((ctx.data.media || []).map((m) => ['m:' + m.id, m.img])),
+  places: ctx.data.places,
+  placeKinds: PLACE_KINDS,
   languages: LANGUAGES,
   levels: LANGUAGE_LEVELS,
   interests: INTERESTS,
@@ -452,11 +457,11 @@ route('GET', '/guides', (ctx, _p, req) => {
     list = list.filter((g) => {
       const u = userById(ctx.data, g.userId)!;
       const placeHit = g.places.some((id) => {
-        const p = PLACES.find((x) => x.id === id);
+        const p = ctx.data.places.find((x) => x.id === id);
         return p && (p.name.toLowerCase().includes(term) || p.nameAr.includes(term));
       });
       const cityHit = g.cities.some((c) => {
-        const city = CITIES.find((x) => x.slug === c)!;
+        const city = ctx.data.cities.find((x) => x.slug === c)!;
         return city.name.toLowerCase().includes(term) || city.nameAr.includes(term);
       });
       return u.name.toLowerCase().includes(term) || g.headline.toLowerCase().includes(term) || g.headlineAr.includes(term) || placeHit || cityHit;
@@ -532,12 +537,12 @@ route('PUT', '/guide/profile', (ctx, _p, req) => {
   if (b.bioAr !== undefined) g.bioAr = optStr(b.bioAr, 'bioAr', 1500);
   if (b.pricePerDay !== undefined) g.pricePerDay = num(b.pricePerDay, 'pricePerDay', 10, 1000, true);
   if (b.acceptsCash !== undefined) g.acceptsCash = !!b.acceptsCash;
-  if (b.cities !== undefined) g.cities = strList(b.cities, 'cities', CITIES.map((c) => c.slug), 1, 8);
+  if (b.cities !== undefined) g.cities = strList(b.cities, 'cities', ctx.data.cities.map((c) => c.slug), 1, 8);
   if (b.languages !== undefined) g.languages = validLanguages(b.languages);
   if (b.specialities !== undefined) g.specialities = strList(b.specialities, 'specialities', INTERESTS, 0, GUIDE_LIMITS.specialities);
   if (b.places !== undefined) {
     const ids = Array.isArray(b.places) ? [...new Set(b.places.map(Number))] : [];
-    for (const id of ids) if (!PLACES.some((x) => x.id === id)) throw bad('field_invalid', { field: 'places' });
+    for (const id of ids) if (!ctx.data.places.some((x) => x.id === id)) throw bad('field_invalid', { field: 'places' });
     if (ids.length > GUIDE_LIMITS.places) throw bad('field_too_long', { field: 'places', max: GUIDE_LIMITS.places });
     g.places = ids as number[];
   }
@@ -632,8 +637,8 @@ function parseRequestBody(ctx: Ctx, b: any) {
   if (startDate < ctx.today) throw bad('date_past');
   if (endDate < startDate) throw bad('dates_order');
   if (daysInclusive(startDate, endDate) > 30) throw bad('trip_too_long');
-  const cities = strList(b.cities, 'cities', CITIES.map((c) => c.slug), 1, TRIP_LIMITS.cities);
-  const places = (Array.isArray(b.places) ? b.places.map(Number) : []).filter((id: number) => PLACES.some((p) => p.id === id));
+  const cities = strList(b.cities, 'cities', ctx.data.cities.map((c) => c.slug), 1, TRIP_LIMITS.cities);
+  const places = (Array.isArray(b.places) ? b.places.map(Number) : []).filter((id: number) => ctx.data.places.some((p) => p.id === id));
   if (places.length > TRIP_LIMITS.places) throw bad('field_too_long', { field: 'places', max: TRIP_LIMITS.places });
   const budgetMin = num(b.budgetMin, 'budgetMin', 0, 100000);
   const budgetMax = num(b.budgetMax, 'budgetMax', 10, 100000);
@@ -653,8 +658,18 @@ function parseRequestBody(ctx: Ctx, b: any) {
     urgent: !!b.urgent,
     femaleGuide: !!b.femaleGuide,
     plan: touristPlan(b.plan, daysInclusive(startDate, endDate)),
+    cover: tripCover(ctx, b.cover, cities),
   };
 }
+
+// The cover must be one of the pictures of the trip's governorates; none chosen = the first city's first.
+function tripCover(ctx: Ctx, v: unknown, cities: string[]) {
+  const allowed = coversFor(ctx.data.cities, cities);
+  if (v === undefined || v === null || v === '') return allowed[0];
+  if (typeof v !== 'string' || !allowed.includes(v)) throw bad('field_invalid', { field: 'cover' });
+  return v;
+}
+const coverOf = (ctx: Ctx, r: TripRequest) => r.cover || coversFor(ctx.data.cities, r.cities)[0];
 
 // The tourist's own day plan is optional: days left blank are kept as blank, and no titles means no plan.
 function touristPlan(v: unknown, days: number) {
@@ -1333,7 +1348,7 @@ route('GET', '/admin/stats', (ctx) => {
   const live = ctx.data.bookings.filter((b) => ['confirmed', 'completed', 'disputed', 'awaiting_guide'].includes(b.status));
   const done = live.filter((b) => b.status === 'completed');
   const reqOf = (b: Booking) => ctx.data.requests.find((r) => r.id === b.requestId);
-  const cities = CITIES.map((c) => {
+  const cities = ctx.data.cities.map((c) => {
     const trips = live.filter((b) => reqOf(b)?.cities.includes(c.slug));
     const guides = ctx.data.guides.filter((g) => g.cities.includes(c.slug) && userById(ctx.data, g.userId)!.status === 'active' && g.headline);
     const revenue = trips.reduce((a, b) => a + b.total / Math.max(1, reqOf(b)!.cities.length), 0);
@@ -1466,6 +1481,86 @@ route('POST', '/admin/reports/:id/resolve', (ctx, p, req) => {
   }
   for (const uid of [b.touristId, b.guideId]) notify(ctx, uid, 'report_resolved', { title: b.title, action }, `/bookings/${b.id}`);
   return { ok: true };
+});
+
+// ---------- governorates: the admin adds governorates, their heritage places and photos ----------
+const CITY_LIMITS = { places: 30, covers: 12 };
+function adminCityView(ctx: Ctx, c: any) {
+  return {
+    ...c,
+    covers: cityCovers(c),
+    places: ctx.data.places.filter((p) => p.city === c.slug),
+    guides: ctx.data.guides.filter((g) => g.cities.includes(c.slug)).length,
+    requests: ctx.data.requests.filter((r) => r.cities.includes(c.slug)).length,
+  };
+}
+function slugFor(ctx: Ctx, name: string) {
+  const base = name.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30) || 'city';
+  let slug = base;
+  for (let n = 2; ctx.data.cities.some((c) => c.slug === slug); n++) slug = `${base}-${n}`;
+  return slug;
+}
+// Saves a governorate from the admin's form: names, places (kept by id when edited) and photos.
+function saveCity(ctx: Ctx, b: any, existing?: any) {
+  const name = str(b.name, 'name', 2, 40);
+  const nameAr = str(b.nameAr, 'nameAr', 2, 40);
+  const clash = ctx.data.cities.find((c) => c !== existing && (c.name.toLowerCase() === name.toLowerCase() || c.nameAr === nameAr));
+  if (clash) throw conflict('city_exists');
+  if (!Array.isArray(b.places) || b.places.length < 1) throw bad('field_required', { field: 'places' });
+  if (b.places.length > CITY_LIMITS.places) throw bad('field_too_long', { field: 'places', max: CITY_LIMITS.places });
+  const places = b.places.map((p: any, i: number) => ({
+    id: Number(p?.id) || 0,
+    name: str(p?.name, `places.${i}.name`, 2, 80),
+    nameAr: str(p?.nameAr, `places.${i}.nameAr`, 2, 80),
+    kind: (PLACE_KINDS as string[]).includes(p?.kind) ? p.kind : (() => { throw bad('field_invalid', { field: `places.${i}.kind` }); })(),
+  }));
+  if (!Array.isArray(b.covers) || b.covers.length < 1) throw bad('field_required', { field: 'covers' });
+  if (b.covers.length > CITY_LIMITS.covers) throw bad('field_too_long', { field: 'covers', max: CITY_LIMITS.covers });
+  const known = new Set([...BUILTIN_COVERS(), ...(existing ? cityCovers(existing) : []), ...(ctx.data.media || []).map((m) => 'm:' + m.id)]);
+  ctx.data.media ||= [];
+  const covers = b.covers.map((v: any) => {
+    const img = String(v || '');
+    if (known.has(img)) return img;
+    if (/^data:image\/(jpeg|png|webp);base64,/.test(img) && img.length < 400_000) {
+      const id = (ctx.data.media!.reduce((a, m) => Math.max(a, m.id), 0) || 0) + 1;
+      ctx.data.media!.push({ id, img });
+      return 'm:' + id;
+    }
+    throw bad('photo_invalid');
+  });
+  const city = existing || { slug: slugFor(ctx, name), name, nameAr, covers: [] };
+  Object.assign(city, { name, nameAr, covers: [...new Set(covers)] });
+  if (!existing) ctx.data.cities.push(city);
+  // Places: edit the ones with an id, add the new ones, drop the rest from this governorate.
+  const keep = new Set(places.filter((p: any) => p.id).map((p: any) => p.id));
+  ctx.data.places = ctx.data.places.filter((p) => p.city !== city.slug || keep.has(p.id));
+  let next = ctx.data.places.reduce((a, p) => Math.max(a, p.id), 0);
+  for (const p of places) {
+    const old = p.id && ctx.data.places.find((x) => x.id === p.id && x.city === city.slug);
+    if (old) Object.assign(old, { name: p.name, nameAr: p.nameAr, kind: p.kind });
+    else ctx.data.places.push({ id: ++next, city: city.slug, name: p.name, nameAr: p.nameAr, kind: p.kind });
+  }
+  return adminCityView(ctx, city);
+}
+route('GET', '/admin/cities', (ctx) => {
+  need(ctx, 'admin');
+  return ctx.data.cities.map((c) => adminCityView(ctx, c));
+});
+route('GET', '/admin/cities/:slug', (ctx, p) => {
+  need(ctx, 'admin');
+  const c = ctx.data.cities.find((x) => x.slug === p.slug);
+  if (!c) throw notFound();
+  return adminCityView(ctx, c);
+});
+route('POST', '/admin/cities', (ctx, _p, req) => {
+  need(ctx, 'admin');
+  return saveCity(ctx, req.body || {});
+});
+route('PUT', '/admin/cities/:slug', (ctx, p, req) => {
+  need(ctx, 'admin');
+  const c = ctx.data.cities.find((x) => x.slug === p.slug);
+  if (!c) throw notFound();
+  return saveCity(ctx, req.body || {}, c);
 });
 
 route('GET', '/admin/users', (ctx, _p, req) => {

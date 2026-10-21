@@ -4,7 +4,8 @@ import { useApp, useLoad } from '../lib/app';
 import { useFmt } from '../lib/format';
 import { Link, navigate } from '../lib/router';
 import { RequestFeedCard } from './Home';
-import { Avatar, Empty, ErrorState, Field, GuideCard, Icon, Loading, Modal, Money, OfferStatus, PageHead, Rating, RequestFacts, RequestStatus, Star, Stepper, ToggleGroup, VerifiedBadge, useBusy, CardForm, PayMethodPicker, emptyCard, DateRangePicker, LanguagePick, HeroBand, LimitNote } from '../ui';
+import { coverSrc } from '../assets';
+import { Avatar, Empty, ErrorState, Field, GuideCard, Icon, Loading, Modal, Money, OfferStatus, PageHead, Rating, RequestFacts, RequestStatus, Star, Stepper, ToggleGroup, VerifiedBadge, useBusy, CardForm, PayMethodPicker, emptyCard, DateRangePicker, LanguagePick, HeroBand, LimitNote, TripCard } from '../ui';
 import type { CardValue } from '../ui';
 
 /** Trip request limits; the server checks the same numbers. */
@@ -39,6 +40,7 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
     budgetMax: '',
     urgent: false,
     femaleGuide: false,
+    cover: '',
   });
   const [placeQuery, setPlaceQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +58,10 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
   }, [g?.id]);
 
   const up = (patch: Partial<typeof f>) => setF((x) => ({ ...x, ...patch }));
+  // Cover pictures come from the chosen governorates; the first one is picked until the tourist chooses.
+  const own: string[] = [...new Set<string>(f.cities.flatMap((c) => meta.cityCovers?.[c] || []))];
+  const covers: string[] = own.length || !f.cities.length ? own : meta.generalCovers || [];
+  const cover = covers.includes(f.cover) ? f.cover : covers[0] || '';
   const days = f.startDate && f.endDate && f.endDate >= f.startDate ? daysBetween(f.startDate, f.endDate) : 0;
   const placesInCities = meta.places.filter((p: any) => f.cities.includes(p.city) && !f.places.includes(p.id) && (!placeQuery || fmt.place(p.id).toLowerCase().includes(placeQuery.toLowerCase())));
   const suggested = g ? g.pricePerDay : null; // per day, like the budget
@@ -155,6 +161,7 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
       try {
         const r = await api('POST', '/requests', {
           ...f,
+          cover,
           budgetMin: Number(f.budgetMin) * days,
           budgetMax: Number(f.budgetMax) * days,
           plan: usePlan ? dayPlan.map((d) => ({ title: d.title.trim(), details: d.details.trim() })) : [],
@@ -249,6 +256,26 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
               <ToggleGroup max={TRIP_LIMITS.cities} label={t('field.cities')} options={meta.cities.map((c: any) => c.slug)} value={f.cities} onChange={(cities) => { touch('cities'); up({ cities, places: f.places.filter((id) => cities.includes(meta.places.find((p: any) => p.id === id)?.city)) }); }} render={fmt.city} />
               {show('cities') && <span className="err small">{show('cities')}</span>}
             </div>
+            {covers.length > 0 && (
+              <div className="stack" style={{ gap: 8 }}>
+                <span className="small" style={{ fontWeight: 500 }} id="cover-label">
+                  {t('post.cover')}
+                </span>
+                <div className="cover-pick" role="radiogroup" aria-labelledby="cover-label">
+                  {covers.map((c, i) => (
+                    <button key={c} type="button" role="radio" aria-checked={cover === c} aria-label={t('post.cover_n', { n: i + 1 })} className={'cover-opt' + (cover === c ? ' on' : '')} onClick={() => up({ cover: c })}>
+                      <img src={coverSrc(c, meta)} alt="" />
+                      {cover === c && (
+                        <span className="cover-check" aria-hidden="true">
+                          <Icon name="check" size={14} stroke={3} />
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+                <span className="xs muted">{t('post.cover_hint')}</span>
+              </div>
+            )}
             {f.cities.length > 0 && (
               <div className="stack" style={{ gap: 6 }}>
                 <span className="small" style={{ fontWeight: 500 }}>
@@ -369,6 +396,7 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
               </label>
             )}
             <div className="card wiz-summary stack" style={{ gap: 6 }}>
+              {cover && <img className="summary-cover" src={coverSrc(cover, meta)} alt="" />}
               <strong>{t('post.summary')}</strong>
               <span className="bold"><bdi>{f.title}</bdi></span>
               <span className="small muted">{f.cities.map(fmt.city).join('، ')}</span>
@@ -441,21 +469,17 @@ export function MyRequestsList() {
       {res.data.requests.length === 0 && <Empty title={t('requests.none')} text={t('requests.none_text')} action={<Link to="/post" className="btn">{t('home.cta_post')}</Link>} />}
       <div className="cards">
         {res.data.requests.map((r: any) => (
-          <Link key={r.id} to={`/requests/${r.id}`} className="card link stack" style={{ gap: 10 }}>
-            <div className="between">
-              <div className="row">
-                <RequestStatus status={r.status} />
-                {r.directGuide && <span className="pill">{t('request.direct_to', { name: r.directGuide.name })}</span>}
-              </div>
-              <span className="xs muted">{fmt.ago(r.createdAt)}</span>
-            </div>
-            <strong style={{ fontSize: 17 }}><bdi>{r.title}</bdi></strong>
-            <RequestFacts r={r} />
-            <div className="small">
-              <strong>{t('request.offers_n', { count: r.offersCount })}</strong>
-              {r.avgOffer !== null && <span className="muted"> · {t('request.avg', { amount: fmt.usd(r.avgOffer) })}</span>}
-            </div>
-          </Link>
+          <TripCard
+            key={r.id}
+            r={{ ...r, tourist: r.tourist || me }}
+            badge={<RequestStatus status={r.status} />}
+            pills={r.directGuide ? <span className="pill navy">{t('request.direct_to', { name: r.directGuide.name })}</span> : null}
+            action={
+              <Link to={`/requests/${r.id}`} className="btn sm tc-action">
+                {t('request.offers_n', { count: r.offersCount })}
+              </Link>
+            }
+          />
         ))}
       </div>
     </>
@@ -532,10 +556,11 @@ export function RequestDetail({ id }: { id: string }) {
 }
 
 function RequestHeader({ r }: { r: any }) {
-  const { t } = useApp();
+  const { t, meta } = useApp();
   const fmt = useFmt();
   return (
     <section className="stack" style={{ gap: 10 }}>
+      {r.cover && <img className="trip-cover" src={coverSrc(r.cover, meta)} alt="" />}
       <div className="row">
         <RequestStatus status={r.status} />
         {r.urgent && <span className="pill gold">{t('request.urgent')}</span>}
