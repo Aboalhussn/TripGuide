@@ -17,7 +17,7 @@ let browser: Browser;
 const pageErrors: string[] = [];
 
 before(async () => {
-  server = spawn('node', ['dist/server.mjs'], { env: { ...process.env, PORT: String(PORT), DATA_FILE: DATA }, stdio: 'pipe' });
+  server = spawn('node', ['dist/server.mjs'], { env: { AI_PROVIDER: 'mock', ...process.env, PORT: String(PORT), DATA_FILE: DATA }, stdio: 'pipe' });
   for (let i = 0; i < 50; i++) {
     try {
       if ((await fetch(BASE + 'api/meta')).ok) break;
@@ -962,4 +962,67 @@ test('sign-in and sign-up: logo and language button sit on one line above the ti
   await p.getByRole('button', { name: 'Save the new password' }).click();
   await p.getByText('Your password is changed').waitFor();
   await p.context().close();
+});
+
+test('trip assistant: describe a trip in a chat, pick a suggested place, review it, edit the budget in the form, post it', async () => {
+  const tourist = await open();
+  await login(tourist, 'marco@tripguide.demo');
+  await tourist.getByRole('link', { name: /Describe your trip in your own words/ }).click();
+  await tourist.waitForURL((u) => u.hash === '#/post/chat');
+  await tourist.getByText(/Tell me about the trip you have in mind/).waitFor();
+  // Full screen like a chat: the tab bar is covered, the box is at the bottom.
+  const box = await tourist.locator('.chat-form').boundingBox();
+  assert.ok(box && box.y + box.height > 844 - 4, 'message box at the bottom');
+  await noSideScroll(tourist, 'assistant chat');
+
+  await tourist.getByPlaceholder('Describe your trip…').fill('Me and my wife want to see Babylon, we love history and ancient ruins');
+  await tourist.getByRole('button', { name: 'Send' }).click();
+  await tourist.getByText(/Which dates\?/).waitFor();
+  await tourist.getByText('Still needed: dates and budget per day.').waitFor();
+  await tourist.locator('.ai-draft-chips').getByText('Babylon').waitFor();
+  await tourist.locator('.ai-draft-chips').getByText('2 people').waitFor();
+  await tourist.getByRole('button', { name: /Add Ancient City of Babylon/ }).click();
+  await tourist.locator('.ai-draft-chips').getByText('1 place').waitFor();
+  await shot(tourist, 'e2e-assistant-chat');
+
+  await tourist.getByPlaceholder('Describe your trip…').fill('December 5 for 3 days, around $80 a day');
+  await tourist.keyboard.press('Enter');
+  await tourist.getByText('Your trip has everything it needs.').waitFor();
+  await tourist.getByRole('link', { name: 'Review my trip' }).click();
+
+  await tourist.getByRole('heading', { name: 'Check your trip' }).waitFor();
+  await tourist.getByText('Ancient City of Babylon').waitFor();
+  await tourist.getByText('Whole trip (3 days): $168–$240').waitFor();
+  await noSideScroll(tourist, 'assistant review');
+  await shot(tourist, 'e2e-assistant-review');
+
+  // Edit the budget: the form opens on its last step with the assistant's numbers.
+  await tourist.locator('.ai-section').filter({ hasText: 'Budget' }).getByRole('link', { name: 'Edit' }).click();
+  await tourist.getByRole('heading', { name: 'Set your budget' }).waitFor();
+  assert.equal(await tourist.getByLabel('To, per day (USD)').inputValue(), '80');
+  await tourist.goBack();
+
+  await tourist.getByRole('button', { name: 'Post my trip' }).click();
+  await tourist.waitForURL((u) => /#\/requests\/\d+$/.test(u.hash));
+  await tourist.getByText('Request posted. Guides are being notified.').waitFor();
+  await tourist.getByRole('heading', { name: /Babylon/ }).first().waitFor();
+
+  // The chat is finished: opening the assistant again starts fresh.
+  await go(tourist, '/post/chat');
+  await tourist.getByText('Or start with one of these').waitFor();
+  await tourist.context().close();
+});
+
+test('trip assistant: Arabic, right to left', async () => {
+  const tourist = await open('ar');
+  await login(tourist, 'fatima@tripguide.demo');
+  await go(tourist, '/post/chat');
+  assert.equal(await tourist.evaluate(() => document.documentElement.dir), 'rtl');
+  await tourist.getByPlaceholder('صِف رحلتك…').fill('اريد ازور كربلاء والنجف انا وزوجتي');
+  await tourist.keyboard.press('Enter');
+  await tourist.getByText(/شنو التواريخ/).waitFor();
+  await tourist.locator('.ai-draft-chips').getByText('كربلاء والنجف').waitFor();
+  await noSideScroll(tourist, 'assistant chat in Arabic');
+  await shot(tourist, 'e2e-assistant-ar');
+  await tourist.context().close();
 });
