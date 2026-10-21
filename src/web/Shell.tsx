@@ -17,7 +17,7 @@ export function Shell({ path, children }: { path: string; children: React.ReactN
   // Sign-in and sign-up are full-screen: no bottom tab bar.
   const bare = path === '/login' || path === '/register' || path === '/forgot';
   // An open conversation fills the phone screen like a chat app: no bottom tab bar.
-  const chat = /^\/messages\/[^/]+$/.test(path);
+  const chat = /^\/messages\/[^/]+$/.test(path) || path === '/post/chat'; // full-screen chats (messages, trip assistant)
   const role = me?.role || 'guest';
 
   const items: Record<string, NavItem[]> = {

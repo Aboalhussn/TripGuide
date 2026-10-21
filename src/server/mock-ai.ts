@@ -94,7 +94,7 @@ export function mockReply(view: TurnView): string {
   const people = /(\d+)\s*(?:people|persons|of us|adults|travell?ers|أشخاص|اشخاص|نفر)/i.exec(text);
   if (people) patch.groupSize = Number(people[1]);
   else if (/\b(alone|solo|just me)\b|وحدي/i.test(text)) patch.groupSize = 1;
-  else if (/my (wife|husband|partner)|\bcouple\b|me and my|ويا زوجتي|ويا زوجي|انا وزوجتي/i.test(text)) patch.groupSize = 2;
+  else if (/my (wife|husband|partner)|\bcouple\b|me and my|(ويا|أنا و|انا و)\s?(زوجتي|زوجي)/i.test(text)) patch.groupSize = 2;
 
   const range = /\$\s?(\d+)\s*(?:-|–|to)\s*\$?\s?(\d+)/i.exec(text);
   const one = /\$\s?(\d+)|(\d+)\s*(?:\$|dollars?|usd|دولار)/i.exec(text);

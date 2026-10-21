@@ -7,6 +7,8 @@ import { RequestFeedCard } from './Home';
 import { coverSrc } from '../assets';
 import { Avatar, Empty, ErrorState, Field, GuideCard, Icon, Loading, Modal, Money, OfferStatus, PageHead, Rating, RequestFacts, RequestStatus, Star, Stepper, ToggleGroup, VerifiedBadge, useBusy, CardForm, PayMethodPicker, emptyCard, DateRangePicker, LanguagePick, HeroBand, LimitNote, TripCard } from '../ui';
 import type { CardValue } from '../ui';
+import { AssistantLink } from './Assistant';
+import { clearState, loadState } from '../lib/assistant';
 
 /** Trip request limits; the server checks the same numbers. */
 export const TRIP_LIMITS = { cities: 4, places: 6, languages: 3, interests: 5, people: 10, perDay: 2000 };
@@ -26,29 +28,31 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
   const fmt = useFmt();
   const direct = useLoad(() => (query.guide ? api('GET', `/guides/${query.guide}`) : Promise.resolve(null)), [query.guide]);
   const today = meta.today as string;
-  const [f, setF] = useState({
-    title: '',
-    cities: [] as string[],
-    places: [] as number[],
-    startDate: addDays(today, 14),
-    endDate: addDays(today, 16),
-    groupSize: 2,
-    languages: ['en'] as string[],
-    interests: [] as string[],
-    description: '',
-    budgetMin: '',
-    budgetMax: '',
-    urgent: false,
-    femaleGuide: false,
+  // Opened from the trip assistant's review page ("Edit"): start from the assistant's draft, at that step.
+  const [fromAi] = useState(() => (query.from === 'assistant' && !query.guide ? loadState().draft : null));
+  const [f, setF] = useState(() => ({
+    title: fromAi?.title || '',
+    cities: (fromAi?.cities || []) as string[],
+    places: (fromAi?.places || []) as number[],
+    startDate: fromAi?.startDate || addDays(today, 14),
+    endDate: fromAi?.endDate || addDays(today, 16),
+    groupSize: fromAi?.groupSize || 2,
+    languages: (fromAi?.languages.length ? fromAi.languages : ['en']) as string[],
+    interests: (fromAi?.interests || []) as string[],
+    description: fromAi?.description || '',
+    budgetMin: fromAi?.budgetMin != null ? String(fromAi.budgetMin) : '',
+    budgetMax: fromAi?.budgetMax != null ? String(fromAi.budgetMax) : '',
+    urgent: fromAi?.urgent || false,
+    femaleGuide: fromAi?.femaleGuide || false,
     cover: '',
-  });
+  }));
   const [placeQuery, setPlaceQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [tried, setTried] = useState(false);
-  const [step, setStep] = useState(0);
-  const [usePlan, setUsePlan] = useState(false);
-  const [plan, setPlan] = useState<{ title: string; details: string }[]>([]);
+  const [step, setStep] = useState(() => (fromAi ? Math.max(0, Math.min(3, Number(query.step) || 0)) : 0));
+  const [usePlan, setUsePlan] = useState(() => !!fromAi?.plan.length);
+  const [plan, setPlan] = useState<{ title: string; details: string }[]>(() => fromAi?.plan || []);
   const touch = (k: string) => setTouched((x) => (x[k] ? x : { ...x, [k]: true }));
   const { busy, run } = useBusy();
   const g = direct.data;
@@ -173,6 +177,7 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
           plan: usePlan ? dayPlan.map((d) => ({ title: d.title.trim(), details: d.details.trim() })) : [],
           directGuideId: g ? g.id : undefined,
         });
+        if (fromAi) clearState(); // posted: the assistant's chat is done
         toast(g ? t('post.sent_direct', { name: g.name.split(' ')[0] }) : t('post.posted'));
         navigate(`/requests/${r.id}`, { replace: true });
       } catch (err) {
@@ -254,6 +259,7 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
       <form onSubmit={submit} className="stack-lg wiz-body" noValidate>
         {step === 0 && (
           <div className="stack">
+            {!g && !fromAi && <AssistantLink />}
             <Field label={t('field.title')} hint={show('title') ? undefined : t('post.title_hint')} error={show('title')}>
               <input id="pf-title" className="input" value={f.title} onBlur={() => f.title && touch('title')} onChange={(e) => { up({ title: e.target.value }); if (e.target.value.trim().length >= 5) touch('title'); }} maxLength={90} required />
             </Field>

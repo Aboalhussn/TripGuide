@@ -15,6 +15,7 @@ import { BookingDetail, BookingsList, Wallet } from './pages/Bookings';
 import { Notifications, Thread, Threads } from './pages/Messages';
 import { Account, GuideEditor, GuidePlans, GuideSetup, Login, ProfileInfo, ProfileSettings, Register, TripsHub, VerifyAccount, PolicyPage, ForgotPassword, ChangePassword } from './pages/Account';
 import { PassportScreen } from './pages/Passport';
+import { AssistantChat, AssistantReview } from './pages/Assistant';
 import { AdminReports, AdminUsers, AdminVerify, AdminStats, AdminPricing, AdminCities, CityWizard } from './pages/Admin';
 
 function NeedLogin({ path }: { path: string }) {
@@ -51,6 +52,8 @@ function Routes() {
   else if (p('/guides')) page = <FindGuides query={query} />;
   else if ((m = p('/guides/:id'))) page = <GuideProfile id={m.id} />;
   else if (p('/post')) page = <PostRequest query={query} />;
+  else if (p('/post/chat')) page = authed(<AssistantChat />);
+  else if (p('/post/review')) page = authed(<AssistantReview />);
   else if (p('/requests')) page = authed(<RequestsIndex query={query} />);
   else if ((m = p('/requests/:id'))) page = authed(<RequestDetail id={m.id} />);
   else if (p('/offers')) page = authed(<MyOffers />);

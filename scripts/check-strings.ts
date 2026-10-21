@@ -38,6 +38,7 @@ each('bookings.tab_', ['upcoming', 'done', 'cancelled']);
 each('offers.tab_', ['active', 'won', 'past']);
 each('auth.role_', ['tourist', 'guide', 'tourist_text', 'guide_text']);
 each('gender.', ['f', 'm']);
+each('ai.missing.', ['cities', 'dates', 'groupSize', 'languages', 'budget', 'title']); // trip assistant: what is still needed
 each('home.step', ['1', '2', '3', '1_text', '2_text', '3_text']);
 
 // Every error code and notification type the core can produce.

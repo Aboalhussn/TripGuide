@@ -6,6 +6,7 @@ import { CityStats } from './Admin';
 import { Link } from '../lib/router';
 import { asset, photoSrc } from '../assets';
 import { Avatar, BookingStatus, Icon, Loading, Money, Rating, RequestFacts, RequestStatus, BrandBar, BrandFooter, TripCard, VerifiedBadge } from '../ui';
+import { AssistantCta } from './Assistant';
 
 type Slide = { img: string; title: string; text?: string; cta: string; to: string };
 
@@ -202,6 +203,8 @@ export function TouristHome() {
           { img: 'babylon.jpg', title: t('home.slide_pay'), cta: t('home.cta_browse'), to: '/guides' },
         ]}
       />
+
+      <AssistantCta />
 
       <TopGuides />
 

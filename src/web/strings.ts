@@ -384,6 +384,30 @@ const en: Record<string, Entry> = {
   'err.report_resolved': 'This report was already resolved.',
 
   'notfound.title': 'Page not found', 'notfound.text': 'The link may be old, or the page was moved.', 'notfound.home': 'Go home',
+  // trip assistant (docs/AI_ASSISTANT.md)
+  'ai.title': 'Trip assistant', 'ai.subtitle': "Describe your trip, I'll write the post",
+  'ai.hello': "Hi {name}! Tell me about the trip you have in mind: where in Iraq, when, who's coming and what you enjoy. I'll turn it into a trip post that guides can send offers on.",
+  'ai.examples': 'Or start with one of these', 'ai.ex1': 'Me and my wife, 3 days in Babylon in early December. We love history.',
+  'ai.ex2': 'A week visiting the shrines of Karbala and Najaf for 4 people, with an Arabic-speaking guide.',
+  'ai.ex3': 'Solo trip to Erbil and Mosul next month, about $80 a day. I love old markets and photography.',
+  'ai.write': 'Describe your trip…', 'ai.send': 'Send', 'ai.thinking': 'The assistant is writing',
+  'ai.restart': 'Start over', 'ai.restart_confirm': 'Clear this chat and start a new trip?',
+  'ai.review': 'Review my trip', 'ai.ready': 'Your trip has everything it needs.', 'ai.still_need': 'Still needed: {list}.',
+  'ai.missing.cities': 'governorates', 'ai.missing.dates': 'dates', 'ai.missing.groupSize': 'number of people', 'ai.missing.languages': 'guide language',
+  'ai.missing.budget': 'budget per day', 'ai.missing.title': 'a title',
+  'ai.sug_title': 'Ideas for you', 'ai.sug_place': 'Add {name}', 'ai.sug_budget': 'Use {range} a day', 'ai.sug_plan': en1('Add a plan for {count} day', 'Add a plan for {count} days'),
+  'ai.places_n': en1('{count} place', '{count} places'), 'ai.chips_label': 'Your trip so far',
+  'ai.limit_note': 'The assistant can make mistakes. You check everything before it is posted.',
+  'ai.unavailable': 'The trip assistant needs a connection to the Trip guide server, and it is not available here. You can still post your trip with the form.',
+  'ai.use_form': 'Use the form',
+  'ai.cta_title': 'Describe your trip in your own words', 'ai.cta_text': "Chat with the trip assistant. It asks what's missing, suggests places and a budget, and writes your post.",
+  'ai.cta_btn': 'Chat with the assistant', 'ai.form_link': 'Rather just describe it? Let the assistant fill this in',
+  'ai.review_title': 'Check your trip', 'ai.review_lede': 'This is how guides will see your trip. Fix anything you like, then post it.',
+  'ai.r_where': 'Where', 'ai.r_when': 'When and who', 'ai.r_guide': 'Your guide and plan', 'ai.r_budget': 'Budget', 'ai.edit': 'Edit',
+  'ai.no_places': 'No places picked yet. Guides will suggest some.', 'ai.post': 'Post my trip', 'ai.back_chat': 'Back to the chat',
+  'ai.incomplete': 'A few things are missing.', 'ai.empty': 'Nothing to check yet. Describe your trip to the assistant first.',
+  'err.assistant_off': 'The trip assistant is not turned on for this server.', 'err.ai_unavailable': 'The assistant is busy right now. Please try again in a moment.',
+  'err.ai_timeout': 'The assistant took too long to answer. Please try again.', 'err.too_many_requests': 'You sent a lot of messages. Please wait a few minutes and try again.',
 };
 
 const arStrings: Record<string, Entry> = {
@@ -744,6 +768,30 @@ const arStrings: Record<string, Entry> = {
   'err.report_resolved': 'حُسم هذا البلاغ بالفعل.',
 
   'notfound.title': 'الصفحة غير موجودة', 'notfound.text': 'ربما الرابط قديم، أو نُقلت الصفحة.', 'notfound.home': 'الرئيسية',
+  // مساعد الرحلات (docs/AI_ASSISTANT.md)
+  'ai.title': 'مساعد الرحلات', 'ai.subtitle': 'صِف رحلتك وأكتب لك الطلب',
+  'ai.hello': 'أهلًا {name}! حدّثني عن الرحلة التي تفكر بها: أين في العراق، ومتى، ومن سيأتي معك، وما الذي تحبه. سأحوّلها إلى طلب رحلة يرسل عليه المرشدون عروضهم.',
+  'ai.examples': 'أو ابدأ بواحدة من هذه', 'ai.ex1': 'أنا وزوجتي، ثلاثة أيام في بابل بداية ديسمبر. نحب التاريخ.',
+  'ai.ex2': 'أسبوع لزيارة مراقد كربلاء والنجف لأربعة أشخاص، مع مرشد يتحدث العربية.',
+  'ai.ex3': 'رحلة فردية إلى أربيل والموصل الشهر القادم، حوالي ٨٠ دولارًا لليوم. أحب الأسواق القديمة والتصوير.',
+  'ai.write': 'صِف رحلتك…', 'ai.send': 'إرسال', 'ai.thinking': 'المساعد يكتب',
+  'ai.restart': 'ابدأ من جديد', 'ai.restart_confirm': 'هل تريد مسح هذه المحادثة والبدء برحلة جديدة؟',
+  'ai.review': 'راجع رحلتي', 'ai.ready': 'رحلتك فيها كل ما تحتاجه.', 'ai.still_need': 'ما زال ناقصًا: {list}.',
+  'ai.missing.cities': 'المحافظات', 'ai.missing.dates': 'التواريخ', 'ai.missing.groupSize': 'عدد الأشخاص', 'ai.missing.languages': 'لغة المرشد',
+  'ai.missing.budget': 'الميزانية لليوم', 'ai.missing.title': 'العنوان',
+  'ai.sug_title': 'اقتراحات لك', 'ai.sug_place': 'أضف {name}', 'ai.sug_budget': 'استخدم {range} لليوم', 'ai.sug_plan': ar('أضف خطة ليوم واحد', 'أضف خطة ليومين', 'أضف خطة لـ{count} أيام', 'أضف خطة لـ{count} يومًا'),
+  'ai.places_n': ar('مكان واحد', 'مكانان', '{count} أماكن', '{count} مكانًا'), 'ai.chips_label': 'رحلتك حتى الآن',
+  'ai.limit_note': 'قد يخطئ المساعد. ستراجع كل شيء قبل النشر.',
+  'ai.unavailable': 'يحتاج مساعد الرحلات إلى الاتصال بخادم Trip guide، وهو غير متاح هنا. ما زال بإمكانك نشر رحلتك من خلال النموذج.',
+  'ai.use_form': 'استخدم النموذج',
+  'ai.cta_title': 'صِف رحلتك بكلماتك', 'ai.cta_text': 'تحدّث مع مساعد الرحلات. يسألك عمّا ينقص، ويقترح أماكن وميزانية، ويكتب طلبك.',
+  'ai.cta_btn': 'تحدّث مع المساعد', 'ai.form_link': 'تفضّل أن تصفها فقط؟ دع المساعد يملأ هذا عنك',
+  'ai.review_title': 'راجع رحلتك', 'ai.review_lede': 'هكذا سيرى المرشدون رحلتك. صحّح ما تريد، ثم انشرها.',
+  'ai.r_where': 'أين', 'ai.r_when': 'متى ومن', 'ai.r_guide': 'مرشدك وخطتك', 'ai.r_budget': 'الميزانية', 'ai.edit': 'تعديل',
+  'ai.no_places': 'لم تُختر أماكن بعد. سيقترح المرشدون بعضها.', 'ai.post': 'انشر رحلتي', 'ai.back_chat': 'عودة إلى المحادثة',
+  'ai.incomplete': 'بعض الأمور ناقصة.', 'ai.empty': 'لا شيء للمراجعة بعد. صِف رحلتك للمساعد أولًا.',
+  'err.assistant_off': 'مساعد الرحلات غير مفعّل على هذا الخادم.', 'err.ai_unavailable': 'المساعد مشغول الآن. حاول مرة أخرى بعد لحظات.',
+  'err.ai_timeout': 'تأخّر المساعد في الرد. حاول مرة أخرى.', 'err.too_many_requests': 'أرسلت رسائل كثيرة. انتظر بضع دقائق ثم حاول مرة أخرى.',
 };
 
 export const strings: Record<Lang, Record<string, Entry>> = { en, ar: arStrings };
