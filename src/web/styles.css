@@ -672,3 +672,21 @@ html:has(.post-wizard) { scroll-padding: 110px 0 170px; }
 .saved-card { display: inline-flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; background: var(--paper); font-weight: 600; }
 .sc-brand { color: var(--navy); font-weight: 800; }
 .sc-exp { font-size: 12px; color: var(--muted); font-weight: 500; }
+
+/* Tourist profile menu */
+.account-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.account-top h1 { font-size: 30px; font-weight: 900; }
+.account-top img { height: 28px; width: auto; }
+.menu-list { display: flex; flex-direction: column; gap: 10px; }
+.menu-row { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); color: var(--navy); text-decoration: none; font: inherit; text-align: start; width: 100%; cursor: pointer; }
+.menu-row:active { background: var(--paper); }
+.menu-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.menu-text strong { font-size: 16px; }
+.btn.red, .btn.red:hover { background: #c9372c; border-color: #c9372c; color: #fff; }
+.btn.red:active { background: #a92b22; }
+.segmented { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 14px; background: var(--paper); }
+.segmented button { min-height: 42px; border: none; border-radius: 11px; background: transparent; color: var(--muted); font: inherit; font-weight: 600; cursor: pointer; }
+.segmented button[aria-selected='true'] { background: var(--surface); color: var(--navy); box-shadow: 0 1px 4px rgba(5,63,92,.15); }
+.date-chip { flex: none; width: 54px; text-align: center; padding: 6px 0; border-radius: 10px; background: var(--sky-soft); }
+.radio-dot { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--line-strong); display: grid; place-items: center; flex: none; }
+.radio-dot.on { background: var(--navy); border-color: var(--navy); color: #fff; }

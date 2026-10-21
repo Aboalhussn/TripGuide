@@ -366,6 +366,12 @@ route('PUT', '/me', (ctx, _p, req) => {
   const b = req.body || {};
   if (b.name !== undefined) u.name = str(b.name, 'name', 2, 60);
   if (b.country !== undefined) u.country = str(b.country, 'country', 2, 60);
+  if (b.email !== undefined) {
+    const email = String(b.email || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) || email.length > 120) throw bad('email_invalid');
+    if (email !== u.email && ctx.data.users.some((x) => x.email === email)) throw conflict('email_taken');
+    u.email = email;
+  }
   if (b.phone !== undefined) {
     const phone = optStr(b.phone, 'phone', 20);
     if (phone && !/^\+?[0-9 ]{7,20}$/.test(phone)) throw bad('phone_invalid');

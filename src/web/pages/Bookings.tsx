@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { api } from '../lib/api';
 import { useApp, useLoad } from '../lib/app';
 import { useFmt } from '../lib/format';
+import { PaymentCard } from './Account';
 import { Link, navigate } from '../lib/router';
 import { asset } from '../assets';
 import { ReviewCard } from './Guides';
@@ -471,9 +472,18 @@ export function Wallet() {
   if (!res.data) return <Loading />;
   const w = res.data;
   const guide = w.role === 'guide';
+  // Tourists add a payment card first; then the wallet opens with the card on top.
+  if (!guide && !me.savedCard)
+    return (
+      <div className="page" style={{ maxWidth: 640, margin: '0 auto', width: '100%' }}>
+        <PageHead title={t('wallet.title')} backTo="/profile" />
+        <PaymentCard gate />
+      </div>
+    );
   return (
     <div className="page" style={{ maxWidth: 760, margin: '0 auto', width: '100%' }}>
-      <PageHead title={t('wallet.title')} backTo="/" />
+      <PageHead title={t('wallet.title')} backTo={guide ? '/' : '/profile'} />
+      {!guide && <PaymentCard />}
       <section className="card dark grid-2" style={{ gap: 16, padding: 18 }}>
         <div>
           <div className="small muted">{guide ? t('wallet.earned') : t('wallet.paid_guides')}</div>

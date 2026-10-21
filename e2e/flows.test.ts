@@ -649,8 +649,10 @@ test('hire flow: Hire in chat opens the hire sheet; then the trip clearly shows 
   await p.evaluate((tk) => localStorage.setItem('tg.token', tk), reg.token);
   await p.reload();
 
-  // Save a card in the profile: the hire sheet then uses it without typing.
+  // Save a card from the profile's Wallet: the hire sheet then uses it without typing.
   await go(p, '/profile');
+  await p.getByRole('link', { name: /Wallet/ }).click();
+  await p.getByText('Add a payment card to open your wallet').waitFor();
   await p.getByRole('button', { name: 'Add a card' }).click();
   await p.getByRole('dialog').getByRole('button', { name: 'Use test card' }).click();
   await p.getByRole('dialog').getByRole('button', { name: 'Save card' }).click();
@@ -718,4 +720,41 @@ test('strict limits: languages lock at 3, people stop at 10; the admin sets the 
   await a.getByRole('heading', { name: 'Dollar to dinar rate' }).locator('..').getByRole('button', { name: 'Save' }).click();
   await a.getByText('Saved').first().waitFor();
   await a.context().close();
+});
+
+test('tourist profile: a short menu with your info, requests and trips, wallet, settings, and a red sign out', async () => {
+  const p = await open();
+  await login(p, 'marco@tripguide.demo');
+  await go(p, '/profile');
+  assert.deepEqual(
+    (await p.locator('.menu-row strong').allInnerTexts()),
+    ['Your info', 'Requests and trips', 'Wallet', 'Settings'],
+  );
+  // Your info: edit the country, see the error right away for a bad email.
+  await p.getByRole('link', { name: /Your info/ }).click();
+  await p.getByLabel('Email').fill('marco@');
+  await p.getByText('Enter a valid email address.').waitFor();
+  await p.getByLabel('Email').fill('marco@tripguide.demo');
+  await p.getByLabel('Country').fill('Italia');
+  await p.getByRole('button', { name: 'Save' }).click();
+  await p.getByText('Saved').first().waitFor();
+  // Requests and trips: switch between the two lists.
+  await go(p, '/profile');
+  await p.getByRole('link', { name: /Requests and trips/ }).click();
+  await p.getByRole('tab', { name: 'Finished trips' }).click();
+  await p.getByRole('tab', { name: 'Finished trips', selected: true }).waitFor();
+  await p.getByRole('tab', { name: 'Requests' }).click();
+  // Settings: the language.
+  await go(p, '/profile/settings');
+  await p.getByRole('radio', { name: /العربية/ }).click();
+  await p.getByRole('heading', { name: 'الإعدادات' }).waitFor();
+  await p.getByRole('radio', { name: /English/ }).click();
+  // Sign out is red, and so is the confirm button.
+  await go(p, '/profile');
+  const out = p.getByRole('button', { name: 'Sign out' });
+  assert.match((await out.getAttribute('class')) || '', /\bred\b/);
+  await out.click();
+  assert.match((await p.getByRole('alertdialog').getByRole('button', { name: 'Sign out' }).getAttribute('class')) || '', /\bred\b/);
+  await p.getByRole('alertdialog').getByRole('button', { name: 'Cancel' }).click();
+  await p.context().close();
 });

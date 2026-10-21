@@ -458,3 +458,13 @@ test('a saved card: kept without the full number, used to pay, and removable', (
   const g = s.login(DEMO_ACCOUNTS.guide);
   assert.equal(s.ok('PUT', '/me/card', CARD, g).savedCard.last4, '4242');
 });
+
+test('changing name, country and email from the profile; a taken email is refused', () => {
+  const s = setup();
+  const tt = s.login(DEMO_ACCOUNTS.tourist);
+  const me = s.ok('PUT', '/me', { name: 'Hannah Weber', country: 'Austria', email: 'Hannah.New@Example.com' }, tt);
+  assert.equal(me.email, 'hannah.new@example.com');
+  assert.equal(me.country, 'Austria');
+  assert.equal(s.call('PUT', '/me', { email: 'not-an-email' }, tt).body.error, 'email_invalid');
+  assert.equal(s.call('PUT', '/me', { email: DEMO_ACCOUNTS.guide }, tt).body.error, 'email_taken');
+});

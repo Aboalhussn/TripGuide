@@ -5,6 +5,7 @@ import { useFmt } from '../lib/format';
 import { Link, navigate } from '../lib/router';
 import { asset, photoSrc } from '../assets';
 import { resizeImage } from '../lib/image';
+import { MyRequestsList } from './Requests';
 import { Avatar, BookingStatus, BrandFooter, HeroBand, LimitNote, LangToggle, CardForm, Field, Icon, Loading, Modal, Money, MonthCalendar, PageHead, ToggleGroup, VerifiedBadge, emptyCard, useBusy } from '../ui';
 import type { CardValue } from '../ui';
 
@@ -216,8 +217,222 @@ export function Register({ query }: { query: Record<string, string> }) {
   );
 }
 
+/* ---------- Tourist profile: a short menu, each row opens its own page ---------- */
+
+function TouristAccount() {
+  const { t, me, lang, signOut, ask } = useApp();
+  const signOutNow = async () => {
+    if (!(await ask(t('account.sign_out_confirm'), t('account.sign_out'), { danger: true }))) return;
+    navigate('/login', { replace: true });
+    await signOut();
+  };
+  const rows = [
+    { to: '/profile/info', icon: 'user', label: t('menu.info'), sub: t('menu.info_sub') },
+    { to: '/profile/trips', icon: 'list', label: t('menu.trips'), sub: t('menu.trips_sub') },
+    { to: '/wallet', icon: 'wallet', label: t('menu.wallet'), sub: me.savedCard ? `${me.savedCard.brand} •••• ${me.savedCard.last4}` : t('menu.wallet_add') },
+    { to: '/profile/settings', icon: 'globe', label: t('menu.settings'), sub: lang === 'ar' ? 'العربية' : 'English' },
+  ];
+  return (
+    <div className="page" style={{ maxWidth: 720, margin: '0 auto', width: '100%' }}>
+      <div className="account-top">
+        <h1>{t('account.title')}</h1>
+        <img src={asset('tg-logo-horizontal.svg')} alt={t('brand.name')} />
+      </div>
+      <ProfileHeader />
+      <nav className="menu-list" aria-label={t('account.title')}>
+        {rows.map((r) => (
+          <Link key={r.to} to={r.to} className="menu-row">
+            <span className="qa-ico sm"><Icon name={r.icon} size={20} /></span>
+            <span className="menu-text">
+              <strong>{r.label}</strong>
+              <span className="xs muted">{r.sub}</span>
+            </span>
+            <Icon name="next" size={18} className="flip" />
+          </Link>
+        ))}
+      </nav>
+      <button type="button" className="btn lg red" onClick={signOutNow}>
+        <Icon name="logout" size={18} className="flip" /> {t('account.sign_out')}
+      </button>
+    </div>
+  );
+}
+
+/** "Your info": name, country, phone (with code check) and email. */
+export function ProfileInfo() {
+  const { t, me, meta, refreshMe, toast, errorText } = useApp();
+  const [f, setF] = useState({ name: me?.name || '', country: me?.country || '', phone: me?.phone || '', email: me?.email || '' });
+  const [dirty, setDirty] = useState<Record<string, boolean>>({});
+  const [code, setCode] = useState('');
+  const [showCode, setShowCode] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const { busy, run } = useBusy();
+  if (!me) return null;
+  const up = (p: Partial<typeof f>) => {
+    setF((x) => ({ ...x, ...p }));
+    setDirty((d) => ({ ...d, ...Object.fromEntries(Object.keys(p).map((k) => [k, true])) }));
+  };
+  const errs: Record<string, string> = {};
+  if (f.name.trim().length < 2) errs.name = t('v.name');
+  if (f.country.trim().length < 2) errs.country = t('v.country');
+  if (f.phone && !/^\+?[0-9 ]{7,20}$/.test(f.phone)) errs.phone = t('err.phone_invalid');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(f.email.trim())) errs.email = f.email ? t('err.email_invalid') : t('v.email');
+  const show = (k: string) => (dirty[k] ? errs[k] : undefined);
+  const changed = f.name !== me.name || f.country !== me.country || f.phone !== (me.phone || '') || f.email !== me.email;
+  const save = (e: React.FormEvent) => {
+    e.preventDefault();
+    setDirty({ name: true, country: true, phone: true, email: true });
+    if (Object.keys(errs).length) return;
+    run(async () => {
+      setErr(null);
+      try {
+        await api('PUT', '/me', { ...f, name: f.name.trim(), country: f.country.trim(), email: f.email.trim() });
+        await refreshMe();
+        setDirty({});
+        toast(t('common.saved'));
+      } catch (x) {
+        setErr(errorText(x));
+        throw x;
+      }
+    });
+  };
+  return (
+    <div className="page" style={{ maxWidth: 640, margin: '0 auto', width: '100%' }}>
+      <PageHead title={t('menu.info')} backTo="/profile" />
+      <form className="card stack" onSubmit={save} noValidate>
+        <Field label={t('field.name')} error={show('name')}>
+          <input className="input" autoComplete="name" value={f.name} onChange={(e) => up({ name: e.target.value.slice(0, 60) })} />
+        </Field>
+        <Field label={t('field.country')} error={show('country')}>
+          <input className="input" autoComplete="country-name" value={f.country} onChange={(e) => up({ country: e.target.value.slice(0, 60) })} />
+        </Field>
+        <Field label={t('field.phone')} error={show('phone')} hint={show('phone') ? undefined : me.phone && f.phone === me.phone ? (me.phoneVerified ? t('account.phone_verified') : t('account.phone_unverified')) : undefined}>
+          <input className="input ltr" type="tel" autoComplete="tel" value={f.phone} onChange={(e) => up({ phone: e.target.value.replace(/[^\d+ ]/g, '').slice(0, 20) })} />
+        </Field>
+        <Field label={t('field.email')} error={show('email')}>
+          <input className="input ltr" type="email" autoComplete="email" value={f.email} onChange={(e) => up({ email: e.target.value.trim() })} />
+        </Field>
+        {err && (
+          <div className="note danger" role="alert">
+            {err}
+          </div>
+        )}
+        <div className="row">
+          <button className="btn" disabled={busy || !changed}>{t('common.save')}</button>
+          {me.phone && !me.phoneVerified && f.phone === me.phone && (
+            <button type="button" className="btn outline" onClick={() => setShowCode(true)}>
+              {t('account.verify_phone')}
+            </button>
+          )}
+        </div>
+      </form>
+      {showCode && (
+        <Modal title={t('account.verify_phone')} onClose={() => setShowCode(false)}>
+          <p className="small">{t('account.code_sent', { phone: me.phone })}</p>
+          <p className="note small">{t('account.demo_code', { code: meta.demoPhoneCode })}</p>
+          <Field label={t('account.code')}>
+            <input className="input ltr" inputMode="numeric" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} />
+          </Field>
+          <button
+            type="button"
+            className="btn"
+            disabled={busy || code.length < 4}
+            onClick={() =>
+              run(async () => {
+                await api('POST', '/me/verify-phone', { code });
+                await refreshMe();
+                setShowCode(false);
+                toast(t('account.phone_done'));
+              })
+            }
+          >
+            {t('account.confirm_code')}
+          </button>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+/** "Requests and trips": switch at the top between trip requests and finished trips. */
+export function TripsHub({ query }: { query: Record<string, string> }) {
+  const { t } = useApp();
+  const fmt = useFmt();
+  const [tab, setTab] = useState<'requests' | 'done'>(query.tab === 'done' ? 'done' : 'requests');
+  const res = useLoad(() => api('GET', '/bookings'), []);
+  const done: any[] = (res.data?.bookings || []).filter((b: any) => b.status === 'completed').sort((a: any, b: any) => b.startDate.localeCompare(a.startDate));
+  return (
+    <div className="page" style={{ maxWidth: 720, margin: '0 auto', width: '100%' }}>
+      <PageHead title={t('menu.trips')} backTo="/profile" />
+      <div className="segmented" role="tablist">
+        <button role="tab" aria-selected={tab === 'requests'} onClick={() => setTab('requests')}>
+          {t('menu.tab_requests')}
+        </button>
+        <button role="tab" aria-selected={tab === 'done'} onClick={() => setTab('done')}>
+          {t('menu.tab_done')}
+        </button>
+      </div>
+      {tab === 'requests' ? (
+        <MyRequestsList />
+      ) : !res.data ? (
+        <div className="skeleton" style={{ height: 160 }} />
+      ) : done.length === 0 ? (
+        <div className="card stack center" style={{ gap: 8 }}>
+          <strong>{t('menu.no_done')}</strong>
+          <span className="small muted">{t('menu.no_done_text')}</span>
+        </div>
+      ) : (
+        <div className="cards">
+          {done.map((b) => (
+            <Link key={b.id} to={`/bookings/${b.id}`} className="card link row" style={{ gap: 12, flexWrap: 'nowrap' }}>
+              <div className="date-chip">
+                <div className="xs">{fmt.date(b.startDate, { month: 'short' })}</div>
+                <div style={{ fontSize: 20, fontWeight: 700 }}>{fmt.date(b.startDate, { day: 'numeric' })}</div>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }} className="stack">
+                <strong style={{ lineHeight: 1.3 }}><bdi>{b.title}</bdi></strong>
+                <span className="small muted">{b.guide?.name} · {fmt.usd(b.total)}</span>
+              </div>
+              <span className="pill sky">{t('booking.status.completed')}</span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Settings: the app language. */
+export function ProfileSettings() {
+  const { t, lang, setLang } = useApp();
+  const opts: { code: 'en' | 'ar'; label: string; sub: string }[] = [
+    { code: 'ar', label: 'العربية', sub: 'Arabic' },
+    { code: 'en', label: 'English', sub: 'الإنجليزية' },
+  ];
+  return (
+    <div className="page" style={{ maxWidth: 640, margin: '0 auto', width: '100%' }}>
+      <PageHead title={t('menu.settings')} backTo="/profile" />
+      <section className="stack" style={{ gap: 10 }}>
+        <h2 style={{ fontSize: 18 }}>{t('account.language')}</h2>
+        <div className="menu-list" role="radiogroup" aria-label={t('account.language')}>
+          {opts.map((o) => (
+            <button key={o.code} type="button" role="radio" aria-checked={lang === o.code} className="menu-row" onClick={() => setLang(o.code)}>
+              <span className="qa-ico sm"><Icon name="globe" size={20} /></span>
+              <span className="menu-text" lang={o.code}>
+                <strong>{o.label}</strong>
+                <span className="xs muted">{o.sub}</span>
+              </span>
+              <span className={'radio-dot' + (lang === o.code ? ' on' : '')} aria-hidden="true">{lang === o.code && <Icon name="check" size={14} stroke={3} />}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 /** Payment card kept in the profile (tourists and guides). Only brand, last 4, name and expiry are stored. */
-function PaymentCard() {
+export function PaymentCard({ gate = false }: { gate?: boolean }) {
   const { t, me, refreshMe, toast, errorText, ask } = useApp();
   const [open, setOpen] = useState(false);
   const [card, setCard] = useState<CardValue>({ ...emptyCard, saved: false });
@@ -239,7 +454,7 @@ function PaymentCard() {
       }
     });
   const remove = async () => {
-    if (!(await ask(t('card.remove_confirm'), t('card.remove')))) return;
+    if (!(await ask(t('card.remove_confirm'), t('card.remove'), { danger: true }))) return;
     run(async () => {
       await api('DELETE', '/me/card');
       await refreshMe();
@@ -253,7 +468,7 @@ function PaymentCard() {
         </strong>
         {c && <span className="pill sky">{t('card.on_file')}</span>}
       </div>
-      <p className="small muted">{me.role === 'guide' ? t('card.text_guide') : t('card.text_tourist')}</p>
+      <p className="small muted">{gate ? t('card.gate_text') : me.role === 'guide' ? t('card.text_guide') : t('card.text_tourist')}</p>
       {c ? (
         <>
           <div className="pay-card-visual" dir="ltr">
@@ -363,6 +578,7 @@ export function Account() {
   const { busy, run } = useBusy();
   const { meta } = useApp();
   if (!me) return null; // the router sends signed-out visitors to sign in
+  if (me.role === 'tourist') return <TouristAccount />;
   return (
     <div className="page" style={{ maxWidth: 720, margin: '0 auto', width: '100%' }}>
       <PageHead title={t('account.title')} />
@@ -462,9 +678,9 @@ export function Account() {
 
       <button
         type="button"
-        className="btn ghost"
+        className="btn lg red"
         onClick={async () => {
-          if (!(await ask(t('account.sign_out_confirm'), t('account.sign_out')))) return;
+          if (!(await ask(t('account.sign_out_confirm'), t('account.sign_out'), { danger: true }))) return;
           navigate('/login', { replace: true }); // land on sign-in, not on a page that needs an account
           await signOut();
         }}

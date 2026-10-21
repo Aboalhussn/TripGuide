@@ -415,12 +415,7 @@ export function RequestsIndex({ query }: { query: Record<string, string> }) {
 }
 
 function MyRequests() {
-  const { t, me } = useApp();
-  const fmt = useFmt();
-  const res = useLoad(() => (me ? api('GET', '/requests/mine') : Promise.resolve({ requests: [] })), [me?.id]);
-  if (!me) return null;
-  if (res.error) return <ErrorState error={res.error} onRetry={res.reload} />;
-  if (!res.data) return <Loading />;
+  const { t } = useApp();
   return (
     <div className="page">
       <PageHead title={t('requests.mine')}>
@@ -428,6 +423,21 @@ function MyRequests() {
           <Icon name="plus" size={18} /> {t('nav.post_request')}
         </Link>
       </PageHead>
+      <MyRequestsList />
+    </div>
+  );
+}
+
+/** The tourist's trip requests (also shown inside the profile's "Requests and trips"). */
+export function MyRequestsList() {
+  const { t, me } = useApp();
+  const fmt = useFmt();
+  const res = useLoad(() => (me ? api('GET', '/requests/mine') : Promise.resolve({ requests: [] })), [me?.id]);
+  if (!me) return null;
+  if (res.error) return <ErrorState error={res.error} onRetry={res.reload} />;
+  if (!res.data) return <Loading />;
+  return (
+    <>
       {res.data.requests.length === 0 && <Empty title={t('requests.none')} text={t('requests.none_text')} action={<Link to="/post" className="btn">{t('home.cta_post')}</Link>} />}
       <div className="cards">
         {res.data.requests.map((r: any) => (
@@ -448,7 +458,7 @@ function MyRequests() {
           </Link>
         ))}
       </div>
-    </div>
+    </>
   );
 }
 

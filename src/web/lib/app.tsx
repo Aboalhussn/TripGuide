@@ -18,7 +18,7 @@ type AppState = {
   signIn(token: string, me: Me): void;
   signOut(): Promise<void>;
   toast(text: string, kind?: 'ok' | 'error'): void;
-  ask(text: string, okLabel?: string): Promise<boolean>;
+  ask(text: string, okLabel?: string, opts?: { danger?: boolean }): Promise<boolean>;
   t(key: string, params?: Record<string, any>): string;
   errorText(e: unknown): string;
 };
@@ -62,9 +62,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [lang, setLangState] = useState<Lang>(initialLang);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toastId = useRef(0);
-  const [question, setQuestion] = useState<{ text: string; ok: string; resolve(v: boolean): void } | null>(null);
+  const [question, setQuestion] = useState<{ text: string; ok: string; danger?: boolean; resolve(v: boolean): void } | null>(null);
   // In-page confirmation: the browser's confirm() is blocked in embedded viewers.
-  const ask = useCallback((text: string, ok?: string) => new Promise<boolean>((resolve) => setQuestion({ text, ok: ok || '', resolve })), []);
+  const ask = useCallback((text: string, ok?: string, opts?: { danger?: boolean }) => new Promise<boolean>((resolve) => setQuestion({ text, ok: ok || '', danger: opts?.danger, resolve })), []);
   const answer = (v: boolean) => {
     question?.resolve(v);
     setQuestion(null);
@@ -171,7 +171,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               <button type="button" className="btn ghost" style={{ flex: 1 }} onClick={() => answer(false)}>
                 {t('common.cancel')}
               </button>
-              <button type="button" className="btn" style={{ flex: 1.4 }} autoFocus onClick={() => answer(true)}>
+              <button type="button" className={'btn' + (question.danger ? ' red' : '')} style={{ flex: 1.4 }} autoFocus onClick={() => answer(true)}>
                 {question.ok || t('common.yes')}
               </button>
             </div>
