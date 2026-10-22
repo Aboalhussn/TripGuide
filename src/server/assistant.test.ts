@@ -148,3 +148,16 @@ test('ai: settings', () => {
   assert.equal(providerFromEnv({ AI_PROVIDER: 'openai', AI_API_KEY: 'k', AI_MODEL: 'm' }, mockProvider)?.model, 'm');
   assert.equal(providerFromEnv({ AI_PROVIDER: 'anthropic', AI_API_KEY: 'k' }, mockProvider)?.name, 'anthropic');
 });
+
+test('the pretend AI understands everyday Arabic: Arabic digits, number words, Arabic months and "next month"', async () => {
+  const { mockReply } = await import('./mock-ai');
+  const { emptyDraft } = await import('../core/draft');
+  const { CITIES } = await import('../core/catalog');
+  const ctx: any = { today: '2026-10-22', cities: CITIES, places: [], languages: ['ar', 'en'], interests: [] };
+  const ask = (lastUser: string) => JSON.parse(mockReply({ ctx, draft: emptyDraft(), lang: 'ar', lastUser } as any));
+  const a = ask('٣ أيام في بابل وبغداد لشخصين، مرشد يتكلم الإنجليزية، حوالي ٨٠ دولار باليوم، من 20 تشرين الثاني');
+  assert.deepEqual([a.patch.cities, a.patch.startDate, a.patch.days, a.patch.groupSize, a.patch.budgetMax, a.patch.languages], [['baghdad', 'babylon'], '2026-11-20', 3, 2, 80, ['en']]);
+  assert.match(a.reply, /رحلتك جاهزة/);
+  const b = ask('اريد اروح كربلاء والنجف يومين الشهر الجاي احنا اربعة اشخاص و الميزانية ٥٠ دولار');
+  assert.deepEqual([b.patch.cities, b.patch.startDate, b.patch.days, b.patch.groupSize, b.patch.budgetMax], [['karbala', 'najaf'], '2026-11-01', 2, 4, 50]);
+});

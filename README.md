@@ -278,7 +278,7 @@ On **every push to `main`**, GitHub Actions (`.github/workflows/mobile.yml`):
 
 So this link always downloads the newest Android build: <https://github.com/Aboalhussn/TripGuide/releases/latest/download/trip-guide.apk>
 
-To point the apps at a real server, set the repository variable `API_URL`. Building by hand with Android Studio or Xcode is described in [MOBILE.md](MOBILE.md).
+The offline APK includes the trip assistant with the pretend AI (it understands simple English and everyday Arabic, and answers with demo data). Set the repository variable `DEMO_AI` to `off` to hide it. To point the apps at a real server, set the repository variable `API_URL`. Building by hand with Android Studio or Xcode is described in [MOBILE.md](MOBILE.md).
 
 ## 10. Tests
 
