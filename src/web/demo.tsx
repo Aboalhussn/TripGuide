@@ -6,7 +6,7 @@ import { sha256 } from './lib/sha256';
 import { createAssistantHandler } from '../server/assistant';
 import { mockProvider } from '../server/mock-ai';
 
-const KEY = 'tg.demo.data.v2'; // bump when the demo data changes shape, so phones start from the new demo data
+const KEY = 'tg.demo.data.v3'; // bump when the demo data changes shape, so phones start from the new demo data
 
 const browserPlatform: Platform = {
   now: () => new Date(),

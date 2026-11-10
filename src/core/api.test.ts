@@ -54,7 +54,8 @@ test('seed: demo accounts log in and dashboards load', () => {
   assert.equal(g.awaiting.length, 1, 'Zainab has a hire to confirm');
   assert.ok(g.matching.some((r: any) => r.invitedMe), 'Zainab sees the invite');
   const t = s.ok('GET', '/dashboard', null, s.login(DEMO_ACCOUNTS.tourist));
-  assert.equal(t.releaseAsks.length, 1);
+  assert.equal(t.releaseAsks.length, 0, 'one full payment: nothing to release day by day');
+  assert.ok(t.offers.length >= 1 && t.events.length >= 1);
   assert.equal(t.toReview.length, 1);
   const zainab = s.ok('GET', '/guides', null, null, { q: 'Zainab' }).guides[0];
   assert.ok(zainab.stats.topGuide);
@@ -106,19 +107,24 @@ test('full flow: post, offer, hire, confirm, release day by day, review both way
   assert.equal(confirmed.status, 'confirmed');
   assert.equal(s.ok('GET', `/requests/${req.id}`, null, tt).status, 'hired');
 
-  // Guide cannot ask for release before the day.
-  const [d1, d2] = confirmed.milestones;
-  assert.equal(s.call('POST', `/milestones/${d1.id}/request-release`, null, ali).body.error, 'day_not_reached');
+  // The whole payment is held by the platform: neither side can move it day by day.
+  const [d1] = confirmed.milestones;
+  assert.equal(s.call('POST', `/milestones/${d1.id}/request-release`, null, ali).body.error, 'admin_pays');
+  assert.equal(s.call('POST', `/milestones/${d1.id}/release`, null, tt).body.error, 'admin_pays');
+  assert.equal(s.call('POST', `/milestones/${d1.id}/refund`, null, ali).body.error, 'admin_pays');
   // Tourist cannot cancel once the tour has started.
   s.advance(24 * 3);
   assert.equal(s.call('POST', `/bookings/${booking.id}/cancel`, {}, tt).body.error, 'tour_started');
-  s.ok('POST', `/milestones/${d1.id}/request-release`, null, ali);
-  let b = s.ok('POST', `/milestones/${d1.id}/release`, null, tt);
-  assert.equal(b.money.released, 45);
-  assert.equal(b.status, 'confirmed');
-  b = s.ok('POST', `/milestones/${d2.id}/release`, null, tt);
+  // Only the admin transfers it, all at once.
+  const admin0 = s.login(DEMO_ACCOUNTS.admin);
+  assert.equal(s.call('POST', `/admin/bookings/${booking.id}/payout`, null, tt).status, 403);
+  const due = s.ok('GET', '/admin/payouts', null, admin0).waiting.find((x: any) => x.id === booking.id);
+  assert.deepEqual([due.held, due.fee, due.toGuide], [90, 9, 81]);
+  const b = s.ok('POST', `/admin/bookings/${booking.id}/payout`, null, admin0);
   assert.equal(b.status, 'completed');
+  assert.equal(b.money.released, 90);
   assert.equal(b.money.fee, 9);
+  assert.equal(s.call('POST', `/admin/bookings/${booking.id}/payout`, null, admin0).body.error, 'booking_state');
 
   const wallet = s.ok('GET', '/wallet', null, ali);
   assert.ok(wallet.released >= 81);
@@ -188,14 +194,24 @@ test('report and admin refund', () => {
 test('guide sign-up, profile, verification approved by admin', () => {
   const s = setup();
   const g = s.ok('POST', '/auth/register', { role: 'guide', name: 'New Guide', email: 'new@guide.iq', password: 'Guide#2026', country: 'Iraq', gender: 'm' }).token;
-  assert.equal(s.call('POST', '/guide/verification', { docs: ['id.jpg'] }, g).body.error, 'profile_incomplete');
-  s.ok('PUT', '/guide/profile', { headline: 'Basra boat tours', bio: 'I run boat trips on the Shatt al-Arab and in the marshes for small groups.', cities: ['basra'], pricePerDay: 45, languages: [{ code: 'ar', level: 'native' }, { code: 'en', level: 'good' }], specialities: ['nature'] }, g);
-  s.ok('POST', '/guide/verification', { docs: ['id.jpg'] }, g);
+  const profile = { headline: 'Basra boat tours', bio: 'I run boat trips on the Shatt al-Arab and in the marshes for small groups.', cities: ['basra'], pricePerDay: 45, languages: [{ code: 'ar', level: 'native' }, { code: 'en', level: 'good' }], specialities: ['nature'] };
+  // Identity first: the profile, price and bio are locked until the admin approves.
+  assert.equal(s.call('PUT', '/guide/profile', profile, g).body.error, 'verify_first');
+  const img = 'data:image/jpeg;base64,' + 'D'.repeat(300);
+  assert.equal(s.call('POST', '/guide/verification', { idFront: img, idBack: img }, g).body.error, 'field_required');
+  assert.equal(s.call('POST', '/guide/verification', { idFront: img, idBack: img, residence: 'residence.pdf' }, g).body.error, 'photo_invalid');
+  const me = s.ok('POST', '/guide/verification', { idFront: img, idBack: img, residence: img }, g);
+  assert.equal(me.guide.verification, 'pending');
+  assert.equal(me.guide.verificationPhotos, undefined); // the photos never travel back
+  assert.equal(s.call('PUT', '/guide/profile', profile, g).body.error, 'verify_first');
   const admin = s.login(DEMO_ACCOUNTS.admin);
   const queue = s.ok('GET', '/admin/verifications', null, admin).guides;
   const mine = queue.find((x: any) => x.name === 'New Guide');
   assert.ok(mine);
+  assert.equal(mine.photos.residence, img); // only the admin sees them
+  assert.equal(s.ok('GET', `/guides/${mine.id}`).verificationPhotos, undefined);
   s.ok('POST', `/admin/guides/${mine.id}/verify`, { approve: true }, admin);
+  s.ok('PUT', '/guide/profile', profile, g);
   assert.equal(s.ok('GET', `/guides/${mine.id}`).verification, 'verified');
   assert.ok(s.ok('GET', '/guides', null, null, { city: 'basra', verified: '1' }).guides.some((x: any) => x.id === mine.id));
 });
@@ -553,10 +569,12 @@ test('wallet: a guide withdraws released earnings to a saved card; a tourist kee
   const { tt, g, offer } = postAndOffer(s);
   const b = s.ok('POST', `/offers/${offer.id}/hire`, { confirmPayment: true, card: CARD }, tt);
   s.ok('POST', `/bookings/${b.id}/confirm`, null, g);
-  const bk = s.ok('GET', `/bookings/${b.id}`, null, tt);
-  const [m1, m2] = bk.milestones;
-  s.ok('POST', `/milestones/${m1.id}/release`, null, tt);
-  s.ok('POST', `/milestones/${m2.id}/refund`, null, g);
+  s.ok('POST', `/admin/bookings/${b.id}/payout`, null, s.login(DEMO_ACCOUNTS.admin)); // the admin transfers the full payment
+  // A second trip the guide declines: the tourist's full payment comes back to their wallet.
+  const second = postAndOffer(s, 'omar@tripguide.demo');
+  const b2 = s.ok('POST', `/offers/${second.offer.id}/hire`, { confirmPayment: true, card: CARD }, tt);
+  s.ok('POST', `/bookings/${b2.id}/decline`, null, second.g);
+  const m2 = { amount: 90 };
   // Guide: earnings after the fee are ready to withdraw, but only to a saved card.
   let gw = s.ok('GET', '/wallet', null, g);
   assert.ok(gw.available > 0);
@@ -569,7 +587,7 @@ test('wallet: a guide withdraws released earnings to a saved card; a tourist kee
   gw = s.ok('GET', '/wallet', null, g);
   assert.ok(gw.transactions.some((x: any) => x.kind === 'withdrawn' && x.amount === -out.withdrawal.amount));
   assert.equal(s.call('POST', '/wallet/withdraw', {}, g).body.error, 'nothing_to_withdraw');
-  // Tourist: the refunded day stays in the wallet; withdrawing part of it leaves the rest.
+  // Tourist: the refund stays in the wallet; withdrawing part of it leaves the rest.
   const tw = s.ok('GET', '/wallet', null, tt);
   assert.equal(tw.available, m2.amount);
   s.ok('PUT', '/me/card', { number: '4242424242424242', name: 'Tourist Card', expiry: '12/30', cvc: '123' }, tt);
@@ -593,4 +611,30 @@ test('passwords: forgot sends a code (shown in the demo), reset signs in with th
   assert.equal(s.call('POST', '/me/password', { current: 'New#Pass123', password: 'New#Pass123' }, tk).body.error, 'password_same');
   s.ok('POST', '/me/password', { current: 'New#Pass123', password: 'Third#Pass1' }, tk);
   assert.equal(s.call('POST', '/auth/login', { email: DEMO_ACCOUNTS.tourist, password: 'Third#Pass1' }).status, 200);
+});
+
+test('special events: the admin adds them, tourists see upcoming ones on their home with their offers', () => {
+  const s = setup();
+  const ad = s.login(DEMO_ACCOUNTS.admin);
+  const tt = s.login(DEMO_ACCOUNTS.tourist);
+  const today = s.today();
+  const body = { title: 'Date Harvest Festival', titleAr: 'مهرجان التمور', city: 'basra', venue: 'Corniche', venueAr: 'الكورنيش', startDate: addDays(today, 5), endDate: addDays(today, 7), description: 'Dates, music and boats.', descriptionAr: 'تمور وموسيقى وقوارب.', img: 'data:image/jpeg;base64,' + 'E'.repeat(300) };
+  assert.equal(s.call('POST', '/admin/events', body, tt).status, 403);
+  assert.equal(s.call('POST', '/admin/events', { ...body, endDate: addDays(today, 2) }, ad).body.error, 'field_invalid');
+  assert.equal(s.call('POST', '/admin/events', { ...body, city: 'atlantis' }, ad).body.error, 'field_invalid');
+  const e = s.ok('POST', '/admin/events', body, ad);
+  assert.match(e.img, /^m:\d+$/);
+  const dash = s.ok('GET', '/dashboard', null, tt);
+  assert.ok(dash.events.some((x: any) => x.id === e.id));
+  assert.ok(dash.events.length >= 3); // the demo events too
+  assert.ok(Array.isArray(dash.offers) && dash.offers.length > 0 && dash.offers[0].guide.name);
+  assert.equal(s.ok('GET', `/events/${e.id}`).titleAr, 'مهرجان التمور');
+  const ed = s.ok('PUT', `/admin/events/${e.id}`, { ...body, img: e.img, title: 'Basra Date Festival' }, ad);
+  assert.equal(ed.title, 'Basra Date Festival');
+  // Once it is over, tourists no longer see it; the admin still does.
+  s.advance(24 * 9);
+  assert.ok(!s.ok('GET', '/events').some((x: any) => x.id === e.id));
+  assert.ok(s.ok('GET', '/events', null, ad, { all: '1' }).some((x: any) => x.id === e.id));
+  s.ok('DELETE', `/admin/events/${e.id}`, null, ad);
+  assert.equal(s.call('GET', `/events/${e.id}`).status, 404);
 });

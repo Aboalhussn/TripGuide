@@ -43,6 +43,8 @@ export interface GuideProfile {
   verification: Verification;
   verificationNote: string;
   verificationDocs: string[];
+  // Identity photos the guide uploads to be verified: only the admin team ever sees them.
+  verificationPhotos?: { idFront: string; idBack: string; residence: string } | null;
   verificationRequestedAt: string | null;
   acceptsCash: boolean; // offers cash payment (needs an active subscription)
   subscriptionUntil: string | null; // ISO time the guide's subscription runs until
@@ -227,6 +229,9 @@ export interface Withdrawal { id: number; userId: number; amount: number; brand:
 // A forgot-password code: kept hashed, valid for a short time, used once.
 export interface PasswordReset { userId: number; codeHash: string; expiresAt: string; tries: number }
 
+// A special event the admin adds (a festival, a fair…), shown to tourists on their home screen.
+export interface SpecialEvent { id: number; title: string; titleAr: string; description: string; descriptionAr: string; city: string; venue: string; venueAr: string; startDate: string; endDate: string; img: string; createdAt: string }
+
 export interface Session { token: string; userId: number; createdAt: string }
 
 export interface Data {
@@ -239,6 +244,7 @@ export interface Data {
   places: Place[];
   media?: Media[];
   withdrawals?: Withdrawal[];
+  events?: SpecialEvent[];
   resets?: PasswordReset[];
   requests: TripRequest[];
   offers: Offer[];

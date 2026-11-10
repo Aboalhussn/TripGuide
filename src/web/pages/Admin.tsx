@@ -7,6 +7,7 @@ import { coverSrc } from '../assets';
 import { resizeImage } from '../lib/image';
 import { Avatar, Empty, ErrorState, Field, HeroBand, Icon, LimitNote, Loading, PageHead, useBusy } from '../ui';
 import { SubscriptionSettings } from './Home';
+import { IdPhotos } from './Extras';
 
 function AdminTabs({ active }: { active: string }) {
   const { t } = useApp();
@@ -59,9 +60,8 @@ export function AdminVerify() {
                 </div>
               </div>
             </div>
+            <IdPhotos photos={g.photos} />
             <dl className="facts small">
-              <dt>{t('admin.documents')}</dt>
-              <dd>{g.docs.join(', ')}</dd>
               <dt>{t('field.phone')}</dt>
               <dd className="ltr">
                 {g.phone || '—'} {g.phoneVerified ? `(${t('badge.phone_verified')})` : ''}

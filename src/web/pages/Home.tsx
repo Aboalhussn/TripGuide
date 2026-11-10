@@ -1,4 +1,5 @@
 import React from 'react';
+import { EventsStrip, OffersStrip } from './Extras';
 import { api } from '../lib/api';
 import { useApp, useLoad } from '../lib/app';
 import { useFmt } from '../lib/format';
@@ -187,7 +188,7 @@ export function TouristHome() {
   const fmt = useFmt();
   const d = useLoad(() => api('GET', '/dashboard'), []);
   if (!d.data) return <Loading />;
-  const { requests, bookings } = d.data;
+  const { requests, bookings, offers, events } = d.data;
   const first = me.name.split(' ')[0];
   return (
     <div className="page">
@@ -205,6 +206,10 @@ export function TouristHome() {
       />
 
       <AssistantCta />
+
+      <OffersStrip offers={offers} />
+
+      <EventsStrip events={events} />
 
       <TopGuides />
 
@@ -285,31 +290,31 @@ export function GuideHome() {
       <BrandBar />
       <h1 style={{ fontWeight: 900, fontSize: 32 }}>{t('dash.hello', { name: me.name.split(' ')[0] })}</h1>
 
-      {!x.profileComplete && (
-        <Link to="/guide/setup" className="note warn stack link-note" style={{ gap: 6 }}>
-          <strong>{t('dash.finish_profile')}</strong>
-          <span>{t('dash.finish_profile_text')}</span>
-          <span className="btn sm" style={{ alignSelf: 'flex-start' }}>{t('dash.edit_profile')}</span>
+      {(x.verification === 'none' || x.verification === 'rejected') && (
+        <Link to="/verify" className="verify-alert link-note">
+          <span className="st-ico"><Icon name="shield" size={22} /></span>
+          <span style={{ flex: 1 }}>
+            <strong>{t('dash.verify_alert_title')}</strong>
+            <span className="small">{x.verification === 'rejected' ? t('verify.status_text.rejected') : t('idv.alert_text')}</span>
+          </span>
+          <Icon name="next" size={18} className="flip" />
         </Link>
       )}
-      {x.profileComplete && x.verification === 'pending' && (
+      {x.verification === 'pending' && (
         <Link to="/verify" className="note warn row link-note" style={{ gap: 10, flexWrap: 'nowrap' }} role="status">
           <Icon name="clock" size={20} />
           <span>
             <strong>{t('verifyp.sent_title')}</strong>
             <br />
-            {t('verify.status_text.pending')}
+            {t('idv.pending_text')}
           </span>
         </Link>
       )}
-      {x.profileComplete && (x.verification === 'none' || x.verification === 'rejected') && (
-        <Link to="/verify" className="verify-alert link-note">
-          <span className="st-ico"><Icon name="shield" size={22} /></span>
-          <span style={{ flex: 1 }}>
-            <strong>{t('dash.verify_alert_title')}</strong>
-            <span className="small">{x.verification === 'rejected' ? t('verify.status_text.rejected') : t('dash.verify_alert_text')}</span>
-          </span>
-          <Icon name="next" size={18} className="flip" />
+      {x.verification === 'verified' && !x.profileComplete && (
+        <Link to="/guide/setup" className="note warn stack link-note" style={{ gap: 6 }}>
+          <strong>{t('dash.finish_profile')}</strong>
+          <span>{t('dash.finish_profile_text')}</span>
+          <span className="btn sm" style={{ alignSelf: 'flex-start' }}>{t('dash.edit_profile')}</span>
         </Link>
       )}
 
@@ -444,6 +449,7 @@ export function AdminHome() {
   const x = d.data;
   const todo = [
     x.pendingVerifications > 0 && { to: '/admin/verify', icon: 'shield', text: t('admin.todo_verify', { count: x.pendingVerifications }) },
+    x.payoutsWaiting > 0 && { to: '/admin/payouts', icon: 'wallet', text: t('admin.todo_payouts', { count: x.payoutsWaiting }) },
     x.openReports > 0 && { to: '/admin/reports', icon: 'flag', text: t('admin.todo_reports', { count: x.openReports }) },
   ].filter(Boolean) as { to: string; icon: string; text: string }[];
   const stats = [
@@ -509,6 +515,22 @@ export function AdminHome() {
         </div>
         <CityStats limit={5} />
       </section>
+      <Link to="/admin/payouts" className="card link row pricing-link" style={{ gap: 12, flexWrap: 'nowrap' }}>
+        <span className="st-ico gold"><Icon name="wallet" size={20} /></span>
+        <span style={{ flex: 1 }} className="stack">
+          <strong>{t('payout.title')}</strong>
+          <span className="xs muted">{t('payout.menu_sub')}</span>
+        </span>
+        <Icon name="next" size={18} className="flip" />
+      </Link>
+      <Link to="/admin/events" className="card link row pricing-link" style={{ gap: 12, flexWrap: 'nowrap' }}>
+        <span className="st-ico"><Icon name="calendar" size={20} /></span>
+        <span style={{ flex: 1 }} className="stack">
+          <strong>{t('event.admin_title')}</strong>
+          <span className="xs muted">{t('event.menu_sub')}</span>
+        </span>
+        <Icon name="next" size={18} className="flip" />
+      </Link>
       <Link to="/admin/cities" className="card link row pricing-link" style={{ gap: 12, flexWrap: 'nowrap' }}>
         <span className="st-ico"><Icon name="pin" size={20} /></span>
         <span style={{ flex: 1 }} className="stack">

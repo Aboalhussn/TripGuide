@@ -30,6 +30,7 @@ export function emptyData(now: Date): Data {
     cities: CITIES.map((c) => ({ ...c, covers: [...(CITY_COVERS[c.slug] || [])] })),
     places: PLACES.map((p) => ({ ...p })),
     media: [],
+    events: [],
     requests: [],
     offers: [],
     bookings: [],
@@ -247,6 +248,12 @@ const PLAN_LIBRARY: Record<string, [string, string][]> = {
   basra: [['Old Basra', 'Shanasheel houses, the corniche and a boat on the Shatt al-Arab.'], ['The marshes', 'Early drive to Chibayish, a boat into the marshes and tea with buffalo herders.']],
 };
 
+// A drawn stand-in for an identity photo in the demo data (never a real document).
+function demoDoc(label: string, name: string) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="400"><rect width="640" height="400" rx="24" fill="#e4f8fc"/><rect x="24" y="24" width="592" height="352" rx="16" fill="#fff" stroke="#9fd3e3" stroke-width="3"/><rect x="56" y="110" width="150" height="180" rx="10" fill="#cfe9f1"/><text x="236" y="140" font-family="sans-serif" font-size="30" font-weight="700" fill="#053f5c">${label}</text><text x="236" y="190" font-family="sans-serif" font-size="24" fill="#3e6275">${name}</text><rect x="236" y="220" width="300" height="14" rx="7" fill="#dde7ec"/><rect x="236" y="250" width="220" height="14" rx="7" fill="#dde7ec"/><text x="320" y="350" text-anchor="middle" font-family="sans-serif" font-size="20" font-weight="700" fill="#b07a1e">DEMO · not a real document</text></svg>`;
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+}
+
 export function seed(platform: Platform): Data {
   const now = platform.now();
   const nowIso = now.toISOString();
@@ -281,6 +288,8 @@ export function seed(platform: Platform): Data {
       blockedDates: [], verification: gs.verification, verificationNote: '',
       verificationDocs: gs.verification === 'none' ? [] : ['national-id-front.jpg', 'tourism-guide-licence.pdf'],
       verificationRequestedAt: gs.verification === 'none' ? null : ago(gs.verification === 'pending' ? 2 : 300),
+      // The guide waiting for review has (pretend) identity photos for the admin to look at.
+      verificationPhotos: gs.verification === 'pending' ? { idFront: demoDoc('National ID · front', gs.name), idBack: demoDoc('National ID · back', gs.name), residence: demoDoc('Residence card', gs.name) } : null,
       // Some verified guides already subscribe and take cash.
       acceptsCash: gs.verification === 'verified' && i % 2 === 0,
       subscriptionUntil: gs.verification === 'verified' && i % 2 === 0 ? minsAfter(ago(0), 60 * 24 * 18) : null,
@@ -400,6 +409,12 @@ export function seed(platform: Platform): Data {
 
   // ---- what's happening now ----
   const hannah = T('Hannah'), marco = T('Marco'), lena = T('Lena'), yousef = T('Yousef'), fatima = T('Fatima'), james = T('James'), aiko = T('Aiko'), reza = T('Reza');
+  // Special events the admin added: tourists see them on their home screen.
+  const ev = (title: string, titleAr: string, city: string, venue: string, venueAr: string, from: number, len: number, img: string, description: string, descriptionAr: string) =>
+    data.events!.push({ id: data.events!.length + 1, title, titleAr, description, descriptionAr, city, venue, venueAr, startDate: addDays(today, from), endDate: addDays(today, from + len - 1), img, createdAt: ago(3) });
+  ev('Coffee & Tea Festival', 'مهرجان القهوة والشاي', 'baghdad', 'Abu Nuwas Street', 'شارع أبو نواس', 6, 3, 'arch.jpg', 'Three evenings of Iraqi tea houses, speciality coffee roasters, live oud and sweets by the Tigris.', 'ثلاث أمسيات من المقاهي البغدادية ومحامص القهوة المختصة وعزف العود والحلويات على دجلة.');
+  ev('Baghdad International Fair', 'معرض بغداد الدولي', 'baghdad', 'Baghdad Fairground', 'أرض معرض بغداد', 14, 10, 'gate.jpg', 'The yearly fair: hundreds of local and international pavilions, crafts, food and family evenings.', 'المعرض السنوي: مئات الأجنحة المحلية والدولية، والحرف، والأكلات، وأمسيات عائلية.');
+  ev('Babylon Heritage Nights', 'ليالي بابل التراثية', 'babylon', 'Ancient Babylon', 'مدينة بابل الأثرية', 24, 4, 'ishtar.jpg', 'Music, poetry and guided night walks among the walls of ancient Babylon.', 'موسيقى وشعر وجولات ليلية مع مرشد بين أسوار بابل الأثرية.');
   // Travel passports: a few photo memories (built-in pictures stand in for photos the tourists took).
   const mem = (u: User, list: [string, string, string, number, string][]) =>
     (u.passport = list.map(([img, place, city, back, note], i) => ({ id: i + 1, img: 'lib:' + img, place, city, date: addDays(today, -back), note, createdAt: ago(back) })));
@@ -430,16 +445,11 @@ export function seed(platform: Platform): Data {
   for (const [g, price] of [[zainab, 210], [noor, 135], [ali, 180], [ahmed, 195]] as [User, number][])
     data.notifications.push({ id: id('notifications'), userId: hannah.id, type: 'offer_new', params: { name: g.name, title: hr.title, price }, link: `/requests/${hr.id}`, read: g === zainab, createdAt: ago(0, 2) });
 
-  // 2. Hannah is on tour in Najaf and Karbala right now; day 1 is paid, Omar asked for day 2.
+  // 2. Hannah is on tour in Najaf and Karbala right now; the whole payment is held until the admin transfers it.
   const kr = makeRequest(hannah, { title: 'Karbala and Najaf in two days', cities: ['karbala', 'najaf'], startDate: addDays(today, -1), endDate: today, groupSize: 2, languages: ['en'], interests: ['religious', 'history'], budgetMin: 60, budgetMax: 120, status: 'hired' }, ago(20));
   const ko = makeOffer(kr, omar, 90, 'I will meet you at your hotel in Karbala and drive you to Najaf on the second day.', ago(19), { status: 'accepted' });
   const kb = makeBooking(kr, ko, 'confirmed', ago(18));
-  const [kDay1, kDay2] = data.milestones.filter((m) => m.bookingId === kb.id).sort((a, b) => a.index - b.index);
-  kDay1.status = 'released';
-  kDay1.settledAt = ago(0, 14);
-  kDay2.status = 'release_requested';
   thread(hannah, omar, kr, [[0, 'Hello Omar, we land in Najaf the night before. Is that a problem?', 0], [1, 'No problem, I will adjust. Please bring a scarf for the shrine.', 25], [1, 'Thank you for today. Tomorrow we start at 9 in Najaf.', 60 * 24 * 18]], ago(19));
-  data.notifications.push({ id: id('notifications'), userId: hannah.id, type: 'release_requested', params: { name: omar.name, title: kb.title, amount: 45, day: 2 }, link: `/bookings/${kb.id}`, read: false, createdAt: ago(0, 1) });
 
   // 3. Hannah's finished Baghdad food walk with Ali: Ali reviewed her, she hasn't reviewed him yet.
   const fr = makeRequest(hannah, { title: 'Baghdad food walk', cities: ['baghdad'], startDate: addDays(today, -40), endDate: addDays(today, -40), groupSize: 2, interests: ['food', 'markets'], status: 'hired' }, ago(52));

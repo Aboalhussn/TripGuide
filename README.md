@@ -48,7 +48,7 @@ It runs on **Android and iOS** (one shared code base, wrapped with Capacitor), a
 | Ratings both ways | **Reviews both ways** after the tour |
 | Support and disputes | **Reports** that the admin resolves (refund, pay, or dismiss) |
 
-Why it is useful: a tourist gets several offers to compare instead of searching guide by guide, and both sides are protected because the money is held by the platform until each day of the tour has happened.
+Why it is useful: a tourist gets several offers to compare instead of searching guide by guide, and both sides are protected because the whole trip is paid in one payment that the platform holds, and the admin transfers it to the guide.
 
 ## 2. Who uses it and what they can do
 
@@ -56,7 +56,8 @@ Why it is useful: a tourist gets several offers to compare instead of searching 
 - **Post a trip** in four short steps: title and governorates (with a cover photo picked from that governorate's photos), dates and group size (up to 10 people), languages and an optional day-by-day plan, then a budget **per day**.
 - **Hire a guide directly** from the guide's page: the request goes only to that guide.
 - **Compare offers**: sort, star a shortlist, compare side by side, chat with any guide.
-- **Hire and pay**: by card (a saved card can be reused) or in cash with guides who accept cash. The money is held, and the tourist releases each day after it has happened.
+- **Hire and pay**: by card (a saved card can be reused) in **one full payment**, or in cash with guides who accept cash. The platform holds a card payment and the **admin transfers it to the guide**.
+- **Home page sections**: *Your offers* (offers waiting for an answer) and *Special events* added by the admin (for example a coffee and tea festival or the Baghdad fair). An event opens with a "Post a trip for this event" button that fills in the governorate and dates.
 - **Travel passport**: a passport-shaped button above the tab bar adds a photo from a trip (place, governorate, date, short note). The passport opens like a real notebook with turning pages, and anyone who opens the tourist's profile can see it.
 - **Profile menu**: your info, your passport, requests and trips, wallet (saved card), settings (language), sign out.
 
@@ -64,7 +65,8 @@ Why it is useful: a tourist gets several offers to compare instead of searching 
 - **Sign up** with a strong password, then fill the profile in three steps: about you, where you guide, languages and price per day. Then **ask for verification** (the team checks within 24 hours).
 - **Requests feed**: trip cards that match the guide's cities and languages, with "Send offer".
 - **Send an offer**: total price, a plan per day, what is included, a message. Shows the fee and what the guide receives. Editable or withdrawable until someone is hired.
-- **Confirm or decline a hire** within 48 hours, ask for each day's payment, refund a day, or mark cash received.
+- **Verify the account first**: right after sign-up the guide uploads three photos in three steps (ID front, ID back, residence card). The profile, price and bio open only after the admin approves.
+- **Confirm or decline a hire** within 48 hours. Card bookings are paid by the admin in one transfer; in cash bookings the guide marks each day's cash as received.
 - **Profile**: photos from past tours (the round + button above the tab bar adds one), days off, profile and cover photos.
 - **Plans**: a subscription to accept cash bookings, and paid featuring on the home screen.
 
@@ -84,14 +86,14 @@ Can browse guides and the home screen, and is asked to sign in before posting or
 ```
 Tourist posts a trip ──► Guides send offers ──► Tourist compares, chats
         │                                              │
-        │                         Tourist hires one offer (money is held)
+        │                         Tourist hires one offer and pays once (money is held)
         │                                              │
         │                       Guide confirms within 48 hours ── or declines / lapses → money returns, request reopens
         │                                              │
-        │                         Tour days happen: guide asks for each day's payment,
-        │                         tourist releases it (or the guide refunds it)
+        │                         Tour days happen. The admin transfers the whole
+        │                         payment to the guide (cash trips: paid by hand each day)
         │                                              │
-        └──────────────────────────────► All days settled → tour complete → both review each other
+        └──────────────────────────────► Payment transferred → tour complete → both review each other
 ```
 
 If something goes wrong, either side can **report a problem**. The held money stays held until the admin decides.
@@ -193,7 +195,8 @@ TripGuide/
 │           ├── Home.tsx       home screens for guest, tourist, guide and admin
 │           ├── Requests.tsx   post a trip (4 steps), trip page, offers, hire, my requests
 │           ├── Guides.tsx     find guides, guide page, tourist profile
-│           ├── Bookings.tsx   bookings, day-by-day payments, reports, reviews
+│           ├── Bookings.tsx   bookings, the single payment, cash days, reports, reviews
+│           ├── Extras.tsx     ID verification steps, special events, admin payouts, the admin's "what to add" sheet
 │           ├── Messages.tsx   chat list and full-screen chat
 │           ├── Account.tsx    sign-in, sign-up, profile menu, guide setup, wallet, settings
 │           ├── Admin.tsx      verify guides, reports, users, statistics, prices, governorates
@@ -285,7 +288,7 @@ The offline APK includes the trip assistant with the pretend AI (it understands 
 - **Trip assistant** (`src/core/draft.test.ts`, `src/server/assistant.test.ts`, part of `npm test`): the draft rules, cleaning what the AI says, the mock AI chat in English and Arabic, broken AI answers, who may use it and the limits. No key or internet needed.
 - **Rules** (`src/core/api.test.ts`, `npm test`): the full flow from posting to reviews, direct hire, the 48-hour lapse, declines, reports and refunds, verification, validation and limits, trip covers, governorates added by the admin, the travel passport, saved cards and more. A test clock moves time forward.
 - **Browser** (`e2e/flows.test.ts`, `npm run e2e`): starts a real server with fresh data and drives Chromium at phone size, for example:
-  - post, offer, chat, hire, confirm, release each day, review both ways;
+  - post, offer, chat, hire, confirm, admin transfers the payment, review both ways;
   - direct hire, guide sign-up and verification, reports and refunds;
   - strict limits, the hire flow, profile menus and photos, the fixed buttons;
   - the admin adding a governorate;
@@ -375,7 +378,7 @@ Every action in the app is one HTTP endpoint. The screens call these, and an age
 | `GET /guides/:id` | Anyone | – | A guide's full page: bio, languages, places, price, calendar, photos, track record, reviews. For a signed-in tourist, `forMe` shows their booking, pending offer and open requests with this guide |
 | `PUT /guide/profile` | Guide | any of `headline`, `headlineAr`, `bio`, `bioAr`, `pricePerDay`, `cities`, `languages` (`[{code, level}]`), `specialities`, `places`, `blockedDates`, `photos`, `acceptsCash` | Edits the guide profile |
 | `POST /guide/photos` | Guide | `img`, `caption`, `captionAr` | Adds a tour photo (up to 12) |
-| `POST /guide/verification` | Guide | `docs` (file names) | Asks the team to verify the guide |
+| `POST /guide/verification` | Guide | `idFront`, `idBack`, `residence` (image data URLs) | Sends the ID front, ID back and residence card to the team. Needed before `PUT /guide/profile` (otherwise `verify_first`) |
 | `GET /guide/subscription` / `POST /guide/subscription` | Guide | `card`, `acceptCash` | Shows / buys the subscription that allows cash bookings |
 | `GET /guide/promotion` / `POST /guide/promotion` | Guide | `card` | Shows / buys being featured on the home screen |
 
@@ -402,7 +405,9 @@ Every action in the app is one HTTP endpoint. The screens call these, and an age
 | `GET /offers/mine` | Guide | – | The guide's offers and their status |
 | `POST /offers/:id/hire` | Tourist | `confirmPayment: true`, `method` (`card`/`cash`), `card` (`{number, name, expiry, cvc}` or `{saved: true}`) | Hires the guide: the money is held and a booking waits for the guide to confirm within 48 hours |
 
-### Bookings and day-by-day payments
+### Bookings and payments
+
+A card booking is **one full payment**. The platform holds it and the admin moves it with `POST /admin/bookings/:id/payout`. The per-day endpoints below answer `admin_pays` for card bookings; only `cash-received` is used, for cash bookings.
 
 | Endpoint | Who | Send | What it does |
 |---|---|---|---|
@@ -411,9 +416,9 @@ Every action in the app is one HTTP endpoint. The screens call these, and an age
 | `POST /bookings/:id/confirm` | Guide | – | Confirms a hire; the other offers close |
 | `POST /bookings/:id/decline` | Guide | – | Declines; the tourist is refunded and the request reopens |
 | `POST /bookings/:id/cancel` | Party | `reason` | Cancels (free before the first day; held money returns) |
-| `POST /milestones/:id/request-release` | Guide | – | Asks the tourist to release that day's payment |
-| `POST /milestones/:id/release` | Tourist | – | Releases that day's payment to the guide |
-| `POST /milestones/:id/refund` | Guide | – | Refunds that day to the tourist |
+| `POST /milestones/:id/request-release` | Guide | – | Card bookings: `admin_pays` |
+| `POST /milestones/:id/release` | Tourist | – | Card bookings: `admin_pays` |
+| `POST /milestones/:id/refund` | Guide | – | Card bookings: `admin_pays` |
 | `POST /milestones/:id/cash-received` | Guide | – | Marks a cash day as paid |
 | `POST /bookings/:id/report` | Party | `reason` (`no_show`/`not_as_agreed`/`safety`/`payment`/`other`), `details` | Reports a problem; held money stays held until the admin decides |
 | `POST /bookings/:id/review` | Party | `ratings` (keys from `GET /meta`, 1–5 each), `comment`, `hireAgain` | Reviews the other side after the tour |
@@ -430,7 +435,9 @@ Every action in the app is one HTTP endpoint. The screens call these, and an age
 | `POST /notifications/read-all` / `POST /notifications/:id/read` | Signed in | – | Marks them read |
 | `GET /wallet` | Tourist, Guide | – | Money held, released, refunded and fees; `available` (what can be withdrawn), `withdrawn`, the saved card, and the history |
 | `POST /wallet/withdraw` | Tourist, Guide | `amount` (optional; default everything available) | Withdraws a guide's earnings, or a tourist's refunds, to the saved card |
-| `GET /dashboard` | Signed in | – | The home screen data for the signed-in role |
+| `GET /dashboard` | Signed in | – | The home screen data for the signed-in role. Tourists also get `offers` (waiting for an answer) and `events` (upcoming special events) |
+| `GET /events` | Anyone | `all=1` (admin: include past ones) | Upcoming special events |
+| `GET /events/:id` | Anyone | – | One special event |
 
 ### Admin
 
@@ -438,7 +445,11 @@ Every action in the app is one HTTP endpoint. The screens call these, and an age
 |---|---|---|---|
 | `GET /admin/stats` | Admin | – | Platform numbers and statistics per governorate |
 | `GET /admin/settings` / `PUT /admin/settings` | Admin | `guideSubscriptionPrice`, `subscriptionDays`, `promotionPrice`, `promotionDays`, `iqdPerUsd` | Reads / changes prices and the dinar rate |
-| `GET /admin/verifications` | Admin | – | Guides waiting for verification |
+| `GET /admin/verifications` | Admin | – | Guides waiting for verification, with their three `photos` (`idFront`, `idBack`, `residence`) |
+| `GET /admin/payouts` | Admin | – | Card bookings whose payment is waiting: `held`, `fee`, `toGuide`, `ended` |
+| `POST /admin/bookings/:id/payout` | Admin | – | Transfers the booking's whole held payment to the guide (minus the service fee) |
+| `POST /admin/events` | Admin | `title`, `titleAr`, `city`, `startDate`, `endDate`, `img` (data URL or photo name), optional `venue`, `venueAr`, `description`, `descriptionAr` | Adds a special event |
+| `PUT /admin/events/:id` / `DELETE /admin/events/:id` | Admin | same as above / – | Edits or deletes a special event |
 | `POST /admin/guides/:id/verify` | Admin | `approve` (true/false), `note` (reason when rejecting) | Verifies or rejects a guide |
 | `GET /admin/reports` | Admin | – | Reports to decide |
 | `POST /admin/reports/:id/resolve` | Admin | `action` (`refund`/`release`/`dismiss`), `note`, `suspend` | Refunds the tourist, pays the guide, or dismisses; can suspend |
@@ -461,14 +472,14 @@ Every action in the app is one HTTP endpoint. The screens call these, and an age
 Each endpoint above maps to one tool. A thin MCP server only needs to:
 
 1. Keep a token per user: call `POST /auth/login` once, then send `Authorization: Bearer <token>`.
-2. Expose each endpoint as a tool named after it (for example `post_trip` → `POST /requests`, `send_offer` → `POST /requests/:id/offers`, `hire_offer` → `POST /offers/:id/hire`, `release_day` → `POST /milestones/:id/release`, `withdraw` → `POST /wallet/withdraw`), with the "Send" column as its input.
+2. Expose each endpoint as a tool named after it (for example `post_trip` → `POST /requests`, `send_offer` → `POST /requests/:id/offers`, `hire_offer` → `POST /offers/:id/hire`, `pay_guide` → `POST /admin/bookings/:id/payout`, `withdraw` → `POST /wallet/withdraw`), with the "Send" column as its input.
 3. Call `GET /meta` first to learn the allowed values (governorate slugs, languages, rating keys), and pass errors back as they come (the `error` code says exactly what to fix).
 
 Typical flows:
 
-- **Tourist books a guide:** `GET /meta` → `POST /requests` → wait for offers (`GET /requests/:id`) → `POST /offers/:id/hire` → after each tour day `POST /milestones/:id/release` → `POST /bookings/:id/review`.
-- **Guide finds work:** `GET /requests` → `POST /requests/:id/offers` → `POST /bookings/:id/confirm` → `POST /milestones/:id/request-release` each day → `POST /wallet/withdraw`.
-- **Admin's daily check:** `GET /admin/verifications` → `POST /admin/guides/:id/verify`; `GET /admin/reports` → `POST /admin/reports/:id/resolve`.
+- **Tourist books a guide:** `GET /meta` → `POST /requests` → wait for offers (`GET /requests/:id`) → `POST /offers/:id/hire` → `POST /bookings/:id/review`.
+- **Guide finds work:** `POST /guide/verification` (once, then wait for the admin) → `PUT /guide/profile` → `GET /requests` → `POST /requests/:id/offers` → `POST /bookings/:id/confirm` → the admin pays → `POST /wallet/withdraw`.
+- **Admin's daily check:** `GET /admin/verifications` → `POST /admin/guides/:id/verify`; `GET /admin/payouts` → `POST /admin/bookings/:id/payout`; `GET /admin/reports` → `POST /admin/reports/:id/resolve`; `POST /admin/events` for a new special event.
 
 To add an endpoint, add one `route(...)` call in `src/core/api.ts`, a test in `src/core/api.test.ts`, and a row in this table.
 

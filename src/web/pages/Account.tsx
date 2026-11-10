@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { VerifyFirst } from './Extras';
 import { api } from '../lib/api';
 import { useApp, useLoad } from '../lib/app';
 import { useFmt } from '../lib/format';
@@ -234,7 +235,7 @@ export function Register({ query }: { query: Record<string, string> }) {
     try {
       const r = await api('POST', '/auth/register', f);
       signIn(r.token, r.user);
-      if (f.role === 'guide') navigate('/guide/setup', { replace: true });
+      if (f.role === 'guide') navigate('/verify', { replace: true });
       else goNext(query);
     } catch (x) {
       setErr(errorText(x));
@@ -354,6 +355,8 @@ function AccountMenu() {
       : me.role === 'admin'
         ? [
             info,
+            { to: '/admin/payouts', icon: 'wallet', label: t('payout.title'), sub: t('payout.menu_sub') },
+            { to: '/admin/events', icon: 'calendar', label: t('event.admin_title'), sub: t('event.menu_sub') },
             { to: '/admin/cities', icon: 'pin', label: t('city.title'), sub: t('menu.cities_sub') },
             { to: '/admin/pricing', icon: 'money', label: t('admin.pricing'), sub: t('menu.pricing_sub') },
             { to: '/admin/stats', icon: 'chart', label: t('stats.title'), sub: t('menu.stats_sub') },
@@ -1084,6 +1087,7 @@ export function GuideSetup() {
     pricePerDay: g?.pricePerDay ? String(g.pricePerDay) : '40',
   }));
   if (!me || me.role !== 'guide') return null;
+  if (g?.verification !== 'verified') return <VerifyFirst />;
   if (!meta) return <Loading />;
   // Editing later opens the same steps with everything already filled in.
   const editing = !!g?.profileComplete;
@@ -1247,103 +1251,6 @@ export function GuideSetup() {
 
 /* ---------- Guides: verify the account ---------- */
 
-export function VerifyAccount() {
-  const { t, me, refreshMe, errorText } = useApp();
-  const [docs, setDocs] = useState<string[]>([]);
-  const [err, setErr] = useState<string | null>(null);
-  const { busy, run } = useBusy();
-  if (!me || me.role !== 'guide') return null;
-  const g = me.guide;
-  const status = g.verification as string;
-  const send = () =>
-    run(async () => {
-      setErr(null);
-      try {
-        await api('POST', '/guide/verification', { docs });
-        await refreshMe();
-        window.scrollTo({ top: 0 });
-      } catch (x) {
-        setErr(errorText(x));
-        throw x;
-      }
-    });
-  return (
-    <div className="page" style={{ maxWidth: 640, margin: '0 auto', width: '100%' }}>
-      <PageHead title={t('verify.title')} backTo="/" />
-      <HeroBand img="ishtar.jpg" title={t('verifyp.title')} text={t('verifyp.text')} />
-      {status === 'verified' ? (
-        <div className="card row" style={{ gap: 10, flexWrap: 'nowrap' }}>
-          <VerifiedBadge size={22} /> <span>{t('verify.status_text.verified')}</span>
-        </div>
-      ) : status === 'pending' ? (
-        <div className="note warn verify-wait" role="status">
-          <Icon name="clock" size={20} />
-          <span>
-            <strong>{t('verifyp.sent_title')}</strong>
-            <br />
-            {t('verify.status_text.pending')}
-          </span>
-        </div>
-      ) : (
-        <>
-          {status === 'rejected' && <p className="note danger">{t('verify.rejected_note', { note: g.verificationNote })}</p>}
-          {!me.guide.profileComplete && (
-            <div className="note warn stack" style={{ gap: 8 }}>
-              <span>{t('verifyp.finish_first')}</span>
-              <Link to="/guide/setup" className="btn sm" style={{ alignSelf: 'flex-start' }}>
-                {t('dash.edit_profile')}
-              </Link>
-            </div>
-          )}
-          <section className="card stack">
-            <h2 style={{ fontSize: 18 }}>{t('verifyp.why')}</h2>
-            <ul className="verify-list">
-              {['badge', 'first', 'trust'].map((k) => (
-                <li key={k}>
-                  <span className="qa-ico sm"><Icon name={k === 'badge' ? 'shield' : k === 'first' ? 'search' : 'heart'} size={18} /></span>
-                  <span>{t('verifyp.why_' + k)}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-          <section className="card stack">
-            <h2 style={{ fontSize: 18 }}>{t('verifyp.what')}</h2>
-            <ul className="verify-list">
-              {['id', 'licence'].map((k) => (
-                <li key={k}>
-                  <span className="qa-ico sm"><Icon name="image" size={18} /></span>
-                  <span>{t('verifyp.what_' + k)}</span>
-                </li>
-              ))}
-            </ul>
-            <label className="btn outline" style={{ alignSelf: 'flex-start' }}>
-              <Icon name="image" size={18} /> {t('verify.choose_files')}
-              <input type="file" multiple accept="image/*,application/pdf" className="sr-only" onChange={(e) => setDocs(Array.from(e.target.files || []).slice(0, 4).map((x) => x.name))} />
-            </label>
-            {docs.length > 0 && (
-              <ul className="small" style={{ margin: 0 }}>
-                {docs.map((d) => (
-                  <li key={d}><bdi>{d}</bdi></li>
-                ))}
-              </ul>
-            )}
-          </section>
-          {err && (
-            <div className="note danger" role="alert">
-              {err}
-            </div>
-          )}
-          <button type="button" className="btn lg" disabled={busy || !docs.length || !me.guide.profileComplete} onClick={send}>
-            {t('verify.send')}
-          </button>
-          <p className="xs muted center">{t('verifyp.within_note')}</p>
-        </>
-      )}
-    </div>
-  );
-}
-
-/** Privacy and terms: how the platform handles your details, payments and bookings. Opened from the profile. */
 export function PolicyPage() {
   const { t, meta } = useApp();
   const sections: [string, string[]][] = [

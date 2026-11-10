@@ -204,6 +204,11 @@ export function BookingDetail({ id }: { id: string }) {
               </span>
               {b.money.refunded > 0 && <span>{t('booking.refunded', { amount: fmt.usd(b.money.refunded) })}</span>}
             </div>
+            {/* One payment for the whole trip: the platform holds it and the team transfers it to the guide. */}
+            <p className="small pay-once" role="status">
+              <Icon name={b.money.held > 0 ? 'shield' : 'check'} size={16} />{' '}
+              {b.money.held > 0 ? t(asGuide ? 'booking.once_held_g' : 'booking.once_held_t') : b.money.released > 0 ? t(asGuide ? 'booking.once_paid_g' : 'booking.once_paid_t', { name: first(other.name) }) : t('booking.once_refunded')}
+            </p>
           </section>
           )}
           {!cash && b.cardLast4 && <p className="xs muted" style={{ marginTop: -6 }}>{t('pay.paid_with_card', { last4: b.cardLast4 })}</p>}
@@ -216,9 +221,10 @@ export function BookingDetail({ id }: { id: string }) {
                 const done = m.status === 'released' || m.status === 'cash_paid';
                 const refunded = m.status === 'refunded';
                 const held = m.status === 'held' || m.status === 'release_requested';
-                const canRelease = asTourist && b.status === 'confirmed' && held;
-                const canAsk = asGuide && b.status === 'confirmed' && m.status === 'held' && m.date <= today;
-                const canRefund = asGuide && b.status === 'confirmed' && held;
+                // Card bookings are one payment moved by the admin, so there is nothing to release, ask for or refund per day.
+                const canRelease = false;
+                const canAsk = false;
+                const canRefund = false;
                 const cashDue = m.status === 'cash_due';
                 const cashPaid = m.status === 'cash_paid';
                 const canCash = asGuide && b.status === 'confirmed' && cashDue && m.date <= today;
@@ -232,22 +238,14 @@ export function BookingDetail({ id }: { id: string }) {
                         <strong>
                           {t('offer.day_n', { count: m.index + 1 })}, {isToday ? t('booking.today') : fmt.dateLong(m.date)}
                         </strong>
-                        <strong>{fmt.usd(m.amount)}</strong>
+                        {cash && <strong>{fmt.usd(m.amount)}</strong>}
                       </div>
                       <div className="small muted"><bdi>{m.title}</bdi></div>
                       <div className="row xs">
-                        {m.status === 'released' && <span style={{ color: 'var(--teal-ink)', fontWeight: 500 }}>{t(asGuide ? 'booking.m.released_g' : 'booking.m.released_t', { name: first(other.name), when: fmt.ago(m.settledAt) })}</span>}
                         {cashPaid && <span style={{ color: 'var(--teal-ink)', fontWeight: 500 }}>{t('pay.m.cash_paid', { when: fmt.ago(m.settledAt) })}</span>}
                         {cashDue && <span className="pill">{asGuide ? t('pay.m.cash_due_g') : t('pay.m.cash_due_t', { name: first(other.name) })}</span>}
                         {m.status === 'void' && <span className="pill">{t('pay.m.void')}</span>}
-                        {refunded && <span className="pill">{t('booking.m.refunded')}</span>}
-                        {m.status === 'held' && <span className="pill gold">{t('booking.m.held')}</span>}
-                        {m.status === 'release_requested' && (
-                          <>
-                            <span className="pill gold">{t('booking.m.held')}</span>
-                            <span className="muted">{asGuide ? t('booking.m.asked_g') : t('booking.m.asked_t', { name: first(other.name) })}</span>
-                          </>
-                        )}
+                        {refunded && cash && <span className="pill">{t('booking.m.refunded')}</span>}
                       </div>
                       {canCash && (
                         <button type="button" className="btn sm" style={{ marginTop: 4 }} disabled={busy} onClick={async () => (await ask(t('pay.cash_received_confirm', { amount: fmt.usd(m.amount), name: first(other.name) }), t('pay.cash_received_btn', { amount: fmt.usd(m.amount) }))) && act(`/milestones/${m.id}/cash-received`, t('pay.cash_received_toast'))}>

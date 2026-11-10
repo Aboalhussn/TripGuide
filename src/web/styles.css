@@ -1122,3 +1122,41 @@ html:has(.post-wizard) { scroll-padding: 110px 0 170px; }
 .ai-plan { margin: 0; padding-inline-start: 18px; display: grid; gap: 6px; }
 .ai-head .xs { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ai-bar .btn { flex: none; white-space: nowrap; }
+
+/* ---------- Identity verification, special events, payouts ---------- */
+.id-drop { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 230px; padding: 18px; border: 2px dashed var(--teal, #429ebd); border-radius: 20px; background: var(--sky-soft); color: var(--navy); cursor: pointer; overflow: hidden; text-align: center; }
+.id-drop.bad { border-color: var(--danger); background: var(--danger-soft); }
+.id-drop.has { border-style: solid; border-color: var(--navy); background: #0b2532; padding: 0; }
+.id-drop img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.id-drop .pp-change { position: absolute; bottom: 10px; inset-inline-end: 10px; background: rgba(5,63,92,.88); color: #fff; padding: 8px 14px; border-radius: 99px; font-size: 13px; font-weight: 700; }
+.id-drop:focus-within { outline: 3px solid var(--gold); outline-offset: 2px; }
+.id-art { color: var(--teal-ink, #1f6f8b); }
+.id-tips { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; color: var(--muted); }
+.id-tips li { position: relative; padding-inline-start: 22px; }
+.id-tips li::before { content: ''; position: absolute; inset-inline-start: 4px; top: .55em; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); }
+.verify-wait { display: flex; gap: 10px; align-items: flex-start; }
+.id-thumbs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.id-thumb { display: flex; flex-direction: column; gap: 4px; padding: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; cursor: pointer; font: inherit; color: var(--navy); min-height: 44px; }
+.id-thumb img { width: 100%; aspect-ratio: 8 / 5; object-fit: cover; display: block; background: var(--paper); }
+.id-thumb span { font-size: 12px; font-weight: 700; padding: 2px 4px 7px; text-align: center; }
+.pay-once { display: flex; gap: 8px; align-items: flex-start; margin: 4px 0 0; padding: 10px 12px; border-radius: 12px; background: var(--sky-soft); color: var(--navy); }
+.pay-once svg { flex: none; margin-top: 2px; }
+.payout-card .facts dd { text-align: end; }
+.event-strip, .offer-strip { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; margin-inline: -18px; padding: 2px 18px 8px; scrollbar-width: none; }
+.event-strip::-webkit-scrollbar, .offer-strip::-webkit-scrollbar { display: none; }
+.event-card { position: relative; flex: none; width: min(78vw, 300px); aspect-ratio: 4 / 3; border-radius: 20px; overflow: hidden; scroll-snap-align: start; text-decoration: none; color: #fff; background: var(--brand); display: block; }
+.event-card img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.event-shade { position: absolute; inset: 0; background: linear-gradient(to top, rgba(3,32,48,.88) 0%, rgba(3,32,48,.25) 55%, rgba(3,32,48,0) 100%); }
+.event-date { position: absolute; top: 12px; inset-inline-start: 12px; background: var(--gold); color: #3a2600; font-size: 12px; font-weight: 800; padding: 5px 10px; border-radius: 99px; }
+.event-text { position: absolute; inset-inline: 14px; bottom: 12px; display: flex; flex-direction: column; gap: 3px; }
+.event-text strong { font-size: 18px; font-weight: 900; line-height: 1.3; }
+.event-text span { display: flex; align-items: center; gap: 4px; font-size: 13px; opacity: .95; }
+.event-card:active { transform: scale(.985); }
+.event-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.event-grid .event-card { width: 100%; }
+.event-hero { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 20px; display: block; }
+.offer-mini { flex: none; width: min(72vw, 260px); scroll-snap-align: start; display: flex; flex-direction: column; gap: 8px; text-decoration: none; color: var(--navy); }
+.offer-mini-title { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.offer-mini-price { font-size: 20px; font-weight: 900; }
+.add-pick { min-height: 76px; }
+@media (min-width: 900px) { .event-strip, .offer-strip { margin-inline: 0; padding-inline: 0; } }

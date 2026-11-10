@@ -1,4 +1,5 @@
 import React from 'react';
+import { AdminAddFab } from './pages/Extras';
 import { brand } from '../config/brand';
 import { useApp } from './lib/app';
 import { api } from './lib/api';
@@ -125,13 +126,9 @@ export function Shell({ path, children }: { path: string; children: React.ReactN
       <main className={'main' + (bare ? ' bare' : '') + (chat ? ' chat-open' : '')} id="main">
         {path === '/' ? <PullToRefresh>{children}</PullToRefresh> : children}
       </main>
-      {role === 'guide' && !bare && !chat && path !== '/guide/setup' && <PhotoFab />}
+      {role === 'guide' && !bare && !chat && path !== '/guide/setup' && path !== '/verify' && <PhotoFab />}
       {role === 'tourist' && path === '/' && <PassportFab />}
-      {role === 'admin' && !bare && !chat && !path.startsWith('/admin/cities/') && (
-        <Link to="/admin/cities/new" className="photo-fab" aria-label={t('city.add')} title={t('city.add')}>
-          <Icon name="plus" size={28} stroke={2.4} />
-        </Link>
-      )}
+      {role === 'admin' && !bare && !chat && !path.startsWith('/admin/cities/') && !path.startsWith('/admin/events/') && <AdminAddFab />}
       {!bare && !chat && <nav className="tabbar" aria-label={t('nav.main')}>
         {items[role].map((it) => (
           <Link key={it.to} to={it.to} aria-current={activeTab === it.to ? 'page' : undefined}>

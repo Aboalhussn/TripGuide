@@ -46,6 +46,21 @@ export function PostRequest({ query }: { query: Record<string, string> }) {
     femaleGuide: fromAi?.femaleGuide || false,
     cover: '',
   }));
+  // Opened from a special event: start with its name, governorate and dates.
+  useEffect(() => {
+    if (!query.event) return;
+    let on = true;
+    api('GET', `/events/${query.event}`)
+      .then((e: any) => {
+        if (!on) return;
+        const start = e.startDate < today ? today : e.startDate;
+        setF((x) => ({ ...x, title: x.title || fmt.pick(e.title, e.titleAr), cities: x.cities.length ? x.cities : [e.city], startDate: start, endDate: e.endDate < start ? start : e.endDate }));
+      })
+      .catch(() => {});
+    return () => {
+      on = false;
+    };
+  }, [query.event]);
   const [placeQuery, setPlaceQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState<Record<string, boolean>>({});

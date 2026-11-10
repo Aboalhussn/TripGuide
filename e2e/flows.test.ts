@@ -64,7 +64,7 @@ async function noSideScroll(page: Page, where: string) {
   assert.ok(sw <= w + 1, `${where}: page is ${sw}px wide on a ${w}px screen`);
 }
 
-test('tourist posts a trip, a guide offers, the tourist chats, hires, pays day by day and both review', async () => {
+test('tourist posts a trip, a guide offers, the tourist chats, hires, pays once, the admin transfers it, and both review', async () => {
   const tourist = await open();
   await login(tourist, 'james@tripguide.demo');
   await go(tourist, '/post');
@@ -146,7 +146,7 @@ test('tourist posts a trip, a guide offers, the tourist chats, hires, pays day b
   await tourist.getByLabel('Name on card').fill('Test Tourist');
   await tourist.getByLabel('Expiry (MM/YY)').fill('1230');
   await tourist.getByLabel('CVC').fill('123');
-  await tourist.getByLabel(/I understand the money is held/).check();
+  await tourist.getByLabel(/I understand I pay the whole trip now/).check();
   await tourist.getByRole('button', { name: 'Pay $120 into holding' }).click();
   await tourist.getByText(/has 48 hours to confirm/).waitFor();
   await shot(tourist, 'e2e-booking-awaiting');
@@ -158,15 +158,22 @@ test('tourist posts a trip, a guide offers, the tourist chats, hires, pays day b
   await guide.getByRole('button', { name: 'Confirm booking' }).click();
   await guide.getByText('Booking confirmed').waitFor();
 
-  // Tourist releases both days; the booking completes.
+  // One full payment: nothing to release day by day. The admin transfers it to the guide.
   await tourist.reload();
-  // $120 over 3 days is $40 a day.
-  for (let i = 0; i < 3; i++) {
-    await tourist.getByRole('button', { name: /Release \$40 to Ahmed/ }).first().click();
-    await tourist.getByRole('dialog').getByRole('button', { name: /Release \$40 to Ahmed/ }).click();
-    await tourist.getByRole('dialog').waitFor({ state: 'detached' });
-    await tourist.getByText('$40 released').first().waitFor();
-  }
+  await tourist.getByText('You paid in full. We hold it and the team transfers it to the guide.').waitFor();
+  assert.equal(await tourist.getByRole('button', { name: /Release/ }).count(), 0);
+  const admin = await open();
+  await login(admin, 'admin@tripguide.demo');
+  await admin.getByRole('link', { name: /waiting to be transferred/ }).click();
+  await admin.getByRole('heading', { name: 'Guide payments' }).waitFor();
+  const pay = admin.locator('article', { hasText: 'Weekend in Samarra and Baghdad' });
+  await pay.getByText('$108').waitFor(); // $120 minus the 10% service fee
+  await shot(admin, 'e2e-admin-payouts');
+  await pay.getByRole('button', { name: 'Transfer to guide' }).click();
+  await admin.getByRole('alertdialog').getByRole('button', { name: 'Transfer to guide' }).click();
+  await admin.getByText('$108 transferred to Ahmed Kadhim').waitFor();
+  await admin.context().close();
+  await tourist.reload();
   await tourist.getByText('Tour complete. Thank you!').waitFor();
 
   // Reviews in both directions, hidden until both are in.
@@ -230,7 +237,41 @@ test('a new guide signs up, fills the profile, asks for verification and the adm
   await g.locator('.pw-meter[data-score="5"]').getByText('Strong password').waitFor();
   assert.equal(await g.locator('.pw-chip').count(), 0);
   await g.getByRole('button', { name: 'Create account' }).click();
-  // Three set-up steps, each with a photo banner and a Next button.
+  // First the account is verified: ID front, ID back and residence card, one step each.
+  const idPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAHElEQVR4nGNk+M9AEmBkYGBgYGBg+P+fgQEAJ/QD/WUX9CIAAAAASUVORK5CYII=', 'base64');
+  await g.waitForFunction(() => location.hash === '#/verify');
+  for (const [i, title] of ['Front of your ID', 'Back of your ID', 'Residence card'].entries()) {
+    await g.getByRole('heading', { name: title }).waitFor();
+    if (i === 0) {
+      await g.getByRole('button', { name: 'Next' }).click();
+      await g.getByText('Add this photo to continue.').waitFor();
+    }
+    await g.locator('.id-drop input[type=file]').setInputFiles({ name: 'card.png', mimeType: 'image/png', buffer: idPng });
+    await g.locator('.id-drop.has img').waitFor();
+    if (i === 1) await shot(g, 'e2e-guide-id-step');
+    await g.getByRole('button', { name: i < 2 ? 'Next' : 'Send for review' }).click();
+  }
+  await g.locator('.note.warn').getByText('Sent for review').waitFor();
+  // Until the admin approves, the profile form stays closed.
+  await go(g, '/guide/setup');
+  await g.getByRole('heading', { name: 'Verify your account first' }).waitFor();
+  assert.equal(await g.getByLabel('Headline', { exact: true }).count(), 0);
+
+  const admin = await open();
+  await login(admin, 'admin@tripguide.demo');
+  await go(admin, '/admin/verify');
+  const card = admin.locator('article', { hasText: 'Karim Nasser' });
+  await card.locator('.id-thumb').first().waitFor();
+  assert.equal(await card.locator('.id-thumb').count(), 3);
+  await card.getByRole('button', { name: 'Open Residence card' }).click();
+  await admin.getByRole('dialog').getByRole('img', { name: 'Residence card' }).waitFor();
+  await admin.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
+  await card.getByRole('button', { name: 'Verify guide' }).click();
+  await admin.getByText('Karim Nasser is verified').waitFor();
+
+  // Now the three set-up steps open, each with a photo banner and a Next button.
+  await go(g, '/');
+  await g.getByRole('link', { name: /Finish your profile/ }).click();
   await g.getByRole('heading', { name: 'About you' }).waitFor();
   await g.getByRole('button', { name: 'Next' }).click();
   await g.getByText('Write a headline of at least 5 characters.').waitFor();
@@ -245,16 +286,7 @@ test('a new guide signs up, fills the profile, asks for verification and the adm
   await g.getByLabel('Price per day (USD)').fill('35');
   await shot(g, 'e2e-guide-setup');
   await g.getByRole('button', { name: 'Finish' }).click();
-  // Home shows the verify alert, which opens the verification page.
   await g.getByText('Your profile is ready').first().waitFor();
-  await g.getByRole('link', { name: /Verify your account/ }).click();
-  await g.waitForFunction(() => location.hash === '#/verify');
-  await g.getByRole('heading', { name: 'Verify your account' }).waitFor();
-  await g.locator('main input[type=file]').setInputFiles({ name: 'id-card.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('fake') });
-  await g.getByRole('button', { name: 'Send for review' }).click();
-  await g.locator('.note.warn').getByText('Verification is done within 24 hours.').waitFor();
-  await go(g, '/');
-  await g.locator('.note.warn').getByText('Sent for review').waitFor();
   // "Edit profile" opens the same steps, filled in; changes are optional.
   await go(g, '/profile');
   await g.getByRole('link', { name: /Your guide profile/ }).click();
@@ -267,14 +299,6 @@ test('a new guide signs up, fills the profile, asks for verification and the adm
   await g.getByRole('button', { name: 'Save changes' }).click();
   await g.getByText('Saved').first().waitFor();
   await g.waitForFunction(() => location.hash === '#/profile');
-
-  const admin = await open();
-  await login(admin, 'admin@tripguide.demo');
-  await go(admin, '/admin/verify');
-  const card = admin.locator('article', { hasText: 'Karim Nasser' });
-  await card.getByText('id-card.jpg').waitFor();
-  await card.getByRole('button', { name: 'Verify guide' }).click();
-  await admin.getByText('Karim Nasser is verified').waitFor();
 
   await go(g, '/notifications');
   await g.getByText("You're verified").waitFor();
@@ -320,17 +344,68 @@ test('a guide withdraws an offer after confirming in the page dialog', async () 
   await z.getByRole('heading', { name: 'Send an offer' }).waitFor();
 });
 
-test('on tour: the tourist releases the day the guide asked for', async () => {
+test('on tour: the trip is one payment; the admin transfers it to the guide and the tour completes', async () => {
   const hannah = await open();
   await login(hannah, 'tourist@tripguide.demo');
-  // The request is pinned in notifications, not on the home screen.
-  assert.equal(await hannah.getByText('A guide asked you to release a payment').count(), 0);
-  await go(hannah, '/notifications');
-  await hannah.getByText('A guide asked you to release a payment').click();
-  await hannah.getByText('Omar asked you to release it').waitFor();
-  await hannah.getByRole('button', { name: /Release \$45 to Omar/ }).first().click();
-  await hannah.getByRole('dialog').getByRole('button', { name: /Release \$45 to Omar/ }).click();
+  await go(hannah, '/bookings');
+  await hannah.getByRole('link', { name: /Karbala and Najaf in two days/ }).first().click();
+  await hannah.getByText('You paid in full. We hold it and the team transfers it to the guide.').waitFor();
+  assert.equal(await hannah.getByRole('button', { name: /Release/ }).count(), 0);
+  const admin = await open();
+  await login(admin, 'admin@tripguide.demo');
+  await go(admin, '/admin/payouts');
+  const pay = admin.locator('article', { hasText: 'Karbala and Najaf in two days' });
+  await pay.getByText('$81', { exact: true }).waitFor(); // $90 minus the 10% service fee
+  await pay.getByRole('button', { name: 'Transfer to guide' }).click();
+  await admin.getByRole('alertdialog').getByRole('button', { name: 'Transfer to guide' }).click();
+  await admin.getByText('$81 transferred to Omar Saad').waitFor();
+  await hannah.reload();
   await hannah.getByText('Tour complete. Thank you!').waitFor();
+  await hannah.getByText('The team transferred the payment to Omar.').waitFor();
+});
+
+test('special events: the admin picks "Special event" from +, adds it in 3 steps; the tourist sees it on home and posts a trip for it', async () => {
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAHElEQVR4nGNk+M9AEmBkYGBgYGBg+P+fgQEAJ/QD/WUX9CIAAAAASUVORK5CYII=', 'base64');
+  const a = await open();
+  await login(a, 'admin@tripguide.demo');
+  await a.locator('button.photo-fab').click();
+  const sheet = a.getByRole('dialog', { name: 'What do you want to add?' });
+  await sheet.getByRole('button', { name: /Governorate/ }).waitFor();
+  await sheet.getByRole('button', { name: /Special event/ }).click();
+  await a.getByRole('heading', { name: 'What is the event?' }).waitFor();
+  await a.getByRole('button', { name: 'Next' }).click();
+  await a.getByText('Write the Arabic name').waitFor();
+  await a.getByLabel('Name in Arabic').fill('مهرجان التمور');
+  await a.getByLabel('Name in English').fill('Basra Date Festival');
+  await a.getByLabel('Governorate').selectOption('basra');
+  await a.getByRole('button', { name: 'Next' }).click();
+  await a.getByRole('heading', { name: 'When is it?' }).waitFor();
+  const day = (n: number) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+  await a.getByLabel('First day').fill(day(20));
+  await a.getByLabel('Last day').fill(day(22));
+  await a.getByRole('button', { name: 'Next' }).click();
+  await a.getByRole('button', { name: 'Add the event', exact: true }).click();
+  await a.getByText('Add a photo').last().waitFor();
+  await a.locator('.pp-photo-drop input[type=file]').setInputFiles({ name: 'dates.png', mimeType: 'image/png', buffer: png });
+  await a.locator('.pp-photo-drop img').waitFor();
+  await a.getByRole('button', { name: 'Add the event', exact: true }).click();
+  await a.waitForURL((u) => u.hash === '#/admin/events');
+  await a.getByText('Basra Date Festival').waitFor();
+  await noSideScroll(a, 'admin events');
+  await a.context().close();
+
+  const t = await open();
+  await login(t, 'tourist@tripguide.demo');
+  await t.getByRole('heading', { name: 'Your offers' }).waitFor();
+  await t.getByRole('heading', { name: 'Special events' }).waitFor();
+  await t.locator('.offer-mini').first().waitFor();
+  await shot(t, 'e2e-tourist-home-events');
+  await noSideScroll(t, 'tourist home');
+  await t.locator('.event-card', { hasText: 'Basra Date Festival' }).click();
+  await t.getByRole('heading', { name: 'Basra Date Festival' }).waitFor();
+  await t.getByRole('link', { name: 'Post a trip for this event' }).click();
+  await t.waitForFunction(() => (document.querySelector('#main input') as HTMLInputElement | null)?.value === 'Basra Date Festival');
+  await t.getByRole('button', { name: 'Basra', exact: true, pressed: true }).waitFor();
 });
 
 test('every main screen works in Arabic, right to left, on a phone and on a desktop', async () => {
@@ -787,7 +862,7 @@ test('guide and admin profiles use the same menu', async () => {
   const a = await open();
   await login(a, 'admin@tripguide.demo');
   await go(a, '/profile');
-  assert.deepEqual(await a.locator('.menu-row strong').allInnerTexts(), ['Your info', 'Governorates', 'Prices and subscriptions', 'City statistics', 'Notifications', 'Change password', 'Privacy policy and terms', 'Settings']);
+  assert.deepEqual(await a.locator('.menu-row strong').allInnerTexts(), ['Your info', 'Guide payments', 'Special events', 'Governorates', 'Prices and subscriptions', 'City statistics', 'Notifications', 'Change password', 'Privacy policy and terms', 'Settings']);
   await a.getByRole('link', { name: /City statistics/ }).click();
   await a.getByRole('heading', { name: 'City statistics' }).waitFor();
   await go(a, '/profile');
@@ -815,7 +890,9 @@ test('admin: the + button adds a governorate in 3 steps (name, heritage places, 
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAHElEQVR4nGNk+M9AEmBkYGBgYGBg+P+fgQEAJ/QD/WUX9CIAAAAASUVORK5CYII=', 'base64');
   const a = await open();
   await login(a, 'admin@tripguide.demo');
-  await a.locator('a.photo-fab[href="#/admin/cities/new"]').click();
+  // + first asks what to add.
+  await a.locator('button.photo-fab').click();
+  await a.getByRole('dialog', { name: 'What do you want to add?' }).getByRole('button', { name: /Governorate/ }).click();
   await a.getByRole('heading', { name: 'Which governorate?' }).waitFor();
   await a.getByRole('button', { name: 'Next' }).click();
   await a.getByText('Write the Arabic name').waitFor(); // nothing moves on until the names are filled

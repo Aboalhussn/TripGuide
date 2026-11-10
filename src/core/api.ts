@@ -435,7 +435,7 @@ function meView(ctx: Ctx, u: User) {
     status: u.status,
     unreadNotifications,
     unreadMessages,
-    guide: g ? { ...g, profileComplete: !!(g.headline && g.bio && g.cities.length), subscriptionActive: subActive(ctx, g), cashOpen: cashOpen(g, ctx.now) } : null,
+    guide: g ? { ...g, verificationPhotos: undefined, verificationSent: !!g.verificationPhotos, profileComplete: !!(g.headline && g.bio && g.cities.length), subscriptionActive: subActive(ctx, g), cashOpen: cashOpen(g, ctx.now) } : null,
   };
 }
 
@@ -635,6 +635,8 @@ route('PUT', '/guide/profile', (ctx, _p, req) => {
   const u = needActive(ctx, 'guide');
   const g = guideOf(ctx.data, u.id)!;
   const b = req.body || {};
+  // The team checks who the guide is before they can fill in their profile, price and bio.
+  if (g.verification !== 'verified') throw conflict('verify_first');
   if (b.headline !== undefined) g.headline = str(b.headline, 'headline', 5, 90);
   if (b.headlineAr !== undefined) g.headlineAr = optStr(b.headlineAr, 'headlineAr', 90);
   if (b.bio !== undefined) g.bio = str(b.bio, 'bio', 30, 1500);
@@ -711,10 +713,12 @@ route('POST', '/guide/verification', (ctx, _p, req) => {
   const g = guideOf(ctx.data, u.id)!;
   if (g.verification === 'verified') throw conflict('already_verified');
   if (g.verification === 'pending') throw conflict('verification_pending');
-  if (!g.headline || !g.bio || !g.cities.length) throw bad('profile_incomplete');
-  const docs = strList(req.body?.docs, 'docs', null, 1, 4).map((d) => d.slice(0, 120));
+  // Identity first: national ID (front and back) and the residence card. The profile comes after approval.
+  const b = req.body || {};
+  for (const k of ['idFront', 'idBack', 'residence']) if (!b[k]) throw bad('field_required', { field: k });
+  g.verificationPhotos = { idFront: imageData(b.idFront, 'idFront', 500_000), idBack: imageData(b.idBack, 'idBack', 500_000), residence: imageData(b.residence, 'residence', 500_000) };
   g.verification = 'pending';
-  g.verificationDocs = docs;
+  g.verificationDocs = ['id-front', 'id-back', 'residence-card'];
   g.verificationNote = '';
   g.verificationRequestedAt = ctx.nowIso;
   notifyAdmins(ctx, 'verification_new', { name: u.name }, '/admin');
@@ -1134,10 +1138,13 @@ function findMilestone(ctx: Ctx, id: number) {
   return { m, b: findBooking(ctx.data, m.bookingId) };
 }
 
+// The tourist pays the whole trip once when hiring. The platform holds it, and the admin transfers it to
+// the guide (POST /admin/bookings/:id/payout). Day-by-day release by the tourist or guide is switched off.
 route('POST', '/milestones/:id/release', (ctx, p) => {
   const u = needActive(ctx, 'tourist');
   const { m, b } = findMilestone(ctx, idOf(p.id));
   if (b.touristId !== u.id) throw notFound();
+  if (b.paymentMethod !== 'cash') throw conflict('admin_pays');
   if (b.status !== 'confirmed') throw conflict('booking_state');
   if (m.status !== 'held' && m.status !== 'release_requested') throw conflict('milestone_state');
   m.status = 'released';
@@ -1151,6 +1158,7 @@ route('POST', '/milestones/:id/request-release', (ctx, p) => {
   const u = needActive(ctx, 'guide');
   const { m, b } = findMilestone(ctx, idOf(p.id));
   if (b.guideId !== u.id) throw notFound();
+  if (b.paymentMethod !== 'cash') throw conflict('admin_pays');
   if (b.status !== 'confirmed') throw conflict('booking_state');
   if (m.status !== 'held') throw conflict('milestone_state');
   if (m.date > ctx.today) throw conflict('day_not_reached');
@@ -1163,6 +1171,7 @@ route('POST', '/milestones/:id/refund', (ctx, p) => {
   const u = need(ctx, 'guide');
   const { m, b } = findMilestone(ctx, idOf(p.id));
   if (b.guideId !== u.id) throw notFound();
+  if (b.paymentMethod !== 'cash') throw conflict('admin_pays');
   if (b.status !== 'confirmed') throw conflict('booking_state');
   if (m.status !== 'held' && m.status !== 'release_requested') throw conflict('milestone_state');
   m.status = 'refunded';
@@ -1427,7 +1436,17 @@ route('GET', '/dashboard', (ctx) => {
     const releaseAsks = ctx.data.milestones
       .filter((m) => m.status === 'release_requested' && ctx.data.bookings.some((b) => b.id === m.bookingId && b.touristId === u.id))
       .map((m) => ({ milestoneId: m.id, bookingId: m.bookingId, amount: m.amount, day: m.index + 1, title: ctx.data.bookings.find((b) => b.id === m.bookingId)!.title }));
-    return { role: 'tourist', requests, bookings, toReview, releaseAsks };
+    // Offers waiting for the tourist's answer, newest first, across all their open requests.
+    const offers = ctx.data.offers
+      .filter((o) => o.status === 'pending' && ctx.data.requests.some((r) => r.id === o.requestId && r.touristId === u.id && r.status === 'open'))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, 12)
+      .map((o) => {
+        const r = ctx.data.requests.find((x) => x.id === o.requestId)!;
+        return { id: o.id, requestId: r.id, requestTitle: r.title, price: o.price, days: daysInclusive(r.startDate, r.endDate), createdAt: o.createdAt, guide: guideCard(ctx.data, guideOf(ctx.data, o.guideId)!, ctx.now) };
+      });
+    const events = (ctx.data.events || []).filter((e) => e.endDate >= ctx.today).sort((a, b) => a.startDate.localeCompare(b.startDate)).slice(0, 10);
+    return { role: 'tourist', requests, bookings, toReview, releaseAsks, offers, events };
   }
   if (u.role === 'guide') {
     const g = guideOf(ctx.data, u.id)!;
@@ -1462,6 +1481,7 @@ route('GET', '/dashboard', (ctx) => {
   return {
     role: 'admin',
     pendingVerifications: ctx.data.guides.filter((g) => g.verification === 'pending').length,
+    payoutsWaiting: ctx.data.bookings.filter((b) => b.status === 'confirmed' && b.paymentMethod !== 'cash' && ctx.data.milestones.some((m) => m.bookingId === b.id && (m.status === 'held' || m.status === 'release_requested'))).length,
     openReports: open,
     users: ctx.data.users.length,
     openRequests: ctx.data.requests.filter((r) => r.status === 'open').length,
@@ -1538,7 +1558,7 @@ route('GET', '/admin/verifications', (ctx) => {
   return {
     guides: list.map((g) => {
       const u = userById(ctx.data, g.userId)!;
-      return { ...guideCard(ctx.data, g, ctx.now), email: u.email, phone: u.phone, docs: g.verificationDocs, requestedAt: g.verificationRequestedAt, bio: g.bio };
+      return { ...guideCard(ctx.data, g, ctx.now), email: u.email, phone: u.phone, docs: g.verificationDocs, photos: g.verificationPhotos || null, requestedAt: g.verificationRequestedAt, bio: g.bio };
     }),
   };
 });
@@ -1551,7 +1571,7 @@ route('POST', '/admin/guides/:id/verify', (ctx, p, req) => {
   if (req.body?.approve) {
     g.verification = 'verified';
     g.verificationNote = '';
-    notify(ctx, g.userId, 'verification_approved', {}, '/profile');
+    notify(ctx, g.userId, 'verification_approved', {}, '/guide/setup');
   } else {
     g.verification = 'rejected';
     g.verificationNote = str(req.body?.note, 'note', 5, 300);
@@ -1696,6 +1716,89 @@ route('PUT', '/admin/cities/:slug', (ctx, p, req) => {
   const c = ctx.data.cities.find((x) => x.slug === p.slug);
   if (!c) throw notFound();
   return saveCity(ctx, req.body || {}, c);
+});
+
+// ---------- payouts: the admin transfers a booking's full payment to the guide ----------
+const heldOf = (ctx: Ctx, b: Booking) => ctx.data.milestones.filter((m) => m.bookingId === b.id && (m.status === 'held' || m.status === 'release_requested'));
+route('GET', '/admin/payouts', (ctx) => {
+  need(ctx, 'admin');
+  const waiting = ctx.data.bookings
+    .filter((b) => b.status === 'confirmed' && b.paymentMethod !== 'cash' && heldOf(ctx, b).length)
+    .map((b) => {
+      const held = money(heldOf(ctx, b).reduce((a, m) => a + m.amount, 0));
+      return { id: b.id, title: b.title, startDate: b.startDate, endDate: b.endDate, ended: b.endDate < ctx.today, started: b.startDate <= ctx.today, held, fee: money(held * b.feeRate), toGuide: money(held * (1 - b.feeRate)), guide: publicUser(userById(ctx.data, b.guideId)!), tourist: publicUser(userById(ctx.data, b.touristId)!) };
+    })
+    .sort((a, b) => Number(b.ended) - Number(a.ended) || a.endDate.localeCompare(b.endDate));
+  return { waiting, total: money(waiting.reduce((a, x) => a + x.toGuide, 0)) };
+});
+route('POST', '/admin/bookings/:id/payout', (ctx, p) => {
+  need(ctx, 'admin');
+  const b = findBooking(ctx.data, idOf(p.id));
+  if (b.paymentMethod === 'cash') throw conflict('not_card_booking');
+  if (b.status !== 'confirmed') throw conflict('booking_state');
+  const held = heldOf(ctx, b);
+  if (!held.length) throw conflict('nothing_to_pay');
+  const amount = money(held.reduce((a, m) => a + m.amount, 0));
+  for (const m of held) {
+    m.status = 'released';
+    m.settledAt = ctx.nowIso;
+  }
+  notify(ctx, b.guideId, 'payout_sent', { title: b.title, amount: money(amount * (1 - b.feeRate)) }, `/bookings/${b.id}`);
+  notify(ctx, b.touristId, 'payout_done', { title: b.title, name: publicUser(userById(ctx.data, b.guideId)!).name }, `/bookings/${b.id}`);
+  checkComplete(ctx, b);
+  return bookingView(ctx, b);
+});
+
+// ---------- special events: festivals and fairs the admin adds; tourists see them on their home ----------
+const eventView = (e: any) => e;
+function saveEvent(ctx: Ctx, b: any, existing?: any) {
+  const title = str(b.title, 'title', 3, 80);
+  const titleAr = str(b.titleAr, 'titleAr', 3, 80);
+  const city = strList([b.city], 'city', ctx.data.cities.map((c) => c.slug), 1, 1)[0];
+  if (!isDate(b.startDate)) throw bad('field_invalid', { field: 'startDate' });
+  if (!isDate(b.endDate) || b.endDate < b.startDate) throw bad('field_invalid', { field: 'endDate' });
+  if (!existing && b.endDate < ctx.today) throw bad('date_past');
+  ctx.data.media ||= [];
+  let img = String(b.img || '');
+  const known = new Set([...BUILTIN_COVERS(), ...(ctx.data.media || []).map((m) => 'm:' + m.id), existing?.img]);
+  if (!known.has(img)) {
+    img = imageData(b.img, 'img', 400_000);
+    const id = ctx.data.media.reduce((a, m) => Math.max(a, m.id), 0) + 1;
+    ctx.data.media.push({ id, img });
+    img = 'm:' + id;
+  }
+  ctx.data.events ||= [];
+  const e = existing || { id: ctx.data.events.reduce((a, x) => Math.max(a, x.id), 0) + 1, createdAt: ctx.nowIso };
+  Object.assign(e, { title, titleAr, description: optStr(b.description, 'description', 600), descriptionAr: optStr(b.descriptionAr, 'descriptionAr', 600), city, venue: optStr(b.venue, 'venue', 80), venueAr: optStr(b.venueAr, 'venueAr', 80), startDate: b.startDate, endDate: b.endDate, img });
+  if (!existing) ctx.data.events.push(e);
+  return eventView(e);
+}
+// Tourists see events that are on now or still to come, soonest first; the admin also sees past ones.
+route('GET', '/events', (ctx, _p, req) => {
+  const all = req.query.all === '1' && ctx.user?.role === 'admin';
+  return (ctx.data.events || []).filter((e) => all || e.endDate >= ctx.today).sort((a, b) => a.startDate.localeCompare(b.startDate)).map(eventView);
+});
+route('GET', '/events/:id', (ctx, p) => {
+  const e = (ctx.data.events || []).find((x) => x.id === idOf(p.id));
+  if (!e) throw notFound();
+  return eventView(e);
+});
+route('POST', '/admin/events', (ctx, _p, req) => {
+  need(ctx, 'admin');
+  return saveEvent(ctx, req.body || {});
+});
+route('PUT', '/admin/events/:id', (ctx, p, req) => {
+  need(ctx, 'admin');
+  const e = (ctx.data.events || []).find((x) => x.id === idOf(p.id));
+  if (!e) throw notFound();
+  return saveEvent(ctx, req.body || {}, e);
+});
+route('DELETE', '/admin/events/:id', (ctx, p) => {
+  need(ctx, 'admin');
+  const before = (ctx.data.events || []).length;
+  ctx.data.events = (ctx.data.events || []).filter((x) => x.id !== idOf(p.id));
+  if (ctx.data.events.length === before) throw notFound();
+  return { ok: true };
 });
 
 route('GET', '/admin/users', (ctx, _p, req) => {
