@@ -526,6 +526,13 @@ route('POST', '/guide/photos', (ctx, _p, req) => {
   return meView(ctx, u);
 });
 
+// Sends the phone verification code by SMS. The demo has no SMS service: the code is the fixed demo code.
+route('POST', '/me/phone-code', (ctx) => {
+  const u = need(ctx);
+  if (!u.phone) throw bad('phone_missing');
+  return { sent: true };
+});
+
 route('POST', '/me/verify-phone', (ctx, _p, req) => {
   const u = need(ctx);
   if (!u.phone) throw bad('phone_missing');
@@ -1852,3 +1859,7 @@ export function createApi(data: Data, platform: Platform, onChange: (data: Data)
 
 export type ApiHandler = ReturnType<typeof createApi>;
 export type { GuideProfile };
+
+// Shared with the database-backed API (src/api), so both answer with exactly the same shapes and checks.
+export { meView, passportView, checkPassword, imageData, checkCard, cardExpired, cardBrand, luhn };
+export type { Ctx };

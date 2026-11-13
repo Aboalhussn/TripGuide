@@ -13,7 +13,7 @@
     "build:demo": "node scripts/build.mjs --demo",
     "dev": "node scripts/build.mjs && node scripts/dev.mjs",
     "reset": "node scripts/reset.mjs",
-    "test": "tsx --test src/core/*.test.ts src/server/*.test.ts",
+    "test": "tsx --test src/core/*.test.ts src/server/*.test.ts src/api/*.test.ts",
     "e2e": "tsx --test e2e/flows.test.ts",
     "check": "tsc --noEmit -p tsconfig.json && tsx scripts/check-strings.ts",
     "build:app": "node scripts/build.mjs --app",
@@ -21,7 +21,12 @@
     "android": "node scripts/build.mjs --app && cap sync android && cap open android",
     "ios": "node scripts/build.mjs --app && cap sync ios && cap open ios",
     "apk": "node scripts/build.mjs --app && cap sync android && cd android && ./gradlew assembleDebug",
-    "assets": "capacitor-assets generate --android --ios --iconBackgroundColor \"#053F5C\" --splashBackgroundColor \"#FFFFFF\""
+    "assets": "capacitor-assets generate --android --ios --iconBackgroundColor \"#053F5C\" --splashBackgroundColor \"#FFFFFF\"",
+    "api": "node scripts/build.mjs && node dist/api.mjs",
+    "api:dev": "tsx watch src/api/index.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/db/cli.ts migrate",
+    "db:seed": "tsx src/db/cli.ts seed"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1168.0",

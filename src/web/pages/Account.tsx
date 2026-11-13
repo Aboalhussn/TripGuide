@@ -9,6 +9,8 @@ import { resizeImage } from '../lib/image';
 import { MyRequestsList } from './Requests';
 import { Avatar, BookingStatus, BrandFooter, HeroBand, LimitNote, LangToggle, CardForm, Field, Icon, Loading, Modal, Money, MonthCalendar, PageHead, ToggleGroup, VerifiedBadge, emptyCard, useBusy } from '../ui';
 import type { CardValue } from '../ui';
+import { PhoneField, emptyPhone, phoneFromE164, phoneProblem, readPhone } from '../PhoneField';
+import { IS_PRODUCTION } from '../lib/env';
 
 function goNext(query: Record<string, string>) {
   const next = query.next && query.next.startsWith('/') ? query.next : '/';
@@ -17,19 +19,21 @@ function goNext(query: Record<string, string>) {
 
 export function Login({ query }: { query: Record<string, string> }) {
   const { t, signIn, meta, errorText, lang, setLang } = useApp();
-  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState(emptyPhone);
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [demoOpen, setDemoOpen] = useState(false);
   const [demoPick, setDemoPick] = useState<'tourist' | 'guide' | 'admin'>('tourist');
-  const go = async (e?: React.FormEvent, creds?: { email: string; password: string }) => {
+  const typed = readPhone(phone);
+  const go = async (e?: React.FormEvent, creds?: { phone: string; password: string }) => {
     e?.preventDefault();
     setErr(null);
+    if (!creds && !typed.ok) return setErr(phoneProblem(phone, t));
     setBusy(true);
     try {
-      const r = await api('POST', '/auth/login', creds || { email, password });
+      const r = await api('POST', '/auth/login', creds || { phone: typed.ok ? typed.e164 : '', password });
       signIn(r.token, r.user);
       goNext(query);
     } catch (x) {
@@ -38,17 +42,19 @@ export function Login({ query }: { query: Record<string, string> }) {
       setBusy(false);
     }
   };
-  const demo = meta?.demoLogins;
+  const demo = IS_PRODUCTION ? null : meta?.demoLogins;
   return (
     <div className="auth-page slide login-slide">
       <AuthHero img="babylon.jpg" title={t('auth.hero_title')} text={t('auth.hero_text')} />
       <section className="auth-sheet">
         <h2>{t('auth.login_btn')}</h2>
         <form className="login-form" onSubmit={go}>
-          <label className="auth-label">
-            {t('field.email')}
-            <input className="input login-input" type="email" inputMode="email" autoComplete="email" placeholder="name@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <label className="auth-label" htmlFor="login-phone">
+            {t('field.phone')}
           </label>
+          <div style={{ marginTop: -8 }}>
+            <PhoneField id="login-phone" inputClassName="input login-input" value={phone} onChange={setPhone} />
+          </div>
           <label className="auth-label" htmlFor="login-pw">
             {t('field.password')}
           </label>
@@ -58,7 +64,7 @@ export function Login({ query }: { query: Record<string, string> }) {
               <Icon name={showPw ? 'eyeOff' : 'eye'} size={20} />
             </button>
           </div>
-          <Link to={'/forgot' + (email ? '?email=' + encodeURIComponent(email) : '')} className="forgot-link">
+          <Link to={'/forgot' + (typed.ok ? '?phone=' + encodeURIComponent(typed.e164) : '')} className="forgot-link">
             {t('auth.forgot')}
           </Link>
           {err && !demoOpen && (
@@ -110,7 +116,7 @@ export function Login({ query }: { query: Record<string, string> }) {
                 {err}
               </div>
             )}
-            <button type="button" className="btn lg demo-go" disabled={busy} onClick={() => go(undefined, { email: (demo as any)[demoPick], password: demo.password })}>
+            <button type="button" className="btn lg demo-go" disabled={busy} onClick={() => go(undefined, { phone: (demo as any)[demoPick], password: demo.password })}>
               {t('auth.enter_as', { role: t('auth.role_short_' + demoPick) })}
             </button>
           </div>
@@ -202,6 +208,7 @@ function PasswordMeter({ rules, typed, warn }: { rules: { key: string; ok: boole
 
 export function Register({ query }: { query: Record<string, string> }) {
   const { t, signIn, errorText } = useApp();
+  const [phone, setPhoneValue] = useState(emptyPhone);
   const [f, setF] = useState({ role: query.role === 'guide' ? 'guide' : 'tourist', name: '', email: '', password: '', country: query.role === 'guide' ? 'Iraq' : '', gender: '' });
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -217,6 +224,7 @@ export function Register({ query }: { query: Record<string, string> }) {
   // Every field is checked as you type; the message shows as soon as the field has been touched.
   const errs: Record<string, string> = {};
   if (f.name.trim().length < 2) errs.name = t('v.name');
+  if (phoneProblem(phone, t)) errs.phone = phoneProblem(phone, t);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(f.email.trim())) errs.email = f.email ? t('err.email_invalid') : t('v.email');
   if (!strong) errs.password = t('err.password_weak');
   if (f.country.trim().length < 2) errs.country = t('v.country');
@@ -233,7 +241,8 @@ export function Register({ query }: { query: Record<string, string> }) {
     }
     setBusy(true);
     try {
-      const r = await api('POST', '/auth/register', f);
+      const p = readPhone(phone);
+      const r = await api('POST', '/auth/register', { ...f, phone: p.ok ? p.e164 : '' });
       signIn(r.token, r.user);
       if (f.role === 'guide') navigate('/verify', { replace: true });
       else goNext(query);
@@ -260,6 +269,9 @@ export function Register({ query }: { query: Record<string, string> }) {
         </div>
         <Field label={t('field.name')} error={show('name')}>
           <input id="reg-name" className="input" autoComplete="name" value={f.name} onChange={(e) => up({ name: e.target.value.slice(0, 60) })} />
+        </Field>
+        <Field label={t('field.phone')} error={show('phone')}>
+          <PhoneField id="reg-phone" value={phone} onChange={(v) => { setPhoneValue(v); setDirty((d) => ({ ...d, phone: true })); }} />
         </Field>
         <Field label={t('field.email')} error={show('email')}>
           <input id="reg-email" className="input" type="email" autoComplete="email" value={f.email} onChange={(e) => up({ email: e.target.value.trim() })} />
@@ -423,7 +435,8 @@ export function GuidePlans() {
 /** "Your info": name, country, phone (with code check) and email. */
 export function ProfileInfo() {
   const { t, me, meta, refreshMe, toast, errorText } = useApp();
-  const [f, setF] = useState({ name: me?.name || '', country: me?.country || '', phone: me?.phone || '', email: me?.email || '' });
+  const [f, setF] = useState({ name: me?.name || '', country: me?.country || '', email: me?.email || '' });
+  const [phone, setPhoneValue] = useState(() => phoneFromE164(me?.phone));
   const [dirty, setDirty] = useState<Record<string, boolean>>({});
   const [code, setCode] = useState('');
   const [showCode, setShowCode] = useState(false);
@@ -437,10 +450,12 @@ export function ProfileInfo() {
   const errs: Record<string, string> = {};
   if (f.name.trim().length < 2) errs.name = t('v.name');
   if (f.country.trim().length < 2) errs.country = t('v.country');
-  if (f.phone && !/^\+?[0-9 ]{7,20}$/.test(f.phone)) errs.phone = t('err.phone_invalid');
+  if (phoneProblem(phone, t)) errs.phone = phoneProblem(phone, t);
+  const typedPhone = readPhone(phone);
+  const e164 = typedPhone.ok ? typedPhone.e164 : '';
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(f.email.trim())) errs.email = f.email ? t('err.email_invalid') : t('v.email');
   const show = (k: string) => (dirty[k] ? errs[k] : undefined);
-  const changed = f.name !== me.name || f.country !== me.country || f.phone !== (me.phone || '') || f.email !== me.email;
+  const changed = f.name !== me.name || f.country !== me.country || e164 !== (me.phone || '') || f.email !== me.email;
   const save = (e: React.FormEvent) => {
     e.preventDefault();
     setDirty({ name: true, country: true, phone: true, email: true });
@@ -448,7 +463,7 @@ export function ProfileInfo() {
     run(async () => {
       setErr(null);
       try {
-        await api('PUT', '/me', { ...f, name: f.name.trim(), country: f.country.trim(), email: f.email.trim() });
+        await api('PUT', '/me', { ...f, phone: e164, name: f.name.trim(), country: f.country.trim(), email: f.email.trim() });
         await refreshMe();
         setDirty({});
         toast(t('common.saved'));
@@ -468,8 +483,8 @@ export function ProfileInfo() {
         <Field label={t('field.country')} error={show('country')}>
           <input className="input" autoComplete="country-name" value={f.country} onChange={(e) => up({ country: e.target.value.slice(0, 60) })} />
         </Field>
-        <Field label={t('field.phone')} error={show('phone')} hint={show('phone') ? undefined : me.phone && f.phone === me.phone ? (me.phoneVerified ? t('account.phone_verified') : t('account.phone_unverified')) : undefined}>
-          <input className="input ltr" type="tel" autoComplete="tel" value={f.phone} onChange={(e) => up({ phone: e.target.value.replace(/[^\d+ ]/g, '').slice(0, 20) })} />
+        <Field label={t('field.phone')} error={show('phone')} hint={show('phone') ? undefined : me.phone && e164 === me.phone ? (me.phoneVerified ? t('account.phone_verified') : t('account.phone_unverified')) : undefined}>
+          <PhoneField value={phone} onChange={(v) => { setPhoneValue(v); setDirty((d) => ({ ...d, phone: true })); }} />
         </Field>
         <Field label={t('field.email')} error={show('email')}>
           <input className="input ltr" type="email" autoComplete="email" value={f.email} onChange={(e) => up({ email: e.target.value.trim() })} />
@@ -481,8 +496,8 @@ export function ProfileInfo() {
         )}
         <div className="row">
           <button className="btn" disabled={busy || !changed}>{t('common.save')}</button>
-          {me.phone && !me.phoneVerified && f.phone === me.phone && (
-            <button type="button" className="btn outline" onClick={() => setShowCode(true)}>
+          {me.phone && !me.phoneVerified && e164 === me.phone && (
+            <button type="button" className="btn outline" disabled={busy} onClick={() => run(async () => { setErr(null); try { await api('POST', '/me/phone-code'); setShowCode(true); } catch (x) { setErr(errorText(x)); throw x; } })}>
               {t('account.verify_phone')}
             </button>
           )}
@@ -491,7 +506,7 @@ export function ProfileInfo() {
       {showCode && (
         <Modal title={t('account.verify_phone')} onClose={() => setShowCode(false)}>
           <p className="small">{t('account.code_sent', { phone: me.phone })}</p>
-          <p className="note small">{t('account.demo_code', { code: meta.demoPhoneCode })}</p>
+          {!IS_PRODUCTION && meta.demoPhoneCode && <p className="note small">{t('account.demo_code', { code: meta.demoPhoneCode })}</p>}
           <Field label={t('account.code')}>
             <input className="input ltr" inputMode="numeric" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} />
           </Field>
@@ -1304,7 +1319,7 @@ function NewPassword({ id, value, onChange, label, tried }: { id: string; value:
 /** Forgot password: the email gets a 6-digit code (shown on screen in the demo), then a new password. */
 export function ForgotPassword({ query }: { query: Record<string, string> }) {
   const { t, signIn, errorText, toast } = useApp();
-  const [email, setEmail] = useState(query.email || '');
+  const [phone, setPhone] = useState(() => (query.phone ? phoneFromE164(query.phone) : emptyPhone()));
   const [step, setStep] = useState<'email' | 'code'>('email');
   const [demoCode, setDemoCode] = useState<string | null>(null);
   const [code, setCode] = useState('');
@@ -1313,17 +1328,18 @@ export function ForgotPassword({ query }: { query: Record<string, string> }) {
   const [tried, setTried] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim());
+  const typed = readPhone(phone);
+  const e164 = typed.ok ? typed.e164 : '';
   const strong = passwordRules(pw).every((r) => r.ok);
   const send = async (e?: React.FormEvent) => {
     e?.preventDefault();
     setErr(null);
     setTried(true);
-    if (!emailOk) return;
+    if (!typed.ok) return;
     setBusy(true);
     try {
-      const r = await api('POST', '/auth/forgot', { email: email.trim() });
-      setDemoCode(r.demoCode || null);
+      const r = await api('POST', '/auth/forgot', { phone: e164 });
+      setDemoCode(IS_PRODUCTION ? null : r.demoCode || null);
       setStep('code');
       setTried(false);
     } catch (x) {
@@ -1339,7 +1355,7 @@ export function ForgotPassword({ query }: { query: Record<string, string> }) {
     if (!/^\d{6}$/.test(code.trim()) || !strong || pw !== pw2) return;
     setBusy(true);
     try {
-      const r = await api('POST', '/auth/reset', { email: email.trim(), code: code.trim(), password: pw });
+      const r = await api('POST', '/auth/reset', { phone: e164, code: code.trim(), password: pw });
       signIn(r.token, r.user);
       toast(t('pw.reset_done'));
       navigate('/', { replace: true });
@@ -1351,12 +1367,12 @@ export function ForgotPassword({ query }: { query: Record<string, string> }) {
   };
   return (
     <div className="auth-page slide">
-      <AuthHero small img="malwiya.jpg" title={t('pw.forgot_title')} text={step === 'email' ? t('pw.forgot_text') : t('pw.code_text', { email: email.trim() })} />
+      <AuthHero small img="malwiya.jpg" title={t('pw.forgot_title')} text={step === 'email' ? t('pw.forgot_text') : t('pw.code_text', { phone: '\u2066' + e164 + '\u2069' })} />
       <section className="auth-sheet">
         {step === 'email' ? (
           <form className="stack" onSubmit={send} noValidate>
-            <Field label={t('field.email')} error={tried && !emailOk ? t('err.email_invalid') : undefined}>
-              <input id="fp-email" className="input login-input" type="email" inputMode="email" autoComplete="email" placeholder="name@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <Field label={t('field.phone')} error={tried && !typed.ok ? phoneProblem(phone, t) : undefined}>
+              <PhoneField id="fp-phone" inputClassName="input login-input" value={phone} onChange={setPhone} />
             </Field>
             {err && <div className="note danger" role="alert">{err}</div>}
             <button className="btn lg" disabled={busy}>{t('pw.send_code')}</button>

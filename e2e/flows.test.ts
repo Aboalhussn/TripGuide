@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { chromium, type Browser, type Page } from 'playwright';
+import { seed } from '../src/core/seed';
 
 const PORT = 3200 + Math.floor(Math.random() * 500);
 const BASE = `http://localhost:${PORT}/`;
@@ -49,9 +50,13 @@ async function open(lang: 'en' | 'ar' = 'en', width = 390): Promise<Page> {
   return page;
 }
 
+// People sign in with their phone number. Tests still name the demo accounts by email; this finds the phone.
+const DEMO_PHONES = new Map(seed({ now: () => new Date(), hashPassword: () => '', verifyPassword: () => false, randomToken: () => '' }).users.map((u) => [u.email, u.phone]));
+const phoneOf = (email: string) => DEMO_PHONES.get(email)!;
+
 async function login(page: Page, email: string) {
   await page.goto(BASE + '#/login');
-  await page.locator('form input[type=email]').fill(email);
+  await page.locator('form input[type=tel]').fill(phoneOf(email));
   await page.locator('form input[type=password]').fill('Demo@1234');
   await page.locator('form button.btn.lg').click();
   await page.waitForURL((u) => !u.hash.includes('login'));
@@ -227,6 +232,7 @@ test('a new guide signs up, fills the profile, asks for verification and the adm
   const g = await open();
   await go(g, '/register?role=guide');
   await g.getByLabel('Full name').fill('Karim Nasser');
+  await g.getByLabel('Phone', { exact: true }).fill('0780 123 4567');
   await g.getByLabel('Email').fill('karim@example.com');
   // The password must have a capital, a small letter, a number and a symbol.
   await g.getByLabel('Password', { exact: true }).fill('a-long-password');
@@ -715,12 +721,12 @@ test('hire flow: Hire in chat opens the hire sheet; then the trip clearly shows 
   const p = await open();
   // A fresh tourist with a fresh trip and two offers, so earlier tests can't get in the way.
   const email = `hire${Date.now()}@example.com`;
-  const reg = await callApi(p, 'POST', '/auth/register', { role: 'tourist', name: 'Rana Test', email, password: 'Strong#Pass9', country: 'Jordan', gender: 'f' });
+  const reg = await callApi(p, 'POST', '/auth/register', { role: 'tourist', name: 'Rana Test', phone: '+96279' + String(Date.now()).slice(-7), email, password: 'Strong#Pass9', country: 'Jordan', gender: 'f' });
   const meta = await callApi(p, 'GET', '/meta');
   const day = (n: number) => new Date(Date.parse(meta.today + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10);
   const trip = await callApi(p, 'POST', '/requests', { title: 'Old Baghdad in two days', cities: ['baghdad'], startDate: day(40), endDate: day(41), groupSize: 2, languages: ['en'], interests: [], budgetMin: 60, budgetMax: 200 }, reg.token);
   for (const [who, price] of [['ali@tripguide.demo', 120], ['layla@tripguide.demo', 100]] as const) {
-    const g = await callApi(p, 'POST', '/auth/login', { email: who, password: 'Demo@1234' });
+    const g = await callApi(p, 'POST', '/auth/login', { phone: phoneOf(who), password: 'Demo@1234' });
     await callApi(p, 'POST', `/requests/${trip.id}/offers`, { price, plan: [{ title: 'Old souqs' }, { title: 'Museum day' }], message: 'Happy to show you around.' }, g.token);
   }
   await p.evaluate((tk) => localStorage.setItem('tg.token', tk), reg.token);
@@ -1022,7 +1028,7 @@ test('sign-in and sign-up: logo and language button sit on one line above the ti
   const p = await open();
   await go(p, '/login');
   await p.getByRole('link', { name: 'Forgot your password?' }).click();
-  await p.getByLabel('Email').fill('marco@tripguide.demo');
+  await p.getByLabel('Phone', { exact: true }).fill(phoneOf('marco@tripguide.demo'));
   await p.getByRole('button', { name: 'Send the code' }).click();
   const code = (await p.locator('.demo-code strong').innerText()).trim();
   await p.getByLabel('6-digit code').fill(code);
@@ -1102,4 +1108,86 @@ test('trip assistant: Arabic, right to left', async () => {
   await noSideScroll(tourist, 'assistant chat in Arabic');
   await shot(tourist, 'e2e-assistant-ar');
   await tourist.context().close();
+});
+
+test('phone field: the country picker searches by name, Arabic name and dial code; a pasted +number switches the country', async () => {
+  const p = await open();
+  await go(p, '/register');
+  const cc = p.locator('.phone-cc');
+  assert.match(await cc.innerText(), /\+964/, 'Iraq is preselected');
+  // Search by English name.
+  await cc.click();
+  const sheet = p.getByRole('dialog', { name: 'Choose your country' });
+  assert.ok((await sheet.getByRole('option').count()) > 200, 'all countries are listed');
+  await sheet.getByRole('searchbox').fill('germ');
+  assert.equal(await sheet.getByRole('option').count(), 1);
+  await sheet.getByRole('option', { name: /Germany/ }).click();
+  assert.match(await cc.innerText(), /\+49/);
+  // Search by Arabic name, then by dial code.
+  await cc.click();
+  await sheet.getByRole('searchbox').fill('الأردن');
+  await sheet.getByRole('option').first().click();
+  assert.match(await cc.innerText(), /\+962/);
+  await cc.click();
+  await sheet.getByRole('searchbox').fill('+81');
+  await sheet.getByRole('option', { name: /Japan/ }).click();
+  assert.match(await cc.innerText(), /\+81/);
+  // Live validation, like the other fields: an Iraqi number is not a Japanese one.
+  const phone = p.getByLabel('Phone', { exact: true });
+  await phone.fill('0771 311 1325');
+  await p.getByText('Enter a valid mobile number for the chosen country.').waitFor();
+  // A pasted number that starts with + switches the picker to its country.
+  await phone.fill('+964 771 311 1325');
+  assert.match(await cc.innerText(), /\+964/);
+  assert.equal(await phone.inputValue(), '7713111325');
+  assert.equal(await p.getByText('Enter a valid mobile number for the chosen country.').count(), 0);
+  // Arabic-Indic digits are read as digits.
+  await phone.fill('٠٧٧١٣١١١٣٢٥');
+  assert.equal(await phone.inputValue(), '07713111325');
+  await noSideScroll(p, 'register with the phone field');
+  await p.context().close();
+});
+
+test('a tourist from another country signs up with a non-Iraqi phone, signs out, and signs in with it; a taken number is refused', async () => {
+  const p = await open();
+  await go(p, '/register');
+  await p.getByLabel('Full name').fill('Greta Lindqvist');
+  await p.locator('.phone-cc').click();
+  const sheet = p.getByRole('dialog', { name: 'Choose your country' });
+  await sheet.getByRole('searchbox').fill('sweden');
+  await sheet.getByRole('option', { name: /Sweden/ }).click();
+  const national = '070' + String(Date.now()).slice(-7);
+  await p.getByLabel('Phone', { exact: true }).fill(national);
+  await p.getByLabel('Email').fill(`greta${Date.now()}@example.com`);
+  await p.getByLabel('Password', { exact: true }).fill('Strong#Pass9');
+  await p.getByLabel('Country', { exact: true }).fill('Sweden');
+  await p.getByLabel('Gender').selectOption('f');
+  await p.getByRole('button', { name: 'Create account' }).click();
+  await p.waitForFunction(() => !!localStorage.getItem('tg.token'));
+  // Your info shows the number with its country code.
+  await go(p, '/profile/info');
+  assert.match(await p.locator('.phone-cc').innerText(), /\+46/);
+  assert.equal(await p.getByLabel('Phone', { exact: true }).inputValue(), national.slice(1));
+  // Sign out, then sign in with the same phone.
+  await p.evaluate(() => localStorage.removeItem('tg.token'));
+  await go(p, '/login');
+  await p.reload();
+  await p.locator('form input[type=tel]').fill('+46' + national.slice(1));
+  assert.match(await p.locator('.phone-cc').innerText(), /\+46/);
+  await p.locator('form input[type=password]').fill('Strong#Pass9');
+  await p.locator('form button.btn.lg').click();
+  await p.waitForFunction(() => !!localStorage.getItem('tg.token'));
+  // The same number cannot make a second account.
+  await p.evaluate(() => localStorage.removeItem('tg.token'));
+  await go(p, '/register');
+  await p.reload();
+  await p.getByLabel('Full name').fill('Someone Else');
+  await p.getByLabel('Phone', { exact: true }).fill('+46' + national.slice(1));
+  await p.getByLabel('Email').fill(`else${Date.now()}@example.com`);
+  await p.getByLabel('Password', { exact: true }).fill('Strong#Pass9');
+  await p.getByLabel('Country', { exact: true }).fill('Sweden');
+  await p.getByLabel('Gender').selectOption('m');
+  await p.getByRole('button', { name: 'Create account' }).click();
+  await p.getByText('This phone number already has an account.').waitFor();
+  await p.context().close();
 });

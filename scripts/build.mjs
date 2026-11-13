@@ -21,7 +21,7 @@ const web = {
   jsx: 'automatic',
   target: ['es2020'],
   // DEMO_AI=mock puts the pretend trip assistant inside the offline demo (docs/AI_ASSISTANT.md, section 9).
-  define: { 'process.env.NODE_ENV': watch ? '"development"' : '"production"', 'process.env.TG_API_BASE': '""', 'process.env.TG_DEMO_AI': JSON.stringify(process.env.DEMO_AI || '') },
+  define: { 'process.env.NODE_ENV': watch ? '"development"' : '"production"', 'process.env.TG_API_BASE': JSON.stringify((process.env.TG_API_BASE || '').replace(/\/+$/, '')), 'process.env.TG_ENV': JSON.stringify(process.env.TG_ENV === 'production' ? 'production' : 'staging'), 'process.env.TG_DEMO_AI': JSON.stringify(process.env.DEMO_AI || '') },
   external: ['/fonts/*', '/img/*'],
   logLevel: 'warning',
 };
@@ -51,8 +51,12 @@ async function buildApp() {
     target: 'node22',
     logLevel: 'warning',
   });
+  // The production API (Fastify + PostgreSQL). Its libraries stay in node_modules; migrations ship next to it.
+  await esbuild.build({ entryPoints: [r('src/api/index.ts')], outfile: r('dist/api.mjs'), bundle: true, packages: 'external', platform: 'node', format: 'esm', target: 'node22', logLevel: 'warning' });
+  fs.rmSync(r('dist/migrations'), { recursive: true, force: true });
+  copyDir(r('src/db/migrations'), r('dist/migrations'));
   if (!fs.existsSync(r('public/fonts/thmanyahsans-Regular.woff2'))) console.warn('Note: Thmanyah font files are missing from public/fonts. The app falls back to system fonts. See README.');
-  console.log('Built dist/public and dist/server.mjs');
+  console.log('Built dist/public, dist/server.mjs (demo server) and dist/api.mjs (production API)');
 }
 
 async function buildDemo() {
