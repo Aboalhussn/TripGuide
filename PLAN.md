@@ -1,6 +1,14 @@
 # PLAN — Trip guide: from demo to production
 
-Branch: `production` (from `main` @ `d923015`). Status: **M1, waiting for approval. No product code has been changed.**
+Branch: `production` (from `main` @ `d923015`). Status: **M1 approved. M2 done (schema, seed, phone auth, meta, media, docker-compose). Next: M3.**
+
+Decisions taken when the plan was approved (my recommended answers to section 10):
+Q1 build fix committed · Q2 phone sign-in added to `src/core` too, the engine frozen at `main` is the parity baseline ·
+Q3 demo data has its own demo admin (`+9647700001000`, `Demo@1234`), the real state account `+9647713111325` comes from `ADMIN_PASSWORD` ·
+Q4 SMS goes to the log until a provider is chosen · Q5 phone verification sends a real SMS code (new `POST /me/phone-code`), the demo code works on staging only, no SMS at sign-up ·
+Q7 a failed call saves nothing · Q8 the state account's email is empty unless `ADMIN_EMAIL` is set · Q9 sessions last 30 days and are extended by use ·
+Q10 new error `too_many_attempts` · Q12 the branch stays local until you ask · Q13 no existing users to migrate.
+Still open: Q4 (SMS provider), Q6 (payment provider), Q11 (staging URL and storage).
 
 Rule 0 applies to everything below: the app must look and behave exactly like the demo. The only user-facing
 change is sign-in / sign-up by phone number. Anything else I think should change goes to `IMPROVEMENTS.md`, not into code.
