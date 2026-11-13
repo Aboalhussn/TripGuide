@@ -91,14 +91,14 @@ test('draft: becomes a POST /requests body that the server accepts', () => {
   let n = 0;
   const platform: Platform = { now: () => new Date('2026-10-21T09:00:00Z'), hashPassword: (p) => 'h:' + p, verifyPassword: (p, h) => h === 'h:' + p, randomToken: () => 'tok' + ++n };
   const api = createApi(seed(platform), platform);
-  const token = api({ method: 'POST', path: '/auth/login', body: { email: DEMO_ACCOUNTS.tourist, password: DEMO_PASSWORD }, token: null, query: {} }).body.token;
+  const token = api({ method: 'POST', path: '/auth/login', body: { phone: DEMO_ACCOUNTS.tourist, password: DEMO_PASSWORD }, token: null, query: {} }).body.token;
 
   const context = api({ method: 'GET', path: '/assistant/context', body: null, token, query: {} });
   assert.equal(context.status, 200);
   assert.equal(context.body.today, today);
   assert.ok(context.body.guidePrices.baghdad.guides > 0, 'guide prices per governorate');
   assert.ok(context.body.guidePrices.baghdad.typical > 0);
-  const guideToken = api({ method: 'POST', path: '/auth/login', body: { email: DEMO_ACCOUNTS.guide, password: DEMO_PASSWORD }, token: null, query: {} }).body.token;
+  const guideToken = api({ method: 'POST', path: '/auth/login', body: { phone: DEMO_ACCOUNTS.guide, password: DEMO_PASSWORD }, token: null, query: {} }).body.token;
   assert.equal(api({ method: 'GET', path: '/assistant/context', body: null, token: guideToken, query: {} }).status, 403, 'tourists only');
 
   const d = applyPatch(full(), { startDate: addDays(today, 10), endDate: addDays(today, 12), places: [13, 14], interests: ['history'], plan: [{ title: 'Old city' }] }, ctx);

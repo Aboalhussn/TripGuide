@@ -24,13 +24,24 @@
     "assets": "capacitor-assets generate --android --ios --iconBackgroundColor \"#053F5C\" --splashBackgroundColor \"#FFFFFF\""
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1168.0",
+    "@aws-sdk/s3-request-presigner": "^3.1168.0",
     "@capacitor/app": "^7.1.2",
     "@capacitor/core": "^7.6.9",
     "@capacitor/keyboard": "^7.0.6",
     "@capacitor/splash-screen": "^7.0.5",
     "@capacitor/status-bar": "^7.0.6",
+    "@electric-sql/pglite": "^0.5.16",
+    "@fastify/cors": "^11.4.3",
+    "@node-rs/argon2": "^2.2.2",
+    "drizzle-orm": "^0.45.4",
+    "fastify": "^5.12.8",
+    "ioredis": "^6.0.0",
+    "libphonenumber-js": "^1.13.16",
+    "pg": "^8.23.1",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@capacitor/android": "^7.6.9",
@@ -38,10 +49,15 @@
     "@capacitor/cli": "^7.6.9",
     "@capacitor/ios": "^7.6.9",
     "@types/node": "^22.0.0",
+    "@types/pg": "^8.23.1",
+    "@types/pngjs": "^6.0.5",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
+    "drizzle-kit": "^0.31.11",
     "esbuild": "^0.28.0",
+    "pixelmatch": "^8.0.0",
     "playwright": "^1.56.0",
+    "pngjs": "^7.0.0",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0"
   }

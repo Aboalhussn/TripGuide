@@ -5,6 +5,7 @@ import type { ApiRequest, ApiResponse, Booking, Data, GuideProfile, Milestone, O
 import { DEMO_ACCOUNTS, DEMO_PASSWORD } from './seed';
 import { TRIP_LIMITS } from './draft';
 import { ApiError, addDays, bad, conflict, dateRange, daysInclusive, forbidden, iraqDate, isDate, money, nextId, notFound, num, optStr, str, strList } from './util';
+import { loginPhone, serverPhone } from './phone';
 import { bookedDates, bookingMoney, cashOpen, guideCard, guideStats, isAvailable, publicUser, reviewView, reviewVisible, touristStats } from './views';
 
 type Ctx = { data: Data; p: Platform; user: User | null; now: Date; nowIso: string; today: string };
@@ -311,9 +312,11 @@ route('POST', '/auth/register', (ctx, _p, req) => {
   const role = b.role === 'guide' ? 'guide' : b.role === 'tourist' ? 'tourist' : null;
   if (!role) throw bad('field_required', { field: 'role' });
   const name = str(b.name, 'name', 2, 60);
+  const phone = serverPhone(b.phone);
   const email = str(b.email, 'email', 3, 120).toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw bad('email_invalid');
   checkPassword(b.password);
+  if (ctx.data.users.some((u) => u.phone === phone)) throw conflict('phone_taken');
   if (ctx.data.users.some((u) => u.email === email)) throw conflict('email_taken');
   const country = str(b.country, 'country', 2, 60);
   const gender = b.gender === 'f' ? 'f' : b.gender === 'm' ? 'm' : null;
@@ -327,7 +330,7 @@ route('POST', '/auth/register', (ctx, _p, req) => {
     country,
     gender,
     avatarColor: ctx.data.users.length % AVATAR_COLORS,
-    phone: '',
+    phone,
     phoneVerified: false,
     paymentVerified: false,
     status: 'active',
@@ -363,20 +366,19 @@ route('POST', '/auth/register', (ctx, _p, req) => {
 });
 
 route('POST', '/auth/login', (ctx, _p, req) => {
-  const email = String(req.body?.email || '').trim().toLowerCase();
-  const u = ctx.data.users.find((x) => x.email === email);
+  const phone = loginPhone(req.body?.phone);
+  const u = phone ? ctx.data.users.find((x) => x.phone === phone) : undefined;
   if (!u || !ctx.p.verifyPassword(String(req.body?.password || ''), u.passwordHash)) throw new ApiError(401, 'login_failed');
   const token = ctx.p.randomToken();
   ctx.data.sessions.push({ token, userId: u.id, createdAt: ctx.nowIso });
   return { token, user: meView(ctx, u) };
 });
 
-// Forgot password: sends a 6-digit code to the email (in the demo, with no email service, the code is
-// returned as demoCode). The answer is the same whether or not the email has an account.
+// Forgot password: sends a 6-digit code by SMS to the phone (in the demo, with no SMS service, the code is
+// returned as demoCode). The answer is the same whether or not the phone has an account.
 route('POST', '/auth/forgot', (ctx, _p, req) => {
-  const email = String(req.body?.email || '').trim().toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw bad('email_invalid');
-  const u = ctx.data.users.find((x) => x.email === email && x.role !== 'admin');
+  const phone = serverPhone(req.body?.phone);
+  const u = ctx.data.users.find((x) => x.phone === phone && x.role !== 'admin');
   if (!u) return { sent: true };
   const code = String(Math.floor(100000 + Math.random() * 900000));
   ctx.data.resets = (ctx.data.resets || []).filter((r) => r.userId !== u.id);
@@ -384,10 +386,10 @@ route('POST', '/auth/forgot', (ctx, _p, req) => {
   return { sent: true, ...(settings.showDemoLogins ? { demoCode: code } : {}) };
 });
 
-// Sets a new password with the code from the email, signs out everywhere else, and signs in.
+// Sets a new password with the code from the SMS, signs out everywhere else, and signs in.
 route('POST', '/auth/reset', (ctx, _p, req) => {
-  const email = String(req.body?.email || '').trim().toLowerCase();
-  const u = ctx.data.users.find((x) => x.email === email);
+  const phone = loginPhone(req.body?.phone);
+  const u = phone ? ctx.data.users.find((x) => x.phone === phone) : undefined;
   const r = u && (ctx.data.resets || []).find((x) => x.userId === u.id);
   if (!u || !r || r.expiresAt < ctx.nowIso || r.tries >= 5) throw bad('reset_code_invalid');
   if (!ctx.p.verifyPassword(String(req.body?.code || '').trim(), r.codeHash)) {
@@ -482,8 +484,8 @@ route('PUT', '/me', (ctx, _p, req) => {
     u.email = email;
   }
   if (b.phone !== undefined) {
-    const phone = optStr(b.phone, 'phone', 20);
-    if (phone && !/^\+?[0-9 ]{7,20}$/.test(phone)) throw bad('phone_invalid');
+    const phone = serverPhone(b.phone);
+    if (phone !== u.phone && ctx.data.users.some((x) => x.phone === phone)) throw conflict('phone_taken');
     if (phone !== u.phone) u.phoneVerified = false;
     u.phone = phone;
   }
