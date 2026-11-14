@@ -643,7 +643,7 @@ test('profile and cover photos, and the guide + button adds a tour photo tourist
   await g.locator('.ph-avatar img.avatar-img').waitFor();
   await g.locator('.ph-cover-actions input[type=file]').setInputFiles({ name: 'cover.png', mimeType: 'image/png', buffer: png });
   await g.getByText('Cover photo updated').first().waitFor();
-  assert.match(await g.locator('.ph-cover').getAttribute('style') || '', /data:image/);
+  assert.match(await g.locator('.ph-cover').getAttribute('style') || '', /data:image|\/media\/cover\//); // inline in the demo, a media link on the database API
   // The + above the tab bar.
   await go(g, '/');
   await g.locator('label.photo-fab input[type=file]').setInputFiles({ name: 'tour.png', mimeType: 'image/png', buffer: png });
@@ -929,7 +929,7 @@ test('admin: the + button adds a governorate in 3 steps (name, heritage places, 
   await go(tt, '/post');
   await tt.getByRole('button', { name: 'Dhi Qar' }).click();
   assert.equal(await tt.locator('.cover-opt').count(), 2);
-  assert.ok((await tt.locator('.cover-opt img').first().getAttribute('src'))!.startsWith('data:image/'));
+  assert.match((await tt.locator('.cover-opt img').first().getAttribute('src'))!, /^data:image\/|\/media\/media\//); // inline in the demo, a media link on the database API
   await tt.context().close();
 });
 
