@@ -33,6 +33,7 @@ Changes made to `e2e/flows.test.ts`, all of them listed here:
 | Two API calls made by a test (`/auth/register`, `/auth/login`) send a phone | they are sign-up / sign-in steps |
 | The server start line accepts `E2E_SERVER=dist/api.mjs`, and waits longer for it to start | needed to run the suite against the new backend at all |
 | Two photo assertions accept a media link as well as inline data | approved by you; the brief itself asks for links |
+| The forgot-password step waits for the reset screen before filling the phone | approved by you; without it the step failed about half the time on Linux, because the sign-in screen has a Phone field too |
 | Two new tests: the country picker, and a non-Iraqi sign-up | asked for by the brief |
 
 No other test was touched.

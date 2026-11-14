@@ -1031,6 +1031,7 @@ test('sign-in and sign-up: logo and language button sit on one line above the ti
   const p = await open();
   await go(p, '/login');
   await p.getByRole('link', { name: 'Forgot your password?' }).click();
+  await p.getByRole('button', { name: 'Send the code' }).waitFor(); // the reset screen is open (the sign-in screen has a Phone field too)
   await p.getByLabel('Phone', { exact: true }).fill(phoneOf('marco@tripguide.demo'));
   await p.getByRole('button', { name: 'Send the code' }).click();
   const code = (await p.locator('.demo-code strong').innerText()).trim();
