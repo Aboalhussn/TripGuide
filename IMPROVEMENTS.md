@@ -17,6 +17,9 @@ Nothing here has been implemented. Say which ones you want.
    The demo had no such limit; the text is new in both languages.
 7. **Half-saved edits.** In the demo engine a failed call can keep part of its changes (for example `PUT /me` with a good name
    and a bad email keeps the name). The database API saves nothing when a call fails. The offline demo still has the old quirk.
+   A concrete case the contract tests found: rejecting a guide without a reason answers `400` on both sides, but the demo engine
+   has already marked the guide *rejected* (with no reason, and no way to approve afterwards). The API leaves the guide waiting.
+   Fixing the engine's order of checks would remove this for the offline demo too.
 8. **Tourists' passports and guides' photos use built-in pictures in the demo data** (`lib:` names). Real uploads go to media
    storage; nothing to do, but the demo data never exercises image hosting for those.
 9. **README section 12 has small mistakes** (`GET /admin/users` uses `q`, not `query`; `promoted=1` and `status=resolved`
