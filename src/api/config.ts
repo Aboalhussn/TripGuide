@@ -28,6 +28,8 @@ const Env = z.object({
   MEDIA_DRIVER: z.enum(['disk', 's3', 'memory']).default('disk'),
   MEDIA_DIR: z.string().default('data/media'),
   S3_ENDPOINT: z.string().default(''),
+  // The storage address as browsers reach it, for the signed links of private photos. Empty = the same as S3_ENDPOINT.
+  S3_BROWSER_ENDPOINT: z.string().default(''),
   S3_REGION: z.string().default('us-east-1'),
   S3_BUCKET: z.string().default(''),
   S3_PRIVATE_BUCKET: z.string().default(''),
@@ -35,6 +37,8 @@ const Env = z.object({
   S3_SECRET_ACCESS_KEY: z.string().default(''),
   S3_PUBLIC_URL: z.string().default(''),
   S3_FORCE_PATH_STYLE: bool,
+  // Development only (MinIO): create the two buckets on start, the public one readable by anyone.
+  S3_CREATE_BUCKETS: bool,
   // SMS: "log" writes the code to the server log (development, tests). A real provider is added when chosen.
   SMS_PROVIDER: z.enum(['log']).default('log'),
   // Payments: "simulated" behaves exactly like the demo.

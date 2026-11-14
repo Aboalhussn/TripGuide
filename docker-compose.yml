@@ -15,22 +15,24 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Put ADMIN_PASSWORD in your .env file}
       MEDIA_DRIVER: s3
       S3_ENDPOINT: http://minio:9000
+      S3_BROWSER_ENDPOINT: http://localhost:9000
       S3_PUBLIC_URL: http://localhost:9000/tripguide-public
       S3_BUCKET: tripguide-public
       S3_PRIVATE_BUCKET: tripguide-private
       S3_ACCESS_KEY_ID: minioadmin
       S3_SECRET_ACCESS_KEY: minioadmin
       S3_FORCE_PATH_STYLE: '1'
+      S3_CREATE_BUCKETS: '1' # development only: the API makes the two buckets on start
       AI_PROVIDER: mock
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
-      minio-setup: { condition: service_completed_successfully }
+      minio: { condition: service_started }
 
   postgres:
     image: postgres:16-alpine
     environment: { POSTGRES_USER: tripguide, POSTGRES_PASSWORD: tripguide, POSTGRES_DB: tripguide }
-    ports: ['5432:5432']
+    ports: ['5433:5432'] # 5433 on your machine, so it does not clash with a PostgreSQL you already run
     volumes: ['pgdata:/var/lib/postgresql/data']
     healthcheck: { test: ['CMD-SHELL', 'pg_isready -U tripguide'], interval: 5s, timeout: 3s, retries: 20 }
 
@@ -38,22 +40,15 @@ services:
     image: redis:7-alpine
     healthcheck: { test: ['CMD', 'redis-cli', 'ping'], interval: 5s, timeout: 3s, retries: 20 }
 
+  # MinIO: S3-compatible storage for local development. (MinIO no longer publishes its own images;
+  # this is Chainguard's build of the same server.) Console: http://localhost:9001 (minioadmin / minioadmin).
   minio:
-    image: minio/minio
+    image: cgr.dev/chainguard/minio:latest
+    user: root
     command: server /data --console-address ":9001"
     environment: { MINIO_ROOT_USER: minioadmin, MINIO_ROOT_PASSWORD: minioadmin }
     ports: ['9000:9000', '9001:9001']
     volumes: ['miniodata:/data']
-    healthcheck: { test: ['CMD', 'mc', 'ready', 'local'], interval: 5s, timeout: 3s, retries: 20 }
-
-  # Creates the two buckets once: public photos can be read by anyone, private ones cannot.
-  minio-setup:
-    image: minio/mc
-    depends_on: { minio: { condition: service_healthy } }
-    entrypoint: >
-      /bin/sh -c "mc alias set local http://minio:9000 minioadmin minioadmin &&
-      mc mb -p local/tripguide-public local/tripguide-private &&
-      mc anonymous set download local/tripguide-public"
 
 volumes:
   pgdata:

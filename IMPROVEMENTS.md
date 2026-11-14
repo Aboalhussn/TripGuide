@@ -24,3 +24,9 @@ Nothing here has been implemented. Say which ones you want.
    storage; nothing to do, but the demo data never exercises image hosting for those.
 9. **README section 12 has small mistakes** (`GET /admin/users` uses `q`, not `query`; `promoted=1` and `status=resolved`
    filters are missing). They will be corrected when the README is rewritten in M7.
+10. **The README no longer says "independent, not affiliated with any government body".** The brief says the admin side is the
+    state, so that sentence was removed from the README. The same idea may still appear in the app's own texts (for example the
+    policy page); those were not touched, because no screen text may change. Review them before launch.
+11. **Loading less per call.** The API loads the whole marketplace per data version (see PLAN.md). Narrow loaders per endpoint are
+    the main scaling work left.
+12. **MinIO images.** MinIO no longer publishes its own Docker images; `docker-compose.yml` uses Chainguard's build of it.

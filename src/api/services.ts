@@ -89,7 +89,7 @@ export function diskStore(cfg: Config): MediaStore {
 
 // Any S3-compatible storage (AWS S3, MinIO, Cloudflare R2…). Public photos and private ID photos live in separate buckets.
 export async function s3Store(cfg: Config): Promise<MediaStore> {
-  const { S3Client, PutObjectCommand, GetObjectCommand } = await import('@aws-sdk/client-s3');
+  const { S3Client, PutObjectCommand, GetObjectCommand, CreateBucketCommand, HeadBucketCommand, PutBucketPolicyCommand } = await import('@aws-sdk/client-s3');
   const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner');
   if (!cfg.S3_BUCKET || !cfg.S3_PRIVATE_BUCKET) throw new Error('S3_BUCKET and S3_PRIVATE_BUCKET must be set when MEDIA_DRIVER=s3.');
   const client = new S3Client({
@@ -98,13 +98,30 @@ export async function s3Store(cfg: Config): Promise<MediaStore> {
     forcePathStyle: cfg.S3_FORCE_PATH_STYLE,
     credentials: cfg.S3_ACCESS_KEY_ID ? { accessKeyId: cfg.S3_ACCESS_KEY_ID, secretAccessKey: cfg.S3_SECRET_ACCESS_KEY } : undefined,
   });
+  if (cfg.S3_CREATE_BUCKETS) {
+    for (const Bucket of [cfg.S3_BUCKET, cfg.S3_PRIVATE_BUCKET]) {
+      for (let i = 0; ; i++) {
+        try {
+          await client.send(new HeadBucketCommand({ Bucket })).catch(() => client.send(new CreateBucketCommand({ Bucket })));
+          break;
+        } catch (e) {
+          if (i >= 20) throw e; // the storage may still be starting
+          await new Promise((r) => setTimeout(r, 1500));
+        }
+      }
+    }
+    const Policy = JSON.stringify({ Version: '2012-10-17', Statement: [{ Effect: 'Allow', Principal: { AWS: ['*'] }, Action: ['s3:GetObject'], Resource: [`arn:aws:s3:::${cfg.S3_BUCKET}/*`] }] });
+    await client.send(new PutBucketPolicyCommand({ Bucket: cfg.S3_BUCKET, Policy }));
+  }
+  // Signed links are opened by the state's browser, which may reach the storage at another address than this server does.
+  const signer = cfg.S3_BROWSER_ENDPOINT && cfg.S3_BROWSER_ENDPOINT !== cfg.S3_ENDPOINT ? new S3Client({ region: cfg.S3_REGION, endpoint: cfg.S3_BROWSER_ENDPOINT, forcePathStyle: cfg.S3_FORCE_PATH_STYLE, credentials: cfg.S3_ACCESS_KEY_ID ? { accessKeyId: cfg.S3_ACCESS_KEY_ID, secretAccessKey: cfg.S3_SECRET_ACCESS_KEY } : undefined }) : client;
   const base = (cfg.S3_PUBLIC_URL || `${cfg.S3_ENDPOINT}/${cfg.S3_BUCKET}`).replace(/\/+$/, '');
   return {
     async put(key, bytes, contentType, isPrivate) {
       await client.send(new PutObjectCommand({ Bucket: isPrivate ? cfg.S3_PRIVATE_BUCKET : cfg.S3_BUCKET, Key: key, Body: bytes, ContentType: contentType, CacheControl: isPrivate ? 'private, no-store' : 'public, max-age=31536000, immutable' }));
     },
     publicUrl: (key) => `${base}/${key}`,
-    signedUrl: (key, seconds) => getSignedUrl(client, new GetObjectCommand({ Bucket: cfg.S3_PRIVATE_BUCKET, Key: key }), { expiresIn: seconds }),
+    signedUrl: (key, seconds) => getSignedUrl(signer, new GetObjectCommand({ Bucket: cfg.S3_PRIVATE_BUCKET, Key: key }), { expiresIn: seconds }),
   };
 }
 

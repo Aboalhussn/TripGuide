@@ -71,10 +71,21 @@ Pictures and the full table are written to `.parity/screens` (not committed).
 - `./gradlew assembleDebug`: **fails on this machine** with `invalid source release: 21`. The Android project needs Java 21;
   this machine has Java 8 and 17. The GitHub workflow uses Java 21, so the APK build has to be confirmed there (M7).
 
+## Real PostgreSQL 16, Redis and storage (added in M7)
+
+- `TEST_DATABASE_URL=postgres://… npm test`: **112 of 112 pass on PostgreSQL 16.15** (Docker), each test in its own fresh database.
+  This includes the money tests where two calls arrive at the same moment (two hires of one guide, a double payout, a double
+  withdrawal), now with real concurrent connections and real row locks.
+- `docker compose up --build`: the API image builds and starts against PostgreSQL 16, Redis 7 and MinIO; `/readyz` answers
+  `{"ok":true,"database":"postgres","redis":true}`; the demo data is seeded and the state account created; a restart finds both.
+  Checked over HTTP: sign-in, a profile photo stored in the public bucket and served from it, an ID photo reachable only through
+  its signed link (200 with the signature, 403 without), and the Redis rate limit (the 11th wrong password answers 429).
+- The GitHub workflow runs the same tests against a PostgreSQL 16 service on every push.
+
 ## What this proof does not cover
 
-- **A real PostgreSQL 16.** Tests run on an embedded PostgreSQL (PGlite). The SQL is the same, but it runs one transaction at a
-  time, so row locks have not been exercised under real contention. Redis, S3/MinIO and Docker Compose have not been run either
-  (the Docker service is not running on this machine).
+- **The browser suite on PostgreSQL.** `npm run e2e:api` uses the embedded database; the rules, money and contract tests are the ones that ran on PostgreSQL 16.
+- **The APK.** It needs Java 21, which this machine does not have. The workflow builds it; that run has not happened yet because nothing has been pushed.
+- **The GitHub workflow itself** has been rewritten but never run, for the same reason.
 - **Scale.** Each API process keeps a copy of the whole data set in memory per data version, and writes run one at a time (PLAN.md).
 - **Real SMS and real payments.** Both are behind interfaces with a log sender and a simulated provider.

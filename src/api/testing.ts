@@ -12,7 +12,29 @@ import { decodeDataUrl, logSms, testClock } from './services';
 export async function setupApi(opts: { start?: Date; env?: Record<string, string>; demo?: boolean } = {}) {
   const clock = testClock(opts.start || new Date('2026-10-18T09:00:00Z'));
   const sms = logSms();
-  const cfg = loadConfig({ APP_ENV: 'test', DATABASE_URL: 'memory', MEDIA_DRIVER: 'memory', PUBLIC_URL: 'http://api.test', SEED_DEMO: opts.demo === false ? '0' : '1', ...opts.env });
+  // TEST_DATABASE_URL=postgres://user:pass@host:5432/postgres runs the tests on a real PostgreSQL: each test gets
+  // its own fresh database, dropped when the test closes. Without it, an embedded PostgreSQL in memory is used.
+  const real = process.env.TEST_DATABASE_URL || '';
+  let dropDatabase = async () => {};
+  let databaseUrl = 'memory';
+  if (real) {
+    const { default: pg } = await import('pg');
+    const name = 'tg_test_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    const admin = new pg.Client({ connectionString: real });
+    await admin.connect();
+    await admin.query(`CREATE DATABASE "${name}"`);
+    await admin.end();
+    const url = new URL(real);
+    url.pathname = '/' + name;
+    databaseUrl = url.toString();
+    dropDatabase = async () => {
+      const c = new pg.Client({ connectionString: real });
+      await c.connect();
+      await c.query(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`);
+      await c.end();
+    };
+  }
+  const cfg = loadConfig({ APP_ENV: 'test', DATABASE_URL: databaseUrl, DATABASE_POOL: '5', MEDIA_DRIVER: 'memory', PUBLIC_URL: 'http://api.test', SEED_DEMO: opts.demo === false ? '0' : '1', ...opts.env });
   const app = await buildApp({ cfg, clock, sms, ai: mockProvider(), logger: false, publicDir: 'none' });
   const call = app.call;
   const ok = async (method: string, path: string, body?: any, token?: string | null, query?: Record<string, string>) => {
@@ -32,5 +54,5 @@ export async function setupApi(opts: { start?: Date; env?: Record<string, string
     const file = key ? await app.deps.media.read!(key) : null;
     return !!file && file.bytes.equals(decodeDataUrl(dataUrl)!.bytes);
   };
-  return { app, sameImage, db: app.deps.db, cfg, clock, sms, call, ok, login, phoneOf, smsCode, advance: clock.advance, today: () => iraqDate(clock.now()), close: () => app.close() };
+  return { app, sameImage, db: app.deps.db, cfg, clock, sms, call, ok, login, phoneOf, smsCode, advance: clock.advance, today: () => iraqDate(clock.now()), close: async () => { await app.close(); await dropDatabase(); } };
 }

@@ -1,6 +1,6 @@
 # PLAN — Trip guide: from demo to production
 
-Branch: `production` (from `main` @ `d923015`). Status: **M1 approved. M2–M6 done (results in `PARITY.md`). Next: M7 (deployment and docs).**
+Branch: `production` (from `main` @ `d923015`). Status: **all milestones M1–M7 done on the local `production` branch. Nothing is pushed, merged, released or deployed.** Results: `PARITY.md`. Deployment: `docs/DEPLOY.md`.
 
 How M3 was built (a change from section 3, said plainly): instead of rewriting each rule in SQL, every marketplace call loads the
 rows from PostgreSQL, runs the engine's own handler from `src/core/api.ts` inside one transaction, and saves exactly what it changed
