@@ -9,6 +9,9 @@ const Env = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   // postgres://user:pass@host:5432/db. Empty = an embedded database (dev and tests only).
   DATABASE_URL: z.string().default(''),
+  // TLS to the database: empty = as the address says; require = encrypted; verify = encrypted and the certificate is checked.
+  // Hosted databases reached through a pooler (Supabase, Neon...) usually need "require".
+  DATABASE_SSL: z.enum(['', 'require', 'verify']).default(''),
   REDIS_URL: z.string().default(''),
   // Where the website is served from, for CORS (comma separated). The Capacitor app origins are always allowed.
   WEB_ORIGIN: z.string().default(''),
@@ -53,6 +56,8 @@ export type Config = z.infer<typeof Env> & { isProduction: boolean; demoHelpers:
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
   const c = Env.parse(env);
+  // On Render the service's own address is known: use it when PUBLIC_URL is not set.
+  if (!c.PUBLIC_URL && env.RENDER_EXTERNAL_URL) c.PUBLIC_URL = env.RENDER_EXTERNAL_URL;
   const isProduction = c.APP_ENV === 'production';
   if ((isProduction || c.APP_ENV === 'staging') && c.TOKEN_SECRET.length < 32) throw new Error('TOKEN_SECRET must be set to a random string of at least 32 characters.');
   if (isProduction && !/^postgres(ql)?:\/\//.test(c.DATABASE_URL)) throw new Error('DATABASE_URL must point at PostgreSQL in production.');

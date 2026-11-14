@@ -43,7 +43,8 @@ export async function openDb(url = process.env.DATABASE_URL || ''): Promise<Open
   if (/^postgres(ql)?:\/\//.test(url)) {
     const { default: pg } = await import('pg');
     const { drizzle } = await import('drizzle-orm/node-postgres');
-    const pool = new pg.Pool({ connectionString: url, max: Number(process.env.DATABASE_POOL || 10) });
+    const tls = process.env.DATABASE_SSL === 'verify' ? { ssl: { rejectUnauthorized: true } } : process.env.DATABASE_SSL === 'require' ? { ssl: { rejectUnauthorized: false } } : {};
+    const pool = new pg.Pool({ connectionString: url, max: Number(process.env.DATABASE_POOL || 10), ...tls });
     const db = drizzle(pool, { schema }) as unknown as Db;
     return { db, kind: 'postgres', close: () => pool.end(), ping: async () => void (await pool.query('select 1')) };
   }
