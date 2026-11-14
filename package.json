@@ -27,7 +27,8 @@
     "api:dev": "tsx watch src/api/index.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/cli.ts migrate",
-    "db:seed": "tsx src/db/cli.ts seed"
+    "db:seed": "tsx src/db/cli.ts seed",
+    "parity:contract": "node scripts/baseline.mjs && tsx scripts/parity-contract.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1168.0",

@@ -16,3 +16,7 @@ public/fonts/*.otf
 .env
 .env.*
 !.env.example
+
+# The app as it is on main, extracted for the parity checks, and their output.
+.baseline/
+.parity/

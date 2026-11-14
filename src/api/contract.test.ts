@@ -3,7 +3,7 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { addDays } from '../core/util';
-import { ALL_ENDPOINTS, compared, twin } from './twin';
+import { ALL_ENDPOINTS, BASELINE, compared, phoneOnly, twin } from './twin';
 
 const H = 'tourist@tripguide.demo'; // Hannah
 const Z = 'guide@tripguide.demo'; // Zainab
@@ -355,7 +355,9 @@ test('contract: accounts: sign-up, sign-in, passwords, your info, saved card', a
   }
   await s.both('POST', '/auth/login', { phone: '+447400123456', password: 'wrong' });
   await s.both('POST', '/auth/login', { phone: 'not a phone', password: 'Long#pass1' });
-  await s.both('POST', '/auth/login', { email: 'pat@example.com', password: 'Long#pass1' });
+  // Email no longer signs in. On `main` it did: that is the feature change itself, so there is nothing to compare there.
+  if (!BASELINE) await s.both('POST', '/auth/login', { email: 'pat@example.com', password: 'Long#pass1' });
+  else assert.equal((await s.api.call('POST', '/auth/login', { email: 'pat@example.com', password: 'Long#pass1' })).body.error, 'login_failed');
   await s.both('POST', '/auth/login', {});
   // Sign out ends that sign-in only.
   s.useTokens('pat2', await s.both('POST', '/auth/login', { phone: '+44 7400 123456', password: 'Long#pass1' }));
@@ -623,6 +625,7 @@ test('contract: the trip assistant, and every endpoint of the app has been compa
   assert.ok(second.draft);
   const missing = ALL_ENDPOINTS.filter((e) => !compared.has(e));
   assert.deepEqual(missing, [], 'endpoints never compared between the engine and the API');
+  if (BASELINE) console.log(['Compared against main. Phone-only calls with nothing to compare on main (' + phoneOnly.length + '):', ...phoneOnly].join('\n  '));
   assert.equal(ALL_ENDPOINTS.length, 83, '81 engine routes (80 from the demo + phone-code) and the 2 assistant routes');
 });
 
