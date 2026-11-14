@@ -38,7 +38,7 @@ const Env = z.object({
   // SMS: "log" writes the code to the server log (development, tests). A real provider is added when chosen.
   SMS_PROVIDER: z.enum(['log']).default('log'),
   // Payments: "simulated" behaves exactly like the demo.
-  PAYMENT_PROVIDER: z.enum(['simulated']).default('simulated'),
+  PAYMENT_PROVIDER: z.enum(['simulated', 'provider']).default('simulated'),
   // Rate limits can be switched off for load tests.
   RATE_LIMIT: z.enum(['on', 'off']).default('on'),
   TRUST_PROXY: bool,

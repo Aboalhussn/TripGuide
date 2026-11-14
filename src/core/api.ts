@@ -11,11 +11,11 @@ import { bookedDates, bookingMoney, cashOpen, guideCard, guideStats, isAvailable
 type Ctx = { data: Data; p: Platform; user: User | null; now: Date; nowIso: string; today: string };
 type Handler = (ctx: Ctx, params: Record<string, string>, req: ApiRequest) => any;
 
-const routes: { method: string; re: RegExp; keys: string[]; handler: Handler }[] = [];
+const routes: { method: string; pattern: string; re: RegExp; keys: string[]; handler: Handler }[] = [];
 function route(method: string, pattern: string, handler: Handler) {
   const keys: string[] = [];
   const re = new RegExp('^' + pattern.replace(/:(\w+)/g, (_, k) => (keys.push(k), '([^/]+)')) + '$');
-  routes.push({ method, re, keys, handler });
+  routes.push({ method, pattern, re, keys, handler });
 }
 
 // ---------- access helpers ----------
@@ -669,7 +669,8 @@ route('PUT', '/guide/profile', (ctx, _p, req) => {
     if (!Array.isArray(b.photos) || b.photos.length > MAX_PHOTOS) throw bad('field_too_long', { field: 'photos', max: MAX_PHOTOS });
     g.photos = b.photos.map((ph: any) => {
       const img = String(ph?.img || '');
-      const lib = img.startsWith('lib:') && PHOTO_LIBRARY.includes(img.slice(4));
+      // A photo already on the profile is sent back as it is (the server keeps uploads in media storage as 'u:<key>').
+      const lib = (img.startsWith('lib:') && PHOTO_LIBRARY.includes(img.slice(4))) || (img.startsWith('u:') && g.photos.some((x) => x.img === img));
       const upload = /^data:image\/(jpeg|png|webp);base64,/.test(img) && img.length < 400_000;
       if (!lib && !upload) throw bad('photo_invalid');
       return { img, caption: optStr(ph?.caption, 'caption', 80), captionAr: optStr(ph?.captionAr, 'captionAr', 80) };
@@ -1863,3 +1864,16 @@ export type { GuideProfile };
 // Shared with the database-backed API (src/api), so both answer with exactly the same shapes and checks.
 export { meView, passportView, checkPassword, imageData, checkCard, cardExpired, cardBrand, luhn };
 export type { Ctx };
+
+// The rules, one call at a time, for the database-backed API: it loads the rows into `ctx.data`, runs the very same
+// handler inside a transaction, and saves what changed. Throws ApiError exactly as the engine would answer.
+export const ROUTES = routes.map((r) => ({ method: r.method, pattern: r.pattern }));
+export function runRoute(ctx: Ctx, req: ApiRequest): any {
+  const r = routes.find((x) => x.method === req.method && x.re.test(req.path));
+  if (!r) throw notFound();
+  const m = req.path.match(r.re)!;
+  const params: Record<string, string> = {};
+  r.keys.forEach((k, i) => (params[k] = decodeURIComponent(m[i + 1])));
+  return r.handler(ctx, params, req);
+}
+export { sweep, normalize };

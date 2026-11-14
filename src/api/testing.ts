@@ -6,7 +6,7 @@ import { iraqDate } from '../core/util';
 import { schema } from '../db/client';
 import { buildApp } from './app';
 import { loadConfig } from './config';
-import { logSms, testClock } from './services';
+import { decodeDataUrl, logSms, testClock } from './services';
 
 export async function setupApi(opts: { start?: Date; env?: Record<string, string>; demo?: boolean } = {}) {
   const clock = testClock(opts.start || new Date('2026-10-18T09:00:00Z'));
@@ -25,5 +25,11 @@ export async function setupApi(opts: { start?: Date; env?: Record<string, string
   const login = async (who: string, password = DEMO_PASSWORD) => (await ok('POST', '/auth/login', { phone: phoneOf(who), password })).token as string;
   // The last 6-digit code sent by SMS to a number.
   const smsCode = (to: string) => /\b(\d{6})\b/.exec([...sms.sent].reverse().find((m) => m.to === to)?.text || '')?.[1] || null;
-  return { app, db: app.deps.db, cfg, clock, sms, call, ok, login, phoneOf, smsCode, advance: clock.advance, today: () => iraqDate(clock.now()), close: () => app.close() };
+  // Is the picture behind this media link the one that was uploaded (as a data URL)?
+  const sameImage = async (url: unknown, dataUrl: string) => {
+    const key = String(url).split('?')[0].split('/media/')[1];
+    const file = key ? await app.deps.media.read!(key) : null;
+    return !!file && file.bytes.equals(decodeDataUrl(dataUrl)!.bytes);
+  };
+  return { app, sameImage, db: app.deps.db, cfg, clock, sms, call, ok, login, phoneOf, smsCode, advance: clock.advance, today: () => iraqDate(clock.now()), close: () => app.close() };
 }

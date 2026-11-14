@@ -7,8 +7,10 @@ import { openDb, migrate, type OpenDb } from '../db/client';
 import { prepareData } from '../db/seed';
 import { loadConfig, type Config } from './config';
 import { handle, routeCount, type Deps } from './kernel';
+import { paymentProviderFor, type PaymentProvider } from './payments';
 import { logSms, mediaStoreFor, memoryLimiter, redisLimiter, systemClock, type Clock, type MediaStore, type RateLimiter, type SmsSender } from './services';
 import './routes/account';
+import './routes/marketplace';
 
 const MAX_BODY = 3 * 1024 * 1024; // the same limit as the demo server
 const STATIC_TYPES: Record<string, string> = {
@@ -16,7 +18,7 @@ const STATIC_TYPES: Record<string, string> = {
   '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json',
 };
 
-export interface AppOptions { cfg?: Config; clock?: Clock; sms?: SmsSender; media?: MediaStore; limiter?: RateLimiter; database?: OpenDb; publicDir?: string; logger?: boolean }
+export interface AppOptions { cfg?: Config; clock?: Clock; sms?: SmsSender; media?: MediaStore; limiter?: RateLimiter; payments?: PaymentProvider; database?: OpenDb; publicDir?: string; logger?: boolean }
 export interface App { server: FastifyInstance; deps: Deps; cfg: Config; close(): Promise<void>; call(method: string, path: string, body?: any, token?: string | null, query?: Record<string, string>): Promise<{ status: number; body: any }> }
 
 export async function buildApp(opts: AppOptions = {}): Promise<App> {
@@ -35,7 +37,7 @@ export async function buildApp(opts: AppOptions = {}): Promise<App> {
   const redis = !opts.limiter && cfg.REDIS_URL ? await redisLimiter(cfg.REDIS_URL) : null;
   const limiter = opts.limiter || redis || memoryLimiter(clock);
   const sms = opts.sms || logSms((msg) => log.info({ sms: true }, msg));
-  const deps: Deps = { cfg, db: database.db, clock, sms, media, limiter, log };
+  const deps: Deps = { cfg, db: database.db, clock, sms, media, limiter, payments: opts.payments || paymentProviderFor(cfg), log };
 
   const prepared = await prepareData(database.db, cfg, clock, media);
   log.info({ ...prepared, database: database.kind, routes: routeCount(), env: cfg.APP_ENV }, 'data ready');

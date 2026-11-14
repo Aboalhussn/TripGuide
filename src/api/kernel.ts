@@ -8,9 +8,10 @@ import { ApiError, forbidden, iraqDate } from '../core/util';
 import { meView as coreMeView, type Ctx as CoreCtx } from '../core/api';
 import { nextId, schema, type Db, type Tx } from '../db/client';
 import type { Config } from './config';
+import type { PaymentProvider } from './payments';
 import { decodeDataUrl, newMediaKey, type Clock, type MediaStore, type RateLimiter, type SmsSender } from './services';
 
-export interface Deps { cfg: Config; db: Db; clock: Clock; sms: SmsSender; media: MediaStore; limiter: RateLimiter; log: { info(o: object, msg?: string): void; warn(o: object, msg?: string): void; error(o: object, msg?: string): void } }
+export interface Deps { cfg: Config; db: Db; clock: Clock; sms: SmsSender; media: MediaStore; limiter: RateLimiter; payments: PaymentProvider; log: { info(o: object, msg?: string): void; warn(o: object, msg?: string): void; error(o: object, msg?: string): void } }
 export interface Req { method: string; path: string; query: Record<string, string>; body: any; token: string | null; ip: string }
 export interface Res { status: number; body: any }
 export interface Ctx { deps: Deps; tx: Tx; user: User | null; tokenHash: string | null; now: Date; nowIso: string; today: string; req: Req; afterCommit: (() => Promise<void> | void)[] }
@@ -30,6 +31,7 @@ export function route(method: string, pattern: string, handler: Handler) {
   routes.push({ method, re, keys, handler });
 }
 export const routeCount = () => routes.length;
+export const hasRoute = (method: string, pattern: string) => routes.some((r) => r.method === method && r.re.source === new RegExp('^' + pattern.replace(/:(\w+)/g, '([^/]+)') + '$').source);
 
 // ---------- passwords and tokens ----------
 // argon2id. Tests use light settings so the suite stays fast; everything else uses the library's safe defaults.
@@ -117,7 +119,7 @@ export function slice(parts: Partial<Data>): Data {
     ...parts,
   };
 }
-const noPlatform: Platform = { now: () => new Date(0), hashPassword: () => '', verifyPassword: () => false, randomToken: () => '' };
+export const noPlatform: Platform = { now: () => new Date(0), hashPassword: () => '', verifyPassword: () => false, randomToken: () => '' };
 export const coreCtx = (ctx: Ctx, data: Data): CoreCtx => ({ data, p: noPlatform, user: ctx.user, now: ctx.now, nowIso: ctx.nowIso, today: ctx.today });
 
 // GET /me: the engine's own meView, fed with this user's unread notifications, chats and guide profile.
