@@ -18,8 +18,11 @@ let browser: Browser;
 const pageErrors: string[] = [];
 
 before(async () => {
-  server = spawn('node', ['dist/server.mjs'], { env: { AI_PROVIDER: 'mock', ...process.env, PORT: String(PORT), DATA_FILE: DATA }, stdio: 'pipe' });
-  for (let i = 0; i < 50; i++) {
+  // E2E_SERVER=dist/api.mjs runs the same tests against the database-backed API (fresh demo data in memory).
+  const target = process.env.E2E_SERVER || 'dist/server.mjs';
+  const apiEnv = target.includes('api') ? { APP_ENV: 'test', SEED_DEMO: '1', DATABASE_URL: 'memory', MEDIA_DRIVER: 'memory', PUBLIC_URL: '' } : {};
+  server = spawn('node', [target], { env: { AI_PROVIDER: 'mock', ...process.env, ...apiEnv, PORT: String(PORT), DATA_FILE: DATA }, stdio: 'pipe' });
+  for (let i = 0; i < 300; i++) {
     try {
       if ((await fetch(BASE + 'api/meta')).ok) break;
     } catch {

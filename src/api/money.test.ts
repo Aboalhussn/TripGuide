@@ -156,3 +156,20 @@ test('state actions are written to the audit log with who, what and when; identi
   // Suspending signs the account out everywhere.
   assert.equal((await s.db.select().from(schema.sessions).where(eq(schema.sessions.userId, queue[0].id))).length, 0);
 });
+
+test('trip assistant: same endpoints and answers on the database API (mock AI)', async () => {
+  const s = await setup();
+  assert.deepEqual(await s.ok('GET', '/assistant/status'), { enabled: true });
+  const tourist = await s.login(DEMO_ACCOUNTS.tourist);
+  const guide = await s.login(DEMO_ACCOUNTS.guide);
+  const ask = (token: string | null, messages: any[]) => s.call('POST', '/assistant/trip', { messages, draft: {}, lang: 'en' }, token);
+  assert.equal((await ask(null, [{ role: 'user', content: 'hi' }])).status, 401);
+  assert.equal((await ask(guide, [{ role: 'user', content: 'hi' }])).status, 403);
+  assert.deepEqual((await ask(tourist, [])).body, { error: 'field_required', params: { field: 'messages' } });
+  const r = await ask(tourist, [{ role: 'user', content: 'Two days in Babylon next week for 2 people, in English, about 80 dollars a day' }]);
+  assert.equal(r.status, 200);
+  assert.ok(typeof r.body.reply === 'string' && r.body.draft.cities.includes('babylon'));
+  assert.equal(r.body.draft.groupSize, 2);
+  const ctx = await s.ok('GET', '/assistant/context', null, tourist);
+  assert.ok(ctx.guidePrices.babylon.guides >= 1 && ctx.limits.people === 10);
+});

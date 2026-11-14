@@ -1,6 +1,13 @@
 # PLAN — Trip guide: from demo to production
 
-Branch: `production` (from `main` @ `d923015`). Status: **M1 approved. M2 done (schema, seed, phone auth, meta, media, docker-compose). Next: M3.**
+Branch: `production` (from `main` @ `d923015`). Status: **M1 approved. M2 and M3 done. Next: M4.**
+
+How M3 was built (a change from section 3, said plainly): instead of rewriting each rule in SQL, every marketplace call loads the
+rows from PostgreSQL, runs the engine's own handler from `src/core/api.ts` inside one transaction, and saves exactly what it changed
+(`src/api/world.ts`). Writers hold a write lock plus row locks on the booking, its days and the guide. This keeps the rules
+identical by construction. The cost: each API process keeps a copy of the whole data set in memory per data version, and writes run
+one at a time. Narrower per-route loading is the remaining scaling work. Because of this, the M4 and M5 endpoints already answer; M4 and M5
+now mean verifying them, not writing them.
 
 Decisions taken when the plan was approved (my recommended answers to section 10):
 Q1 build fix committed · Q2 phone sign-in added to `src/core` too, the engine frozen at `main` is the parity baseline ·

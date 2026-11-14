@@ -67,14 +67,16 @@ const AUDIT: [RegExp, (req: Req) => string][] = [
 async function run(ctx: Ctx, _params: Record<string, string>, req: Req) {
   const w = new World(ctx);
   // Anything that may change data takes the write lock before it looks at the data.
-  if (req.method !== 'GET' || (await World.lapsedHires(ctx))) {
+  const writes = req.method !== 'GET' || (await World.lapsedHires(ctx));
+  if (writes) {
     await w.lock();
     await lockRows(ctx, req);
   }
-  await w.everything();
+  // Opening a chat marks it read, so that read gets its own copy too.
+  await w.everything(writes || /^\/threads\/\d+$/.test(req.path) ? 'write' : 'read');
   const core: CoreCtx = { data: w.data, p: noPlatform, user: ctx.user ? w.data.users.find((u) => u.id === ctx.user!.id) || null : null, now: ctx.now, nowIso: ctx.nowIso, today: ctx.today };
   // Lapsed hires are settled first, exactly as the engine does before every call; that is saved even if the call then fails.
-  sweep(core);
+  if (writes) sweep(core);
   const swept = w.dirty;
   if (swept) {
     await settle(ctx, w, null);

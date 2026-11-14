@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { DEMO_PASSWORD } from '../core/seed';
 import { iraqDate } from '../core/util';
 import { schema } from '../db/client';
+import { mockProvider } from '../server/mock-ai';
 import { buildApp } from './app';
 import { loadConfig } from './config';
 import { decodeDataUrl, logSms, testClock } from './services';
@@ -12,7 +13,7 @@ export async function setupApi(opts: { start?: Date; env?: Record<string, string
   const clock = testClock(opts.start || new Date('2026-10-18T09:00:00Z'));
   const sms = logSms();
   const cfg = loadConfig({ APP_ENV: 'test', DATABASE_URL: 'memory', MEDIA_DRIVER: 'memory', PUBLIC_URL: 'http://api.test', SEED_DEMO: opts.demo === false ? '0' : '1', ...opts.env });
-  const app = await buildApp({ cfg, clock, sms, logger: false, publicDir: 'none' });
+  const app = await buildApp({ cfg, clock, sms, ai: mockProvider(), logger: false, publicDir: 'none' });
   const call = app.call;
   const ok = async (method: string, path: string, body?: any, token?: string | null, query?: Record<string, string>) => {
     const r = await call(method, path, body, token, query);

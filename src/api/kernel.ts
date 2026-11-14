@@ -168,6 +168,19 @@ export async function saveUpload(ctx: Ctx, dataUrl: string, kind: 'avatar' | 'co
   return (isPrivate ? 'p:' : 'u:') + key;
 }
 
+// ---------- the write lock and the data version ----------
+// Calls that change marketplace data hold the id counters (FOR UPDATE) until they commit, so they run one after
+// another, and they raise the data version so every API process knows its in-memory copy of the data is out of date.
+export async function worldWrite(tx: Tx) {
+  await tx.execute(sql`INSERT INTO "counters" ("name", "value") VALUES ('__version', 0) ON CONFLICT ("name") DO NOTHING`);
+  await tx.execute(sql`SELECT 1 FROM "counters" ORDER BY "name" FOR UPDATE`);
+  await tx.execute(sql`UPDATE "counters" SET "value" = "value" + 1 WHERE "name" = '__version'`);
+}
+export async function worldVersion(tx: Tx): Promise<number> {
+  const r = (await tx.execute(sql`SELECT "value" FROM "counters" WHERE "name" = '__version'`)) as any;
+  return Number(r.rows[0]?.value || 0);
+}
+
 // ---------- audit ----------
 export async function audit(ctx: Ctx, action: string, targetType: string, targetId: string | number, details: Record<string, unknown> = {}) {
   await ctx.tx.insert(schema.auditLog).values({ adminId: ctx.user!.id, action, targetType, targetId: String(targetId), details, ip: ctx.req.ip, at: ctx.now });

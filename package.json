@@ -15,6 +15,7 @@
     "reset": "node scripts/reset.mjs",
     "test": "tsx --test src/core/*.test.ts src/server/*.test.ts src/api/*.test.ts",
     "e2e": "tsx --test e2e/flows.test.ts",
+    "e2e:api": "tsx scripts/e2e-api.ts",
     "check": "tsc --noEmit -p tsconfig.json && tsx scripts/check-strings.ts",
     "build:app": "node scripts/build.mjs --app",
     "cap:sync": "node scripts/build.mjs --app && cap sync",

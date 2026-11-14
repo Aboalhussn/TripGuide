@@ -8,7 +8,7 @@ import { loginPhone, serverPhone } from '../../core/phone';
 import { DEMO_ACCOUNTS, DEMO_PASSWORD } from '../../core/seed';
 import { ApiError, bad, conflict, str } from '../../core/util';
 import { schema } from '../../db/client';
-import { CommittedError, codeHash, hashPassword, loadUser, meView, need, newCode, nextId, route, saveUpload, sha256, startSession, verifyPassword, type Ctx } from '../kernel';
+import { CommittedError, codeHash, hashPassword, loadUser, meView, need, newCode, nextId, route, saveUpload, sha256, startSession, verifyPassword, worldWrite, type Ctx } from '../kernel';
 
 const tooMany = () => new ApiError(429, 'too_many_attempts');
 // Counts one try against a limit; over the limit the call is refused before it does anything.
@@ -67,6 +67,7 @@ route('GET', '/meta', async (ctx) => {
 // ---------- auth ----------
 route('POST', '/auth/register', async (ctx, _p, req) => {
   const { tx } = ctx;
+  await worldWrite(tx);
   await limit(ctx, 'register:ip:' + req.ip, 30, 3600);
   const b = req.body || {};
   const role = b.role === 'guide' ? 'guide' : b.role === 'tourist' ? 'tourist' : null;
@@ -141,6 +142,7 @@ route('POST', '/auth/reset', async (ctx, _p, req) => {
     throw new CommittedError(bad('reset_code_invalid')); // the wrong try is counted even though the call fails
   }
   const passwordHash = await hashPassword(deps.cfg, checkPassword(req.body?.password));
+  await worldWrite(tx);
   await tx.update(schema.users).set({ passwordHash }).where(eq(schema.users.id, u.id));
   await tx.delete(schema.passwordResets).where(eq(schema.passwordResets.userId, u.id));
   await tx.delete(schema.sessions).where(eq(schema.sessions.userId, u.id));
@@ -154,6 +156,7 @@ route('POST', '/me/password', async (ctx, _p, req) => {
   if (!(await verifyPassword(String(req.body?.current || ''), u.passwordHash))) throw bad('password_wrong');
   const pw = checkPassword(req.body?.password);
   if (await verifyPassword(pw, u.passwordHash)) throw bad('password_same');
+  await worldWrite(ctx.tx);
   await ctx.tx.update(schema.users).set({ passwordHash: await hashPassword(ctx.deps.cfg, pw) }).where(eq(schema.users.id, u.id));
   await ctx.tx.delete(schema.sessions).where(and(eq(schema.sessions.userId, u.id), ne(schema.sessions.tokenHash, ctx.tokenHash!)));
   return { ok: true };
@@ -169,6 +172,7 @@ route('GET', '/me', async (ctx) => meView(ctx, need(ctx)));
 route('PUT', '/me', async (ctx, _p, req) => {
   const u = need(ctx);
   const { tx } = ctx;
+  await worldWrite(tx);
   const b = req.body || {};
   const set: Partial<typeof schema.users.$inferInsert> = {};
   if (b.name !== undefined) set.name = str(b.name, 'name', 2, 60);
@@ -223,6 +227,7 @@ route('POST', '/me/verify-phone', async (ctx, _p, req) => {
     if (r) await tx.update(schema.phoneCodes).set({ tries: r.tries + 1 }).where(eq(schema.phoneCodes.userId, u.id));
     throw new CommittedError(bad('code_wrong'));
   }
+  await worldWrite(tx);
   await tx.update(schema.users).set({ phoneVerified: true }).where(eq(schema.users.id, u.id));
   await tx.delete(schema.phoneCodes).where(eq(schema.phoneCodes.userId, u.id));
   return meView(ctx, (await loadUser(tx, u.id))!);

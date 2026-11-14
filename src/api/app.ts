@@ -6,9 +6,12 @@ import cors from '@fastify/cors';
 import { openDb, migrate, type OpenDb } from '../db/client';
 import { prepareData } from '../db/seed';
 import { loadConfig, type Config } from './config';
-import { handle, routeCount, type Deps } from './kernel';
+import { handle, routeCount, type Deps, type Req, type Res } from './kernel';
 import { paymentProviderFor, type PaymentProvider } from './payments';
 import { logSms, mediaStoreFor, memoryLimiter, redisLimiter, systemClock, type Clock, type MediaStore, type RateLimiter, type SmsSender } from './services';
+import { providerFromEnv, type AiProvider } from '../server/ai';
+import { createAssistantHandler, RateLimiter as AssistantLimiter } from '../server/assistant';
+import { mockProvider } from '../server/mock-ai';
 import './routes/account';
 import './routes/marketplace';
 
@@ -18,7 +21,7 @@ const STATIC_TYPES: Record<string, string> = {
   '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json',
 };
 
-export interface AppOptions { cfg?: Config; clock?: Clock; sms?: SmsSender; media?: MediaStore; limiter?: RateLimiter; payments?: PaymentProvider; database?: OpenDb; publicDir?: string; logger?: boolean }
+export interface AppOptions { cfg?: Config; clock?: Clock; sms?: SmsSender; media?: MediaStore; limiter?: RateLimiter; payments?: PaymentProvider; ai?: AiProvider | null; database?: OpenDb; publicDir?: string; logger?: boolean }
 export interface App { server: FastifyInstance; deps: Deps; cfg: Config; close(): Promise<void>; call(method: string, path: string, body?: any, token?: string | null, query?: Record<string, string>): Promise<{ status: number; body: any }> }
 
 export async function buildApp(opts: AppOptions = {}): Promise<App> {
@@ -41,6 +44,23 @@ export async function buildApp(opts: AppOptions = {}): Promise<App> {
 
   const prepared = await prepareData(database.db, cfg, clock, media);
   log.info({ ...prepared, database: database.kind, routes: routeCount(), env: cfg.APP_ENV }, 'data ready');
+
+  // The trip assistant (docs/AI_ASSISTANT.md): the same handler, prompt and limits as the demo server.
+  // It asks the marketplace for its context (which checks the token and the role), then talks to the AI.
+  const ai = opts.ai !== undefined ? opts.ai : providerFromEnv(process.env, mockProvider);
+  const assistantLimiter = new AssistantLimiter(undefined, undefined, () => clock.now().getTime()); // one for the whole process, as before
+  const turn = (context: Res) => createAssistantHandler(() => context, ai, assistantLimiter);
+  const answer = async (req: Req): Promise<Res> => {
+    if (!req.path.startsWith('/assistant/') || req.path === '/assistant/context') return handle(deps, req);
+    const context = req.path === '/assistant/trip' && req.method === 'POST' ? await handle(deps, { ...req, method: 'GET', path: '/assistant/context', body: null, query: {} }) : { status: 500, body: { error: 'server_error' } };
+    try {
+      return (await turn(context)(req)) || { status: 404, body: { error: 'not_found' } };
+    } catch (e) {
+      log.error({ err: String(e) }, 'trip assistant failed');
+      return { status: 500, body: { error: 'server_error' } };
+    }
+  };
+  log.info({ assistant: ai ? `${ai.name} ${ai.model}` : 'off' }, 'trip assistant');
 
   await server.register(cors, {
     origin: (origin, cb) => cb(null, !origin || cfg.allowedOrigins.includes(origin)),
@@ -97,7 +117,7 @@ export async function buildApp(opts: AppOptions = {}): Promise<App> {
     handler: async (req, reply) => {
       const url = new URL(req.url, 'http://local');
       const auth = req.headers.authorization || '';
-      const res = await handle(deps, { method: req.method, path: url.pathname.slice(4), query: Object.fromEntries(url.searchParams), body: req.body ?? null, token: auth.startsWith('Bearer ') ? auth.slice(7) : null, ip: req.ip });
+      const res = await answer({ method: req.method, path: url.pathname.slice(4), query: Object.fromEntries(url.searchParams), body: req.body ?? null, token: auth.startsWith('Bearer ') ? auth.slice(7) : null, ip: req.ip });
       return reply.code(res.status).header('cache-control', 'no-store').send(res.body);
     },
   });
@@ -134,7 +154,7 @@ export async function buildApp(opts: AppOptions = {}): Promise<App> {
     deps,
     cfg,
     // For tests: one API call without HTTP, in the same shape the demo engine's handler has.
-    call: (method, p, body, token, query = {}) => handle(deps, { method, path: p, query, body: body === undefined ? null : JSON.parse(JSON.stringify(body)), token: token ?? null, ip: '127.0.0.1' }),
+    call: (method, p, body, token, query = {}) => answer({ method, path: p, query, body: body === undefined ? null : JSON.parse(JSON.stringify(body)), token: token ?? null, ip: '127.0.0.1' }),
     async close() {
       await server.close();
       if (redis) await redis.close();

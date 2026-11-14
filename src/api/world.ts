@@ -7,7 +7,7 @@
 import { and, eq, inArray, lt, sql } from 'drizzle-orm';
 import type { Data, GuideProfile, User } from '../core/types';
 import { schema, type Tx } from '../db/client';
-import { loadGuides, saveUpload, slice, type Ctx } from './kernel';
+import { loadGuides, saveUpload, slice, worldVersion, worldWrite, type Ctx } from './kernel';
 
 type Rec = Record<string, any>;
 const isDataUrl = (v: unknown): v is string => typeof v === 'string' && v.startsWith('data:image/');
@@ -42,11 +42,22 @@ function toRow(rec: Rec, times: readonly string[]): Rec {
   return out;
 }
 
+// One shared, frozen copy of the data per database and data version.
+const copies = new WeakMap<object, { version: number; data: Promise<Data> }>();
+function deepFreeze<T>(v: T): T {
+  if (v && typeof v === 'object' && !Object.isFrozen(v)) {
+    Object.freeze(v);
+    for (const x of Object.values(v as object)) deepFreeze(x);
+  }
+  return v;
+}
+
 export class World {
   data: Data = slice({});
   private snap = new Map<string, string>(); // what each record looked like when it was loaded
   private seq0: Record<string, number> = {};
   private locked = false;
+  private writable = false;
   uploads = new Map<string, string>(); // data URL -> stored reference, for the answer
   constructor(private ctx: Ctx) {}
   private get tx(): Tx {
@@ -56,7 +67,7 @@ export class World {
   // The write lock: every call that may change data holds the id counters until it commits.
   async lock() {
     if (this.locked) return;
-    await this.tx.execute(sql`SELECT 1 FROM "counters" ORDER BY "name" FOR UPDATE`);
+    await worldWrite(this.tx); // also raises the data version: other processes reload before their next read
     this.locked = true;
   }
 
@@ -64,22 +75,58 @@ export class World {
     for (const r of recs) this.snap.set(coll + ':' + key(r), JSON.stringify(r));
   }
 
-  // Loads the whole marketplace. Correct for every rule; routes with a narrower need can load less later.
-  async everything() {
-    const tx = this.tx;
+  // The marketplace data for this call. Reading from PostgreSQL happens once per data version: calls that only read
+  // share that copy (frozen, so nothing can change it by accident); calls that may write get their own copy.
+  async everything(mode: 'read' | 'write') {
+    // Under the write lock the version is already raised inside this transaction: read straight from the database
+    // and leave the shared copy alone (it would be filed under a version that is not committed yet).
+    if (this.locked) {
+      this.data = await this.load();
+      return this.startTracking();
+    }
+    const version = await worldVersion(this.tx);
+    const db = this.ctx.deps.db as object;
+    let entry = copies.get(db);
+    if (!entry || entry.version !== version) {
+      const fresh = { version, data: this.load().then(deepFreeze) };
+      copies.set(db, fresh);
+      fresh.data.catch(() => copies.get(db) === fresh && copies.delete(db));
+      entry = fresh;
+    }
+    const shared = await entry.data;
+    if (mode === 'read') {
+      this.data = shared;
+      return;
+    }
+    this.data = structuredClone(shared);
+    this.startTracking();
+  }
+
+  // Remembers what every record looks like now, so save() can tell what the handler changed.
+  private startTracking() {
     const d = this.data;
+    this.snap.set('platform', JSON.stringify(d.platform));
+    this.remember('cities', d.cities, (c) => c.slug);
+    this.remember('media', d.media || []);
+    this.remember('users', d.users);
+    this.remember('guides', d.guides, (g) => g.userId);
+    for (const t of TABLES) this.remember(t.name, (d as any)[t.name] || []);
+    this.seq0 = { ...d.seq };
+    this.writable = true;
+  }
+
+  // Reads the whole marketplace from PostgreSQL. Correct for every rule; a route with a narrower need can load less later.
+  private async load(): Promise<Data> {
+    const tx = this.tx;
+    const d = slice({});
     const [platform] = await tx.select().from(schema.platformSettings);
     d.seededAt = platform.seededAt.toISOString();
     d.platform = { guideSubscriptionPrice: platform.guideSubscriptionPrice, subscriptionDays: platform.subscriptionDays, promotionPrice: platform.promotionPrice, promotionDays: platform.promotionDays, iqdPerUsd: platform.iqdPerUsd };
-    this.snap.set('platform', JSON.stringify(d.platform));
     d.cities = (await tx.select().from(schema.cities).orderBy(schema.cities.position)).map((c) => ({ slug: c.slug, name: c.name, nameAr: c.nameAr, covers: c.covers }));
-    this.remember('cities', d.cities, (c) => c.slug);
     d.media = (await tx.select().from(schema.media).orderBy(schema.media.id)).map((m) => ({ id: m.id, img: 'u:' + m.key }));
-    this.remember('media', d.media);
     for (const t of TABLES) {
       const rows = await tx.select().from(t.table as any).orderBy((t.table as any).id);
       (d as any)[t.name] = rows.map((r) => fromRow(r, t.times, t.drop));
-      this.remember(t.name, (d as any)[t.name]);
     }
     // Users with their saved card and passport pages; guides with their photos.
     const cards = await tx.select().from(schema.savedCards);
@@ -94,13 +141,11 @@ export class World {
         phone: r.phone, phoneVerified: r.phoneVerified, paymentVerified: r.paymentVerified, status: r.status, createdAt: r.createdAt.toISOString(),
       };
     });
-    this.remember('users', d.users);
     const guideIds = d.users.filter((u) => u.role === 'guide').map((u) => u.id);
     d.guides = (await loadGuides(tx, guideIds)).sort((a, b) => a.userId - b.userId);
-    this.remember('guides', d.guides, (g) => g.userId);
     const counters = await tx.select().from(schema.counters);
-    d.seq = Object.fromEntries(counters.map((c) => [c.name, c.value]));
-    this.seq0 = { ...d.seq };
+    d.seq = Object.fromEntries(counters.filter((c) => c.name !== '__version').map((c) => [c.name, c.value]));
+    return d;
   }
 
   // Is there a hire whose 48 hours have run out? (Then the next call must take the write lock: the sweep will change data.)
@@ -119,6 +164,9 @@ export class World {
 
   // Saves what the handler changed. Order follows the foreign keys.
   async save() {
+    if (!this.writable) return;
+    // A read that still changes something small (opening a chat marks it read) raises the version itself.
+    if (!this.locked && this.dirty) await this.tx.execute(sql`UPDATE "counters" SET "value" = "value" + 1 WHERE "name" = '__version'`);
     const tx = this.tx;
     const d = this.data;
     const changed = (coll: string, key: string | number, rec: Rec): 'new' | 'changed' | null => {
@@ -263,6 +311,7 @@ export class World {
 
   // Did the handler (or the sweep) change anything since the last load or save?
   get dirty(): boolean {
+    if (!this.writable) return false;
     const d = this.data;
     const same = (coll: string, recs: Rec[], key: (r: Rec) => string | number = (r) => r.id) => recs.every((r) => this.snap.get(coll + ':' + key(r)) === JSON.stringify(r));
     return !(same('users', d.users) && same('guides', d.guides, (g) => g.userId) && TABLES.every((t) => same(t.name, (d as any)[t.name] || []))) || this.seq0.notifications !== d.seq.notifications;
