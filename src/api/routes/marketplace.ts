@@ -88,12 +88,17 @@ async function run(ctx: Ctx, _params: Record<string, string>, req: Req) {
   try {
     answer = runRoute(core, { method: req.method, path: req.path, query: req.query, body, token: req.token });
   } catch (e) {
-    if (e instanceof ApiError && swept) throw new CommittedError(e);
-    throw e; // nothing the failed call did is saved
+    // Nothing the failed call did is saved, except the ids it used up (and the lapsed hires settled above).
+    if (e instanceof ApiError && ((await w.saveCountersOnly()) || swept)) throw new CommittedError(e);
+    throw e;
   }
   const refs = await settle(ctx, w, body?.card);
   await w.save();
   for (const [table, id, providerRef] of refs) await ctx.tx.update(table).set({ provider: ctx.deps.payments.name, providerRef } as any).where(eq(table.id, id));
+  // Suspending an account from the Users page signs it out everywhere (as the engine does; a suspension that comes
+  // with a report decision leaves the session, and the account can still read but not act).
+  const status = /^\/admin\/users\/(\d+)\/status$/.exec(req.path);
+  if (status && w.data.users.find((u) => u.id === Number(status[1]))?.status === 'suspended') await ctx.tx.delete(schema.sessions).where(eq(schema.sessions.userId, Number(status[1])));
   for (const [re, name] of AUDIT) {
     if (req.method !== 'GET' && ctx.user?.role === 'admin' && re.test(req.path)) {
       await audit(ctx, name(req), req.path.split('/')[2], req.path.split('/')[3] || '', deep(req.body || {}, (s) => (s.startsWith('data:') ? '[image]' : s)));

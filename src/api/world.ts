@@ -7,7 +7,7 @@
 import { and, eq, inArray, lt, sql } from 'drizzle-orm';
 import type { Data, GuideProfile, User } from '../core/types';
 import { schema, type Tx } from '../db/client';
-import { loadGuides, saveUpload, slice, worldVersion, worldWrite, type Ctx } from './kernel';
+import { loadGuides, saveUpload, slice, raiseWorldVersion, worldVersion, worldWrite, type Ctx } from './kernel';
 
 type Rec = Record<string, any>;
 const isDataUrl = (v: unknown): v is string => typeof v === 'string' && v.startsWith('data:image/');
@@ -166,7 +166,7 @@ export class World {
   async save() {
     if (!this.writable) return;
     // A read that still changes something small (opening a chat marks it read) raises the version itself.
-    if (!this.locked && this.dirty) await this.tx.execute(sql`UPDATE "counters" SET "value" = "value" + 1 WHERE "name" = '__version'`);
+    if (!this.locked && this.dirty) await raiseWorldVersion(this.tx);
     const tx = this.tx;
     const d = this.data;
     const changed = (coll: string, key: string | number, rec: Rec): 'new' | 'changed' | null => {
@@ -202,8 +202,6 @@ export class World {
       if (isDataUrl(u.avatar)) u.avatar = await this.upload(u.avatar, 'avatar', u.id);
       if (isDataUrl(u.cover)) u.cover = await this.upload(u.cover, 'cover', u.id);
       await tx.update(schema.users).set({ name: u.name, email: u.email, phone: u.phone, country: u.country, avatar: u.avatar ?? null, cover: u.cover ?? null, phoneVerified: u.phoneVerified, paymentVerified: u.paymentVerified, status: u.status }).where(eq(schema.users.id, u.id));
-      // A suspended account is signed out everywhere.
-      if (u.status === 'suspended' && before.status !== 'suspended') await tx.delete(schema.sessions).where(eq(schema.sessions.userId, u.id));
       if (JSON.stringify(u.savedCard || null) !== JSON.stringify(before.savedCard || null)) {
         await tx.delete(schema.savedCards).where(eq(schema.savedCards.userId, u.id));
         if (u.savedCard) await tx.insert(schema.savedCards).values({ userId: u.id, ...u.savedCard });
@@ -307,6 +305,17 @@ export class World {
       refunds: [...refunds].map(([bookingId, amount]) => ({ bookingId, touristId: booking(bookingId).touristId, amount: Math.round(amount * 100) / 100 })),
       payouts: [...payouts].map(([bookingId, amount]) => ({ bookingId, guideId: booking(bookingId).guideId, amount: Math.round(amount * 100) / 100 })),
     };
+  }
+
+  // A call that fails after taking new ids keeps them used (the engine never hands an id out twice either).
+  async saveCountersOnly(): Promise<boolean> {
+    let any = false;
+    for (const [name, value] of Object.entries(this.data.seq)) {
+      if (this.seq0[name] === value || !this.locked) continue;
+      await this.tx.insert(schema.counters).values({ name, value }).onConflictDoUpdate({ target: schema.counters.name, set: { value } });
+      any = true;
+    }
+    return any;
   }
 
   // Did the handler (or the sweep) change anything since the last load or save?

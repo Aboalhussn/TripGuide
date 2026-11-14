@@ -172,9 +172,11 @@ export async function saveUpload(ctx: Ctx, dataUrl: string, kind: 'avatar' | 'co
 // Calls that change marketplace data hold the id counters (FOR UPDATE) until they commit, so they run one after
 // another, and they raise the data version so every API process knows its in-memory copy of the data is out of date.
 export async function worldWrite(tx: Tx) {
-  await tx.execute(sql`INSERT INTO "counters" ("name", "value") VALUES ('__version', 0) ON CONFLICT ("name") DO NOTHING`);
+  await raiseWorldVersion(tx);
   await tx.execute(sql`SELECT 1 FROM "counters" ORDER BY "name" FOR UPDATE`);
-  await tx.execute(sql`UPDATE "counters" SET "value" = "value" + 1 WHERE "name" = '__version'`);
+}
+export async function raiseWorldVersion(tx: Tx) {
+  await tx.execute(sql`INSERT INTO "counters" ("name", "value") VALUES ('__version', 1) ON CONFLICT ("name") DO UPDATE SET "value" = "counters"."value" + 1`);
 }
 export async function worldVersion(tx: Tx): Promise<number> {
   const r = (await tx.execute(sql`SELECT "value" FROM "counters" WHERE "name" = '__version'`)) as any;
