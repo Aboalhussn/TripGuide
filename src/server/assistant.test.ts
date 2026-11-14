@@ -13,7 +13,7 @@ function setup(ai: AiProvider | null = mockProvider(), limiter?: RateLimiter) {
   let n = 0;
   const platform: Platform = { now: () => new Date('2026-10-21T09:00:00Z'), hashPassword: (p) => 'h:' + p, verifyPassword: (p, h) => h === 'h:' + p, randomToken: () => 'tok' + ++n };
   const api = createApi(seed(platform), platform);
-  const login = (email: string) => api({ method: 'POST', path: '/auth/login', body: { email, password: DEMO_PASSWORD }, token: null, query: {} }).body.token as string;
+  const login = (phone: string) => api({ method: 'POST', path: '/auth/login', body: { phone, password: DEMO_PASSWORD }, token: null, query: {} }).body.token as string;
   const handle = createAssistantHandler(api, ai, limiter);
   const tourist = login(DEMO_ACCOUNTS.tourist);
   const turn = (messages: { role: string; content: string }[], draft: unknown = emptyDraft(), token: string | null = tourist, lang = 'en') =>

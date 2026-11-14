@@ -1,3 +1,4 @@
+import { formatPhone } from '../../core/phone';
 import React, { useState } from 'react';
 import { api } from '../lib/api';
 import { useApp, useLoad } from '../lib/app';
@@ -64,7 +65,7 @@ export function AdminVerify() {
             <dl className="facts small">
               <dt>{t('field.phone')}</dt>
               <dd className="ltr">
-                {g.phone || '—'} {g.phoneVerified ? `(${t('badge.phone_verified')})` : ''}
+                {g.phone ? formatPhone(g.phone) : '—'} {g.phoneVerified ? `(${t('badge.phone_verified')})` : ''}
               </dd>
               <dt>{t('field.email')}</dt>
               <dd>{g.email}</dd>

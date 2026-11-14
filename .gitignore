@@ -11,3 +11,12 @@ public/fonts/*.otf
 !public/fonts/aref-ruqaa-arabic-700.woff2
 !public/fonts/reem-kufi-arabic-600.woff2
 !public/fonts/reem-kufi-latin-600.woff2
+
+# Local settings and secrets: never committed.
+.env
+.env.*
+!.env.example
+
+# The app as it is on main, extracted for the parity checks, and their output.
+.baseline/
+.parity/

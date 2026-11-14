@@ -1,21 +1,65 @@
-# On every push to main: builds the Android APK and the iOS app, then publishes both as the
-# newest GitHub Release, so this link always downloads the latest Android build:
+# On every push (any branch): type check, rules tests on PostgreSQL 16, browser tests against the demo server and
+# against the database API, the contract diff against main, and the Android APK.
+# On pushes to main only: the iOS app too, and both are published as the newest GitHub Release, so this link
+# always downloads the latest Android build:
 #   https://github.com/<owner>/<repo>/releases/latest/download/trip-guide.apk
-# Set the repository variable API_URL (Settings > Secrets and variables > Actions > Variables)
-# to your server's address; leave it empty to ship the demo data inside the app.
-name: Mobile apps
+# Repository variables (Settings > Secrets and variables > Actions > Variables):
+#   API_URL   the staging server's address, e.g. https://staging-api.example.com. The apps are built to talk to it.
+#             Leave it empty to ship the demo data inside the app (offline demo).
+#   TG_ENV    "production" hides the demo-only parts of the screens. Anything else is a staging build.
+#   DEMO_AI   "off" hides the pretend trip assistant in the offline app.
+# No secret is needed to build. Server secrets (ADMIN_PASSWORD, TOKEN_SECRET...) live on the server, never here.
+name: Tests and mobile apps
 
 on:
   workflow_dispatch:
   push:
-    branches: [main]
-    paths: ['src/**', 'public/**', 'android/**', 'ios/**', 'assets/**', 'capacitor.config.ts', 'package.json', 'package-lock.json', '.github/workflows/mobile.yml']
 
 permissions:
   contents: write
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 3s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+    env:
+      TEST_DATABASE_URL: postgres://postgres:test@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the contract diff compares against main
+      - name: Make main available for the contract diff
+        run: git rev-parse --verify main || git branch main origin/main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Type check and texts in both languages
+        run: npm run check
+      - name: Rules, phone, money and contract tests (PostgreSQL 16)
+        run: npm test
+      - run: npm run build
+      - name: Browser tests against the demo server
+        run: npm run e2e
+      - name: Browser tests against the database API
+        run: npm run e2e:api
+      - name: Contract diff against the engine on main
+        run: npm run parity:contract
+
   android:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,13 +72,12 @@ jobs:
           distribution: temurin
           java-version: 21
       - run: npm ci
-      - run: npm run check && npm test
-      - name: Build web files for the app
+      - name: Build web files for the app (talking to the staging server when API_URL is set)
         run: npm run build:app
         env:
           API_URL: ${{ vars.API_URL }}
+          TG_ENV: ${{ vars.TG_ENV || 'staging' }}
           # The offline app shows the trip assistant with the pretend AI (no key, no server needed).
-          # Set the repository variable DEMO_AI to "off" to hide it, or point API_URL at a server with a real AI key.
           DEMO_AI: ${{ vars.DEMO_AI || 'mock' }}
       - run: npx cap sync android
       - name: Number this build so phones install it as an update
@@ -50,6 +93,8 @@ jobs:
           path: trip-guide.apk
 
   ios:
+    if: github.ref == 'refs/heads/main'
+    needs: test
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -62,6 +107,7 @@ jobs:
         run: npm run build:app
         env:
           API_URL: ${{ vars.API_URL }}
+          TG_ENV: ${{ vars.TG_ENV || 'staging' }}
           # The offline app shows the trip assistant with the pretend AI (no key, no server needed).
           # Set the repository variable DEMO_AI to "off" to hide it, or point API_URL at a server with a real AI key.
           DEMO_AI: ${{ vars.DEMO_AI || 'mock' }}
@@ -83,6 +129,7 @@ jobs:
           path: trip-guide-unsigned.ipa
 
   release:
+    if: github.ref == 'refs/heads/main'
     needs: [android, ios]
     runs-on: ubuntu-latest
     steps:

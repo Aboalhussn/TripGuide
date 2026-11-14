@@ -5,16 +5,17 @@ import type { ApiRequest, ApiResponse, Booking, Data, GuideProfile, Milestone, O
 import { DEMO_ACCOUNTS, DEMO_PASSWORD } from './seed';
 import { TRIP_LIMITS } from './draft';
 import { ApiError, addDays, bad, conflict, dateRange, daysInclusive, forbidden, iraqDate, isDate, money, nextId, notFound, num, optStr, str, strList } from './util';
+import { loginPhone, serverPhone } from './phone';
 import { bookedDates, bookingMoney, cashOpen, guideCard, guideStats, isAvailable, publicUser, reviewView, reviewVisible, touristStats } from './views';
 
 type Ctx = { data: Data; p: Platform; user: User | null; now: Date; nowIso: string; today: string };
 type Handler = (ctx: Ctx, params: Record<string, string>, req: ApiRequest) => any;
 
-const routes: { method: string; re: RegExp; keys: string[]; handler: Handler }[] = [];
+const routes: { method: string; pattern: string; re: RegExp; keys: string[]; handler: Handler }[] = [];
 function route(method: string, pattern: string, handler: Handler) {
   const keys: string[] = [];
   const re = new RegExp('^' + pattern.replace(/:(\w+)/g, (_, k) => (keys.push(k), '([^/]+)')) + '$');
-  routes.push({ method, re, keys, handler });
+  routes.push({ method, pattern, re, keys, handler });
 }
 
 // ---------- access helpers ----------
@@ -311,9 +312,11 @@ route('POST', '/auth/register', (ctx, _p, req) => {
   const role = b.role === 'guide' ? 'guide' : b.role === 'tourist' ? 'tourist' : null;
   if (!role) throw bad('field_required', { field: 'role' });
   const name = str(b.name, 'name', 2, 60);
+  const phone = serverPhone(b.phone);
   const email = str(b.email, 'email', 3, 120).toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw bad('email_invalid');
   checkPassword(b.password);
+  if (ctx.data.users.some((u) => u.phone === phone)) throw conflict('phone_taken');
   if (ctx.data.users.some((u) => u.email === email)) throw conflict('email_taken');
   const country = str(b.country, 'country', 2, 60);
   const gender = b.gender === 'f' ? 'f' : b.gender === 'm' ? 'm' : null;
@@ -327,7 +330,7 @@ route('POST', '/auth/register', (ctx, _p, req) => {
     country,
     gender,
     avatarColor: ctx.data.users.length % AVATAR_COLORS,
-    phone: '',
+    phone,
     phoneVerified: false,
     paymentVerified: false,
     status: 'active',
@@ -363,20 +366,19 @@ route('POST', '/auth/register', (ctx, _p, req) => {
 });
 
 route('POST', '/auth/login', (ctx, _p, req) => {
-  const email = String(req.body?.email || '').trim().toLowerCase();
-  const u = ctx.data.users.find((x) => x.email === email);
+  const phone = loginPhone(req.body?.phone);
+  const u = phone ? ctx.data.users.find((x) => x.phone === phone) : undefined;
   if (!u || !ctx.p.verifyPassword(String(req.body?.password || ''), u.passwordHash)) throw new ApiError(401, 'login_failed');
   const token = ctx.p.randomToken();
   ctx.data.sessions.push({ token, userId: u.id, createdAt: ctx.nowIso });
   return { token, user: meView(ctx, u) };
 });
 
-// Forgot password: sends a 6-digit code to the email (in the demo, with no email service, the code is
-// returned as demoCode). The answer is the same whether or not the email has an account.
+// Forgot password: sends a 6-digit code by SMS to the phone (in the demo, with no SMS service, the code is
+// returned as demoCode). The answer is the same whether or not the phone has an account.
 route('POST', '/auth/forgot', (ctx, _p, req) => {
-  const email = String(req.body?.email || '').trim().toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw bad('email_invalid');
-  const u = ctx.data.users.find((x) => x.email === email && x.role !== 'admin');
+  const phone = serverPhone(req.body?.phone);
+  const u = ctx.data.users.find((x) => x.phone === phone && x.role !== 'admin');
   if (!u) return { sent: true };
   const code = String(Math.floor(100000 + Math.random() * 900000));
   ctx.data.resets = (ctx.data.resets || []).filter((r) => r.userId !== u.id);
@@ -384,10 +386,10 @@ route('POST', '/auth/forgot', (ctx, _p, req) => {
   return { sent: true, ...(settings.showDemoLogins ? { demoCode: code } : {}) };
 });
 
-// Sets a new password with the code from the email, signs out everywhere else, and signs in.
+// Sets a new password with the code from the SMS, signs out everywhere else, and signs in.
 route('POST', '/auth/reset', (ctx, _p, req) => {
-  const email = String(req.body?.email || '').trim().toLowerCase();
-  const u = ctx.data.users.find((x) => x.email === email);
+  const phone = loginPhone(req.body?.phone);
+  const u = phone ? ctx.data.users.find((x) => x.phone === phone) : undefined;
   const r = u && (ctx.data.resets || []).find((x) => x.userId === u.id);
   if (!u || !r || r.expiresAt < ctx.nowIso || r.tries >= 5) throw bad('reset_code_invalid');
   if (!ctx.p.verifyPassword(String(req.body?.code || '').trim(), r.codeHash)) {
@@ -482,8 +484,8 @@ route('PUT', '/me', (ctx, _p, req) => {
     u.email = email;
   }
   if (b.phone !== undefined) {
-    const phone = optStr(b.phone, 'phone', 20);
-    if (phone && !/^\+?[0-9 ]{7,20}$/.test(phone)) throw bad('phone_invalid');
+    const phone = serverPhone(b.phone);
+    if (phone !== u.phone && ctx.data.users.some((x) => x.phone === phone)) throw conflict('phone_taken');
     if (phone !== u.phone) u.phoneVerified = false;
     u.phone = phone;
   }
@@ -522,6 +524,13 @@ route('POST', '/guide/photos', (ctx, _p, req) => {
   const img = imageData(req.body?.img, 'img', 400_000);
   g.photos.push({ img, caption: optStr(req.body?.caption, 'caption', 80), captionAr: optStr(req.body?.captionAr, 'captionAr', 80) });
   return meView(ctx, u);
+});
+
+// Sends the phone verification code by SMS. The demo has no SMS service: the code is the fixed demo code.
+route('POST', '/me/phone-code', (ctx) => {
+  const u = need(ctx);
+  if (!u.phone) throw bad('phone_missing');
+  return { sent: true };
 });
 
 route('POST', '/me/verify-phone', (ctx, _p, req) => {
@@ -660,7 +669,8 @@ route('PUT', '/guide/profile', (ctx, _p, req) => {
     if (!Array.isArray(b.photos) || b.photos.length > MAX_PHOTOS) throw bad('field_too_long', { field: 'photos', max: MAX_PHOTOS });
     g.photos = b.photos.map((ph: any) => {
       const img = String(ph?.img || '');
-      const lib = img.startsWith('lib:') && PHOTO_LIBRARY.includes(img.slice(4));
+      // A photo already on the profile is sent back as it is (the server keeps uploads in media storage as 'u:<key>').
+      const lib = (img.startsWith('lib:') && PHOTO_LIBRARY.includes(img.slice(4))) || (img.startsWith('u:') && g.photos.some((x) => x.img === img));
       const upload = /^data:image\/(jpeg|png|webp);base64,/.test(img) && img.length < 400_000;
       if (!lib && !upload) throw bad('photo_invalid');
       return { img, caption: optStr(ph?.caption, 'caption', 80), captionAr: optStr(ph?.captionAr, 'captionAr', 80) };
@@ -1850,3 +1860,20 @@ export function createApi(data: Data, platform: Platform, onChange: (data: Data)
 
 export type ApiHandler = ReturnType<typeof createApi>;
 export type { GuideProfile };
+
+// Shared with the database-backed API (src/api), so both answer with exactly the same shapes and checks.
+export { meView, passportView, checkPassword, imageData, checkCard, cardExpired, cardBrand, luhn };
+export type { Ctx };
+
+// The rules, one call at a time, for the database-backed API: it loads the rows into `ctx.data`, runs the very same
+// handler inside a transaction, and saves what changed. Throws ApiError exactly as the engine would answer.
+export const ROUTES = routes.map((r) => ({ method: r.method, pattern: r.pattern }));
+export function runRoute(ctx: Ctx, req: ApiRequest): any {
+  const r = routes.find((x) => x.method === req.method && x.re.test(req.path));
+  if (!r) throw notFound();
+  const m = req.path.match(r.re)!;
+  const params: Record<string, string> = {};
+  r.keys.forEach((k, i) => (params[k] = decodeURIComponent(m[i + 1])));
+  return r.handler(ctx, params, req);
+}
+export { sweep, normalize };

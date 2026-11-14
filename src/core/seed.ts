@@ -5,11 +5,15 @@ import { addDays, dateRange, daysInclusive, iraqDate, money } from './util';
 import { settings } from '../config/brand';
 
 export const DEMO_PASSWORD = 'Demo@1234';
+// Every demo account has its own phone number: +964 770 000 1000 (the demo admin), then one up per account,
+// in the order they are created below (10 guides, then the tourists). People sign in with these.
+export const demoPhone = (n: number) => '+96477000' + String(1000 + n).padStart(5, '0');
 export const DEMO_ACCOUNTS = {
-  tourist: 'tourist@tripguide.demo',
-  guide: 'guide@tripguide.demo',
-  admin: 'admin@tripguide.demo',
+  tourist: demoPhone(11), // Hannah
+  guide: demoPhone(1), // Zainab
+  admin: demoPhone(0),
 };
+export const DEMO_EMAILS = { tourist: 'tourist@tripguide.demo', guide: 'guide@tripguide.demo', admin: 'admin@tripguide.demo' };
 
 // Small deterministic random generator so the seed is the same every time.
 function rng(seed: number) {
@@ -269,14 +273,14 @@ export function seed(platform: Platform): Data {
   const addUser = (role: User['role'], name: string, email: string, country: string, gender: 'm' | 'f', createdDaysAgo: number): User => {
     const u: User = {
       id: id('users'), role, name, email, passwordHash: hash, country, gender,
-      avatarColor: data.users.length % 6, phone: role === 'admin' ? '' : '+964 770 000 ' + String(1000 + data.users.length).slice(-4),
+      avatarColor: data.users.length % 6, phone: demoPhone(data.users.length),
       phoneVerified: role !== 'admin', paymentVerified: role === 'tourist', status: 'active', createdAt: ago(createdDaysAgo),
     };
     data.users.push(u);
     return u;
   };
 
-  addUser('admin', 'Trip guide team', DEMO_ACCOUNTS.admin, 'Iraq', 'f', 420);
+  addUser('admin', 'Trip guide team', DEMO_EMAILS.admin, 'Iraq', 'f', 420);
   const guideUsers: Record<string, User> = {};
   GUIDES.forEach((gs, i) => {
     const u = addUser('guide', gs.name, gs.email, 'Iraq', gs.gender, 600 - i * 40);

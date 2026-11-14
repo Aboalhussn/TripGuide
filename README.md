@@ -6,7 +6,7 @@ Trip guide is a mobile app that connects tourists visiting Iraq with local, veri
 
 It runs on **Android and iOS** (one shared code base, wrapped with Capacitor), and as a website. Every screen is in **English and Arabic** (Arabic is fully right to left).
 
-> Trip guide is an independent platform. It is not run by, or affiliated with, any government body. Payments in this version are simulated: no real money moves.
+> Payments in this version are simulated: no real money moves. SMS codes are written to the server log until an SMS provider is connected.
 
 **Download the latest Android build:** <https://github.com/Aboalhussn/TripGuide/releases/latest/download/trip-guide.apk>
 
@@ -120,25 +120,34 @@ If something goes wrong, either side can **report a problem**. The held money st
 
 ## 5. How the app is built
 
-Plain language first: the **whole marketplace logic** (every rule, price and check) is written once in `src/core`. That same code runs in two places:
+Plain language first: the **whole marketplace logic** (every rule, price and check) is written once in `src/core`. That same code runs in three places:
 
-1. **On a Node server** (`src/server/index.ts`), which saves the data in one JSON file. Used when the app is hosted as a website or the phone apps are pointed at a server.
-2. **Inside the app itself** (`src/web/demo.tsx`), with the data saved in the phone's browser storage. This is how the phone apps and the demo page work today, **fully offline**, with no server needed.
+1. **In the production API** (`src/api`, Fastify + PostgreSQL). For every call it loads the rows from the database, runs the rule from `src/core` inside one transaction, and saves exactly what changed. This is what a real launch uses.
+2. **Inside the app itself** (`src/web/demo.tsx`), with the data saved in the phone's browser storage. This is the **offline demo**: no server needed.
+3. **On the small demo server** (`src/server/index.ts`), which saves the data in one JSON file. Kept for quick demos and as the reference the tests compare against.
 
-The screens (`src/web`) are a React app. They call the API through `src/web/lib/api.ts`, which talks to the server if there is one, or to the built-in engine if not. Because both paths use the same `src/core/api.ts`, the app behaves the same either way.
+The screens (`src/web`) are a React app. They call the API through `src/web/lib/api.ts`, which talks to the server if there is one, or to the built-in engine if not. Because every path uses the same `src/core/api.ts`, the app behaves the same everywhere. `PARITY.md` shows how that is proved.
 
 | Part | Technology | Why |
 |---|---|---|
 | Screens | React 19 + TypeScript | One code base for phone and web |
 | Styling | One CSS file with design tokens, logical properties | Right-to-left Arabic for free, no CSS framework needed |
-| Logic and data | `src/core` (TypeScript, no dependencies) | Runs on the server and on the phone |
-| Server | Node's built-in `http` module | No framework, nothing to install |
+| Rules | `src/core` (TypeScript) | Runs in the API, on the demo server and on the phone |
+| Production API | Fastify 5, PostgreSQL 16, Drizzle ORM and SQL migrations | Transactions and locks for money and availability |
+| Passwords and sign-in | argon2id; random tokens stored hashed, with an expiry | Nothing reusable is stored |
+| Phone numbers | libphonenumber-js, on the screens and on the server | Any mobile number in the world, kept in E.164 form |
+| Rate limits | Redis (memory when there is no Redis) | Sign-in, sign-up, forgot password, the assistant |
+| Photos | S3-compatible storage (a folder on disk in development) | ID photos are private: signed links, state account only |
 | Build | esbuild (`scripts/build.mjs`) | Builds everything in about a second |
 | Phone apps | Capacitor 7 | Wraps the web app as real Android and iOS apps |
-| Tests | Node's test runner + Playwright | Rules tests and real-browser tests |
-| Releases | GitHub Actions | Every push to `main` builds and publishes the APK |
+| Tests | Node's test runner + Playwright | Rules, money safety, contract diff, real-browser tests |
+| Releases | GitHub Actions | Tests on every push; the APK and a release from `main` |
 
 Routing uses the address hash (`#/requests/12`), so it works inside the phone apps without server setup.
+
+**How people sign in.** With their **phone number** and a password. The phone field has a country picker (Iraq +964 first) and accepts any valid mobile number, typed with or without the leading 0, with spaces, dashes or Arabic digits. Numbers are stored as `+9647713111325`. An email is still asked for at sign-up.
+
+**The state account.** The admin side is the state (the government authority). Its account is created the first time the API starts, with the phone in `ADMIN_PHONE` (`+9647713111325`) and the password in `ADMIN_PASSWORD`, which is stored hashed only and lives in your `.env` file, never in this repository.
 
 ## 6. Project structure
 
@@ -163,11 +172,29 @@ TripGuide/
 │   │   ├── draft.ts           the trip assistant's draft: what is missing, cleaning AI output (docs/AI_ASSISTANT.md)
 │   │   ├── catalog.ts         built-in governorates, places, languages, interests, cover photos
 │   │   ├── seed.ts            demo data (guides, tourists, trips, chats), dated relative to today
+│   │   ├── phone.ts           phone numbers: validation per country, E.164, the country list
 │   │   ├── util.ts            small helpers: validation, dates, money, errors
 │   │   └── api.test.ts        rules tests
 │   │
+│   ├── api/                   THE PRODUCTION API (Fastify + PostgreSQL)
+│   │   ├── index.ts, app.ts   start-up; HTTP server: /api, /media, health checks, CORS, limits
+│   │   ├── kernel.ts          one call = one transaction: sign-in tokens, roles, media links, audit log
+│   │   ├── world.ts           loads rows, runs the rule from src/core, saves what changed; the write lock
+│   │   ├── routes/account.ts  meta, sign-up, sign-in by phone, passwords, your info, phone verification
+│   │   ├── routes/marketplace.ts  every other endpoint, with row locks for money and availability
+│   │   ├── payments.ts        PaymentProvider: the simulated provider and a stub for a real Iraqi one
+│   │   ├── services.ts        clock, SMS sender, media storage (disk / S3), rate limits
+│   │   ├── config.ts          environment variables
+│   │   └── *.test.ts          account, rules, money and contract tests (twin.ts: engine vs API)
+│   │
+│   ├── db/                    THE DATABASE
+│   │   ├── schema.ts          every table (Drizzle)
+│   │   ├── migrations/        SQL migrations, applied on start
+│   │   ├── seed.ts, cli.ts    first data: production (governorates + the state account) or the demo data
+│   │   └── client.ts          PostgreSQL, or an embedded one for development and tests
+│   │
 │   ├── server/
-│   │   ├── index.ts           Node web server: serves the app and /api, saves data/db.json
+│   │   ├── index.ts           the small demo server: serves the app and /api, saves data/db.json
 │   │   ├── ai.ts              talks to the AI (OpenAI-compatible APIs or Anthropic), set by AI_* variables
 │   │   ├── assistant.ts       the trip assistant: prompt, one chat turn, suggestions, /api/assistant/*
 │   │   └── mock-ai.ts         a pretend AI for tests and demos with no key
@@ -180,6 +207,7 @@ TripGuide/
 │       ├── PullToRefresh.tsx  pull down on home to refresh
 │       ├── passport.tsx       the travel passport book, page turns, sound, closed cover
 │       ├── ui.tsx             shared pieces: buttons, icons, fields, trip card, modal, …
+│       ├── PhoneField.tsx     the phone field: country code picker + number
 │       ├── strings.ts         every text in English and Arabic
 │       ├── styles.css         all styles and design tokens
 │       ├── assets.ts          finds pictures (inlined in the offline build)
@@ -211,8 +239,14 @@ TripGuide/
 ├── e2e/
 │   └── flows.test.ts          browser tests: real screens at phone size, English and Arabic
 │
+├── docs/                      AI_ASSISTANT.md (the trip assistant), DEPLOY.md (production, backups)
+├── PLAN.md, PARITY.md, IMPROVEMENTS.md   the plan, the proof nothing else changed, ideas not done
+├── Dockerfile, docker-compose.yml, .env.example
+│
 ├── scripts/
-│   ├── build.mjs              builds the website, the server, the offline demo and the phone app files
+│   ├── build.mjs              builds the website, the API, the demo server, the offline demo and the phone app files
+│   ├── baseline.mjs           extracts the app as it is on main, for the parity checks
+│   ├── parity-contract.ts, parity-screens.ts, e2e-api.ts   the parity checks
 │   ├── dev.mjs                rebuilds and restarts on every change
 │   ├── reset.mjs              deletes saved data so the next start has fresh demo data
 │   └── check-strings.ts       fails if a text is missing in English or Arabic
@@ -220,7 +254,7 @@ TripGuide/
 ├── android/  ios/             the native phone projects (made by Capacitor)
 ├── assets/                    app icon and splash source images
 └── .github/workflows/
-    └── mobile.yml             on every push: check, test, build APK and iOS app, publish a release
+    └── mobile.yml             every push: tests and the APK; pushes to main: iOS app and a release
 ```
 
 ## 7. Run it on your computer
@@ -229,37 +263,99 @@ You need [Node.js](https://nodejs.org/) 22 or newer.
 
 ```bash
 npm install
+```
+
+**The production API with demo data** (an embedded PostgreSQL in `data/pg`, photos in `data/media`, nothing else to install):
+
+```bash
+# .env (never committed):  SEED_DEMO=1
+npm run api
+```
+
+**The same with PostgreSQL 16, Redis and MinIO in Docker:**
+
+```bash
+# .env (never committed):  ADMIN_PASSWORD=your-own-strong-password
+docker compose up --build
+```
+
+**The small demo server** (data in `data/db.json`):
+
+```bash
 npm start
 ```
 
-Open **http://localhost:3000**. The first start creates `data/db.json` with demo data: 8 governorates and their places, 10 guides, 20 tourists, open requests with offers, a tour in progress, a hire waiting for the guide, an open report and a guide waiting for verification. Dates are relative to today, so the demo always looks current.
+All three open at **http://localhost:3000**. The demo data has 8 governorates and their places, 10 guides, 20 tourists, open requests with offers, a tour in progress, a hire waiting for the guide, an open report and a guide waiting for verification. Dates are relative to today, so the demo always looks current. Codes "sent by SMS" appear in the server log.
 
 | Command | What it does |
 |---|---|
-| `npm start` | Build, then serve the app and API on one port (`PORT`, default 3000) |
-| `npm run dev` | Rebuild and restart on every change |
-| `npm run reset` | Delete saved data; the next start creates fresh demo data |
+| `npm run api` | Build, then run the production API (`PORT`, default 3000). Settings come from `.env`: see `.env.example` |
+| `npm run api:dev` | The API from source, restarting on every change |
+| `npm run db:migrate` / `npm run db:seed` / `npm run db:seed -- --demo` | Apply migrations / first data for production / the demo data |
+| `npm run db:generate` | Make a new SQL migration after changing `src/db/schema.ts` |
+| `npm start` | The small demo server |
+| `npm run dev` | The demo server, rebuilding and restarting on every change |
+| `npm run reset` | Delete the demo server's saved data |
 | `npm run build:demo` | Build `dist/demo/index.html`: the whole app in one file that runs in any browser with no server. Add `DEMO_AI=mock` to include the trip assistant with its pretend AI |
-| `npm run build:app` | Build the files the phone apps use (`dist/app`) |
-| `npm test` | Rules tests |
-| `npm run e2e` | Browser tests (run `npm run build` first; needs `npx playwright install chromium` once) |
+| `npm run build:app` | Build the files the phone apps use (`dist/app`). `API_URL=https://your-server` points them at a server |
+| `npm test` | Rules, phone, account, money and contract tests. `TEST_DATABASE_URL=postgres://…` runs them on a real PostgreSQL |
+| `npm run e2e` / `npm run e2e:api` | Browser tests against the demo server / against the production API (run `npm run build` first; needs `npx playwright install chromium` once) |
+| `npm run parity:contract` / `npm run parity:screens` | Compare the new API, and the screens, with the app as it is on `main` |
 | `npm run check` | Type check, and check every text exists in English and Arabic |
+
+Build flags: `TG_ENV=production` hides the demo-only parts of the screens; `TG_API_BASE=https://your-api` makes the website call an API on another address.
 
 ## 8. Demo accounts
 
-On the sign-in screen tap **Try the demo**, pick an account and tap **Enter as…**. All passwords are `Demo@1234`.
+On the sign-in screen tap **Try the demo**, pick an account and tap **Enter as…** (staging builds only). Or sign in with a phone number below. All demo passwords are `Demo@1234`.
 
-| Who | Email | What to try |
+| Who | Phone | What to try |
 |---|---|---|
-| Hannah, tourist | `tourist@tripguide.demo` | Compare the offers on her Babylon trip, chat, hire. Release a day of her Karbala tour. Open her passport and turn the pages, or add a photo with the passport button |
-| Zainab, guide | `guide@tripguide.demo` | Send an offer from the requests feed, confirm a hire, add a tour photo with the + button, edit her profile |
-| Admin | `admin@tripguide.demo` | Verify a guide, resolve a report, add a governorate with the + button, change prices |
+| Hannah, tourist | `+964 770 000 1011` | Compare the offers on her Babylon trip, chat, hire. Open her passport and turn the pages, or add a photo with the passport button |
+| Zainab, guide | `+964 770 000 1001` | Send an offer from the requests feed, confirm a hire, add a tour photo with the + button, edit her profile |
+| Demo admin (the state) | `+964 770 000 1000` | Verify a guide, transfer a payment, resolve a report, add a governorate with the + button, change prices |
 
-Other guides: `ali@`, `omar@`, `noor@`, `hussein@`, `sara@`, `yousif@`, `layla@`, `ahmed@`, `hamid@`. Other tourists: `marco@`, `lena@`, `yousef@`, `fatima@`, `james@`, `aiko@`, `reza@` (all `@tripguide.demo`).
+Every demo account and its phone number:
+
+| Name | Role | Phone | Email |
+|---|---|---|---|
+| Trip guide team | admin | `+964 770 000 1000` | `admin@tripguide.demo` |
+| Zainab Al-Rubaie | guide | `+964 770 000 1001` | `guide@tripguide.demo` |
+| Ali Hassan | guide | `+964 770 000 1002` | `ali@tripguide.demo` |
+| Omar Saad | guide | `+964 770 000 1003` | `omar@tripguide.demo` |
+| Noor Kareem | guide | `+964 770 000 1004` | `noor@tripguide.demo` |
+| Hussein Al-Musawi | guide | `+964 770 000 1005` | `hussein@tripguide.demo` |
+| Sara Mahmoud | guide | `+964 770 000 1006` | `sara@tripguide.demo` |
+| Yousif Aziz | guide | `+964 770 000 1007` | `yousif@tripguide.demo` |
+| Layla Jasim | guide | `+964 770 000 1008` | `layla@tripguide.demo` |
+| Ahmed Kadhim | guide | `+964 770 000 1009` | `ahmed@tripguide.demo` |
+| Hamid Jaber | guide | `+964 770 000 1010` | `hamid@tripguide.demo` |
+| Hannah Weber | tourist | `+964 770 000 1011` | `tourist@tripguide.demo` |
+| Marco Rossi | tourist | `+964 770 000 1012` | `marco@tripguide.demo` |
+| Lena de Vries | tourist | `+964 770 000 1013` | `lena@tripguide.demo` |
+| Yousef Al-Sabah | tourist | `+964 770 000 1014` | `yousef@tripguide.demo` |
+| Fatima Raza | tourist | `+964 770 000 1015` | `fatima@tripguide.demo` |
+| James Carter | tourist | `+964 770 000 1016` | `james@tripguide.demo` |
+| Aiko Tanaka | tourist | `+964 770 000 1017` | `aiko@tripguide.demo` |
+| Reza Karimi | tourist | `+964 770 000 1018` | `reza@tripguide.demo` |
+| Sophie Martin | tourist | `+964 770 000 1019` | `sophie@tripguide.demo` |
+| Daniel Kim | tourist | `+964 770 000 1020` | `daniel@tripguide.demo` |
+| Emma Johansson | tourist | `+964 770 000 1021` | `emma@tripguide.demo` |
+| Carlos Mendes | tourist | `+964 770 000 1022` | `carlos@tripguide.demo` |
+| Mariam Khan | tourist | `+964 770 000 1023` | `mariam@tripguide.demo` |
+| Thomas Becker | tourist | `+964 770 000 1024` | `thomas@tripguide.demo` |
+| Olivia Brown | tourist | `+964 770 000 1025` | `olivia@tripguide.demo` |
+| Mehmet Yilmaz | tourist | `+964 770 000 1026` | `mehmet@tripguide.demo` |
+| Ana Petrova | tourist | `+964 770 000 1027` | `ana@tripguide.demo` |
+| Ali Rezaei | tourist | `+964 770 000 1028` | `alirezaei@tripguide.demo` |
+| Grace Lee | tourist | `+964 770 000 1029` | `grace@tripguide.demo` |
+| Pierre Dubois | tourist | `+964 770 000 1030` | `pierre@tripguide.demo` |
+
+The demo admin exists only in the demo data. The real state account (`+964 771 311 1325`) is created from `ADMIN_PASSWORD` and is the only account a production database starts with.
 
 ### The trip assistant (AI)
 
-The assistant runs on the server, because the AI key must never ship inside the app. So **the server must be running** (`npm start`) and the app must be using it: the website does, and phone apps built with `API_URL` do. The offline phone app has no server, so it hides the assistant and keeps the normal form.
+The assistant runs on the server, because the AI key must never ship inside the app. So **the server must be running** (`npm run api` or `npm start`) and the app must be using it: the website does, and phone apps built with `API_URL` do. The offline phone app has no server, so it hides the assistant and keeps the normal form.
 
 ```bash
 AI_PROVIDER=mock npm start      # try it with no key (a simple pretend AI)
@@ -273,28 +369,28 @@ Everything about it (how it works, settings, the endpoint, limits, tests) is in 
 
 The phone apps are the same web app wrapped by Capacitor (`android/`, `ios/`). Without a server address they carry the demo engine inside and work offline.
 
-On **every push to `main`**, GitHub Actions (`.github/workflows/mobile.yml`):
+On **every push**, GitHub Actions (`.github/workflows/mobile.yml`):
 
-1. installs, type-checks and runs the rules tests;
-2. builds the Android APK and an unsigned iOS app;
-3. publishes them as a new release (`v1.0.<run number>`), marked as the latest.
+1. type-checks, runs the rules, money and contract tests on PostgreSQL 16, and the browser tests against both servers;
+2. builds the Android APK (kept with the run).
+
+On pushes to **`main`** it also builds an unsigned iOS app and publishes both as a new release (`v1.0.<run number>`), marked as the latest.
 
 So this link always downloads the newest Android build: <https://github.com/Aboalhussn/TripGuide/releases/latest/download/trip-guide.apk>
 
-The offline APK includes the trip assistant with the pretend AI (it understands simple English and everyday Arabic, and answers with demo data). Set the repository variable `DEMO_AI` to `off` to hide it. To point the apps at a real server, set the repository variable `API_URL`. Building by hand with Android Studio or Xcode is described in [MOBILE.md](MOBILE.md).
+The offline APK includes the trip assistant with the pretend AI (it understands simple English and everyday Arabic, and answers with demo data). Set the repository variable `DEMO_AI` to `off` to hide it. To point the apps at a real server (staging), set the repository variable `API_URL`; set `TG_ENV` to `production` to hide the demo-only parts. Building by hand with Android Studio or Xcode is described in [MOBILE.md](MOBILE.md).
 
 ## 10. Tests
 
-- **Trip assistant** (`src/core/draft.test.ts`, `src/server/assistant.test.ts`, part of `npm test`): the draft rules, cleaning what the AI says, the mock AI chat in English and Arabic, broken AI answers, who may use it and the limits. No key or internet needed.
-- **Rules** (`src/core/api.test.ts`, `npm test`): the full flow from posting to reviews, direct hire, the 48-hour lapse, declines, reports and refunds, verification, validation and limits, trip covers, governorates added by the admin, the travel passport, saved cards and more. A test clock moves time forward.
-- **Browser** (`e2e/flows.test.ts`, `npm run e2e`): starts a real server with fresh data and drives Chromium at phone size, for example:
-  - post, offer, chat, hire, confirm, admin transfers the payment, review both ways;
-  - direct hire, guide sign-up and verification, reports and refunds;
-  - strict limits, the hire flow, profile menus and photos, the fixed buttons;
-  - the admin adding a governorate;
-  - the passport turning by button, keyboard and drag.
+- **Rules** (`src/core/api.test.ts`): the full flow from posting to reviews, direct hire, the 48-hour lapse, declines, reports and refunds, verification, validation and limits, covers, governorates, the travel passport, saved cards and more. A test clock moves time forward. The same scenarios run against the production API in `src/api/rules.test.ts`.
+- **Phone numbers** (`src/core/phone.test.ts`): validation per country, E.164, the leading 0, spaces, dashes, Arabic digits, a pasted `+` number, the country search.
+- **Accounts** (`src/api/account.test.ts`): sign-up and sign-in by phone, uniqueness, SMS reset, hashed tokens with expiry, the state account from `ADMIN_PASSWORD`, production switches.
+- **Money** (`src/api/money.test.ts`): two hires at the same moment, a double payout, a double withdrawal, a refused card, a lapsed hire, the audit log, private ID photos.
+- **Contract** (`src/api/contract.test.ts`): every endpoint called on the old engine and on the new API, with the answers compared.
+- **Trip assistant** (`src/core/draft.test.ts`, `src/server/assistant.test.ts`): the draft rules, the mock AI in English and Arabic, broken AI answers, limits.
+- **Browser** (`e2e/flows.test.ts`): drives Chromium at phone size through the real screens, in English and Arabic, against the demo server (`npm run e2e`) and the production API (`npm run e2e:api`). It fails on sideways scrolling, missing translations or any JavaScript error.
 
-  It also opens every main screen in Arabic at phone and desktop width, and fails on sideways scrolling, missing translations or any JavaScript error.
+`PARITY.md` has the results and what they do and do not prove.
 
 ## 11. Settings, names and fonts
 
@@ -310,10 +406,29 @@ The offline APK includes the trip assistant with the pretend AI (it understands 
 | `iqdPerUsd` | `1310` | Starting dollar-to-dinar rate (the admin can change it) |
 | `confirmWindowHours` | `48` | Time a guide has to confirm a hire |
 | `reviewRevealDays` | `14` | When a one-sided review becomes visible |
-| `demoPhoneCode` | `123456` | Simulated phone verification code |
+| `demoPhoneCode` | `123456` | Phone verification code that works in the demo and on staging (production sends a real code by SMS) |
 | `showDemoLogins` | `true` | The "Try the demo" button. Turn off for a real launch |
 
-Server environment variables: `PORT`, `DATA_FILE` (path of the JSON data file), `RESET=1` (start with fresh demo data), `ALLOWED_ORIGINS`, and for the trip assistant `AI_PROVIDER`, `AI_API_KEY`, `AI_MODEL`, `AI_BASE_URL` ([docs/AI_ASSISTANT.md](docs/AI_ASSISTANT.md#6-ai-providers-and-settings)).
+**Environment variables of the production API.** Every one is listed with a comment in `.env.example`; [docs/DEPLOY.md](docs/DEPLOY.md) says which ones staging and production must set.
+
+| Variable | Meaning |
+|---|---|
+| `APP_ENV` | `development`, `staging` (demo helpers on) or `production` (demo helpers off) |
+| `PORT` | Port to listen on (3000) |
+| `DATABASE_URL` | PostgreSQL address. Empty in development = an embedded database in `data/pg` |
+| `REDIS_URL` | Redis for rate limits. Empty = counted in memory |
+| `WEB_ORIGIN`, `PUBLIC_URL`, `TRUST_PROXY` | The website's address (CORS), this API's public address, and whether a proxy ends HTTPS |
+| `TOKEN_SECRET` | 32+ random characters; signs SMS codes and private photo links |
+| `SESSION_DAYS` | How long a sign-in lasts without being used (30) |
+| `ADMIN_PHONE`, `ADMIN_PASSWORD`, `ADMIN_EMAIL`, `ADMIN_NAME` | The state account, created on first start. The password is stored hashed only |
+| `SEED_DEMO` | `1` fills an empty database with the demo data (never in production) |
+| `MEDIA_DRIVER`, `MEDIA_DIR`, `S3_*` | Where photos are kept: a folder, or S3-compatible storage with a public and a private bucket |
+| `SMS_PROVIDER` | `log` (codes go to the server log). A real provider is not connected yet |
+| `PAYMENT_PROVIDER` | `simulated` (behaves like the demo) |
+| `RATE_LIMIT`, `LOG_LEVEL` | `on`/`off`; log detail |
+| `AI_PROVIDER`, `AI_API_KEY`, `AI_MODEL`, `AI_BASE_URL` | The trip assistant ([docs/AI_ASSISTANT.md](docs/AI_ASSISTANT.md#6-ai-providers-and-settings)) |
+
+The small demo server has its own few: `PORT`, `DATA_FILE`, `RESET=1`, `ALLOWED_ORIGINS`, and the `AI_*` ones.
 
 **Fonts.**
 - **Thmanyah Sans** is the app's main font. Its licence does not allow redistributing the files, so they are not in this repository. Download them from [font.thmanyah.com](https://font.thmanyah.com) and copy `thmanyahsans-Regular/Medium/Bold/Black.woff2` into `public/fonts/`. Without them the app uses system fonts.
@@ -328,10 +443,13 @@ Every action in the app is one HTTP endpoint. The screens call these, and an age
 | What | Where |
 |---|---|
 | Every endpoint and rule | `src/core/api.ts`. Each one is a single `route('METHOD', '/path', handler)` call; search for the path to find it (for example `route('POST', '/requests'`). Routes are grouped in the file in the same order as the tables below. |
+| The production API around those rules (database, transactions, locks, tokens, media, audit log) | `src/api` (`routes/account.ts` for sign-in and your info, `routes/marketplace.ts` + `world.ts` for everything else) |
+| Tables | `src/db/schema.ts` |
+| Phone number rules | `src/core/phone.ts` |
 | Record shapes (User, TripRequest, Offer, Booking, Milestone…) | `src/core/types.ts` |
 | What other people may see of a record | `src/core/views.ts` (`publicUser`, `guideCard`, `bookingView`…) |
 | Allowed values (governorates, languages, interests, includes, rating keys) | `src/core/catalog.ts`, and live from `GET /meta` |
-| HTTP server (adds `/api`, reads the token, saves data) | `src/server/index.ts` |
+| The small demo server (adds `/api`, reads the token, saves one JSON file) | `src/server/index.ts` |
 | The same API inside the offline phone app | `src/web/demo.tsx` (no HTTP: `window.__TG_LOCAL_API`) |
 | How the screens call it | `src/web/lib/api.ts` (`api(method, path, body)`) |
 
@@ -339,9 +457,10 @@ Every action in the app is one HTTP endpoint. The screens call these, and an age
 
 - **Base URL:** `https://<your-server>/api` (for example `POST http://localhost:3000/api/auth/login`). The phone apps use the server set in `API_URL`, or the built-in engine when none is set.
 - **Format:** JSON in, JSON out. Dates are `YYYY-MM-DD`; money is US dollars as numbers.
-- **Sign in:** `POST /auth/login` returns `{ token, user }`. Send `Authorization: Bearer <token>` on every other call. Demo accounts are in [section 8](#8-demo-accounts).
-- **Errors:** a non-2xx status with `{ "error": "code", "params": { … } }`, for example `400 {"error":"field_invalid","params":{"field":"cities"}}`. `401` means not signed in, `403` means the wrong role, `404` means not found or not yours, `409` means the record is in the wrong state (for example `request_not_open`).
+- **Sign in:** `POST /auth/login` with `{ phone, password }` returns `{ token, user }`. The phone is the full number with its country code (`+9647713111325`). Send `Authorization: Bearer <token>` on every other call. Tokens end on sign-out, on a password change, and after 30 days without use. Demo accounts are in [section 8](#8-demo-accounts).
+- **Errors:** a non-2xx status with `{ "error": "code", "params": { … } }`, for example `400 {"error":"field_invalid","params":{"field":"cities"}}`. `401` means not signed in, `403` means the wrong role, `404` means not found or not yours, `409` means the record is in the wrong state (for example `request_not_open`), `429` means too many tries (`too_many_attempts`). A call that fails changes nothing.
 - **Who:** the "Who" column below is the role the token must have. "Anyone" needs no token; "Signed in" is any role; "Party" means the tourist or guide on that booking.
+- **Photos:** send them as `data:image/...;base64` text. Answers carry a link instead (`https://…/media/…`); governorate and event photos keep their `m:<id>` names, and `GET /meta` maps those to links.
 - **Rules are on the server:** limits, prices, dates and money are always checked by `src/core/api.ts`, so an agent cannot do anything the app itself would refuse.
 
 ### Start and accounts
@@ -349,17 +468,18 @@ Every action in the app is one HTTP endpoint. The screens call these, and an age
 | Endpoint | Who | Send | What it does |
 |---|---|---|---|
 | `GET /meta` | Anyone | – | Everything needed to fill forms: governorates (`cities`), heritage places, cover photos per governorate, languages, interests, includes, rating keys, fee, prices, dollar-to-dinar rate, `today`, demo logins |
-| `POST /auth/register` | Anyone | `role` (`tourist`/`guide`), `name`, `email`, `password` (8+ with upper, lower, number, symbol), `country`, `gender` (`f`/`m`) | Creates an account and signs in; returns `{ token, user }` |
-| `POST /auth/login` | Anyone | `email`, `password` | Signs in; returns `{ token, user }` |
+| `POST /auth/register` | Anyone | `role` (`tourist`/`guide`), `name`, `phone` (full number, e.g. `+9647713111325`; must be a valid mobile number and not used by another account), `email`, `password` (8+ with upper, lower, number, symbol), `country`, `gender` (`f`/`m`) | Creates an account and signs in; returns `{ token, user }`. Phone errors: `country_code_required`, `phone_invalid`, `phone_taken` |
+| `POST /auth/login` | Anyone | `phone`, `password` | Signs in; returns `{ token, user }` |
 | `POST /auth/logout` | Signed in | – | Ends this session |
-| `POST /auth/forgot` | Anyone | `email` | Sends a 6-digit reset code (valid 15 minutes; in the demo it is returned as `demoCode`). Same answer whether or not the email exists |
-| `POST /auth/reset` | Anyone | `email`, `code`, `password` | Sets a new password with the code, signs out other sessions, and signs in; returns `{ token, user }` |
+| `POST /auth/forgot` | Anyone | `phone` | Sends a 6-digit reset code by SMS (valid 15 minutes, 5 tries; on staging it is also returned as `demoCode`). Same answer whether or not the phone has an account |
+| `POST /auth/reset` | Anyone | `phone`, `code`, `password` | Sets a new password with the code, signs out other sessions, and signs in; returns `{ token, user }` |
 | `POST /me/password` | Signed in | `current`, `password` | Changes the password; other sessions are signed out |
 | `GET /me` | Signed in | – | The signed-in user: profile, saved card (brand and last 4 only), unread counts, guide profile, travel passport |
-| `PUT /me` | Signed in | any of `name`, `email`, `country`, `phone`, `avatar`, `cover` (images as `data:image/...;base64`) | Edits your info and photos |
+| `PUT /me` | Signed in | any of `name`, `email`, `country`, `phone` (same rules as at sign-up; a new number is not verified), `avatar`, `cover` (images as `data:image/...;base64`, or `null` to remove) | Edits your info and photos |
 | `PUT /me/card` | Tourist, Guide | `number`, `name`, `expiry` (`MM/YY`), `cvc` | Saves a payment card (only brand, last 4, name and expiry are kept) |
 | `DELETE /me/card` | Tourist, Guide | – | Removes the saved card |
-| `POST /me/verify-phone` | Signed in | `code` | Marks the phone verified (demo code in settings) |
+| `POST /me/phone-code` | Signed in | – | Sends a verification code by SMS to your phone |
+| `POST /me/verify-phone` | Signed in | `code` | Marks the phone verified (the SMS code; on staging the demo code also works) |
 | `POST /me/verify-payment` | Tourist | `card` | Marks the payment method verified |
 | `GET /users/:id` | Signed in | – | A tourist's public profile: stats, reviews from guides, travel passport (a guide id redirects to the guide page) |
 
@@ -374,7 +494,7 @@ Every action in the app is one HTTP endpoint. The screens call these, and an age
 
 | Endpoint | Who | Send | What it does |
 |---|---|---|---|
-| `GET /guides` | Anyone | query: `q`, `city`, `lang`, `spec`, `maxPrice`, `minRating`, `from`, `to` (free on those dates), `verified=1`, `female=1`, `sort` (`best`/`rating`/`price_low`/`price_high`/`tours`) | Searches guides |
+| `GET /guides` | Anyone | query: `q`, `city`, `lang`, `spec`, `maxPrice`, `minRating`, `from`, `to` (free on those dates), `verified=1`, `female=1`, `promoted=1`, `sort` (`best`/`rating`/`price_low`/`price_high`/`tours`) | Searches guides |
 | `GET /guides/:id` | Anyone | – | A guide's full page: bio, languages, places, price, calendar, photos, track record, reviews. For a signed-in tourist, `forMe` shows their booking, pending offer and open requests with this guide |
 | `PUT /guide/profile` | Guide | any of `headline`, `headlineAr`, `bio`, `bioAr`, `pricePerDay`, `cities`, `languages` (`[{code, level}]`), `specialities`, `places`, `blockedDates`, `photos`, `acceptsCash` | Edits the guide profile |
 | `POST /guide/photos` | Guide | `img`, `caption`, `captionAr` | Adds a tour photo (up to 12) |
@@ -445,15 +565,15 @@ A card booking is **one full payment**. The platform holds it and the admin move
 |---|---|---|---|
 | `GET /admin/stats` | Admin | – | Platform numbers and statistics per governorate |
 | `GET /admin/settings` / `PUT /admin/settings` | Admin | `guideSubscriptionPrice`, `subscriptionDays`, `promotionPrice`, `promotionDays`, `iqdPerUsd` | Reads / changes prices and the dinar rate |
-| `GET /admin/verifications` | Admin | – | Guides waiting for verification, with their three `photos` (`idFront`, `idBack`, `residence`) |
+| `GET /admin/verifications` | Admin | – | Guides waiting for verification, with their three `photos` (`idFront`, `idBack`, `residence`) as private links that work for five minutes |
 | `GET /admin/payouts` | Admin | – | Card bookings whose payment is waiting: `held`, `fee`, `toGuide`, `ended` |
 | `POST /admin/bookings/:id/payout` | Admin | – | Transfers the booking's whole held payment to the guide (minus the service fee) |
 | `POST /admin/events` | Admin | `title`, `titleAr`, `city`, `startDate`, `endDate`, `img` (data URL or photo name), optional `venue`, `venueAr`, `description`, `descriptionAr` | Adds a special event |
 | `PUT /admin/events/:id` / `DELETE /admin/events/:id` | Admin | same as above / – | Edits or deletes a special event |
 | `POST /admin/guides/:id/verify` | Admin | `approve` (true/false), `note` (reason when rejecting) | Verifies or rejects a guide |
-| `GET /admin/reports` | Admin | – | Reports to decide |
+| `GET /admin/reports` | Admin | query: `status=resolved` for the decided ones | Reports to decide |
 | `POST /admin/reports/:id/resolve` | Admin | `action` (`refund`/`release`/`dismiss`), `note`, `suspend` | Refunds the tourist, pays the guide, or dismisses; can suspend |
-| `GET /admin/users` | Admin | query: `query` | Searches users |
+| `GET /admin/users` | Admin | query: `q` (name or email) | Searches users |
 | `POST /admin/users/:id/status` | Admin | `status` (`active`/`suspended`) | Suspends or reactivates an account |
 | `GET /admin/cities` / `GET /admin/cities/:slug` | Admin | – | Governorates with their places and photos |
 | `POST /admin/cities` | Admin | `name`, `nameAr`, `places` (`[{name, nameAr, kind}]`, 1–30), `covers` (1–12: data URLs or existing photo names) | Adds a governorate |
@@ -466,6 +586,8 @@ A card booking is **one full payment**. The platform holds it and the admin move
 | `GET /assistant/context` | Tourist | – | What the assistant needs: allowed values, today, and real guide prices per governorate |
 | `GET /assistant/status` | Anyone | – | `{ enabled }`: whether the server has an AI set up (server only, not in the offline app) |
 | `POST /assistant/trip` | Tourist | `messages` (`[{role, content}]`), `draft`, `lang` (`en`/`ar`) | One chat turn: returns `reply`, the updated `draft`, `missing`, `problems`, `suggestions`, `ready`. Nothing is saved or posted; post with `POST /requests`. Details in [docs/AI_ASSISTANT.md](docs/AI_ASSISTANT.md#7-the-endpoint) |
+
+Every change the state account makes (verify or reject, payout, report decision, governorates, events, prices, suspending a user) is written to the audit log, and so is each time it opens the identity photos.
 
 ### Using it from an agent or an MCP server
 
@@ -481,7 +603,7 @@ Typical flows:
 - **Guide finds work:** `POST /guide/verification` (once, then wait for the admin) → `PUT /guide/profile` → `GET /requests` → `POST /requests/:id/offers` → `POST /bookings/:id/confirm` → the admin pays → `POST /wallet/withdraw`.
 - **Admin's daily check:** `GET /admin/verifications` → `POST /admin/guides/:id/verify`; `GET /admin/payouts` → `POST /admin/bookings/:id/payout`; `GET /admin/reports` → `POST /admin/reports/:id/resolve`; `POST /admin/events` for a new special event.
 
-To add an endpoint, add one `route(...)` call in `src/core/api.ts`, a test in `src/core/api.test.ts`, and a row in this table.
+To add an endpoint, add one `route(...)` call in `src/core/api.ts`, a test in `src/core/api.test.ts`, a step in `src/api/contract.test.ts` (its last test fails if an endpoint is never compared), and a row in this table.
 
 ## 13. Rules the app enforces
 
@@ -505,16 +627,19 @@ Prices are always calculated on the server, and a guide can't be booked on days 
 
 ## 14. Deploy
 
-Any host that runs Node 22 works; there are no native modules.
-
-- **Render (free):** create a Web Service from this repository with build command `npm install && npm run build` and start command `node dist/server.mjs` (`render.yaml` sets this up). Free instances lose their disk on restart, which suits a demo. For data that must last, attach a disk and set `DATA_FILE`.
-- **No server at all:** run `npm run build:demo` and host `dist/demo/index.html` anywhere (GitHub Pages, Netlify). Each visitor gets their own copy of the demo.
+- **Production:** [docs/DEPLOY.md](docs/DEPLOY.md) has the steps: the Docker image, PostgreSQL 16, Redis, storage buckets, environment variables, HTTPS, health checks, logs and daily backups.
+- **The whole stack on your computer:** `docker compose up --build` (API, PostgreSQL, Redis, MinIO, demo data).
+- **A quick demo with no database:** the small demo server on any host that runs Node 22 (`npm install && npm run build`, then `node dist/server.mjs`; `render.yaml` sets this up on Render).
+- **No server at all:** `npm run build:demo` and host `dist/demo/index.html` anywhere. Each visitor gets their own copy of the demo.
 
 ## 15. Known limits
 
-- **Payments are simulated.** Connecting a real provider (for example Qi Card or ZainCash) means replacing the hire, release and refund steps with real calls.
-- **Storage is one JSON file** on the server, or the phone's storage in the offline app. Fine for a demo; for real use, move `src/core` onto a database.
-- **Photos are stored inline** (shrunk in the phone first). A real launch should move them to file storage.
-- **The trip assistant needs the server** (it holds the AI key), so the offline phone app hides it. Its rate limit is kept in memory and resets when the server restarts.
+- **Payments are simulated.** They sit behind a `PaymentProvider` interface (`src/api/payments.ts`) with a stub for a real Iraqi provider. A real provider will need its own card form: card numbers must not pass through this server.
+- **SMS is not connected.** Codes are written to the server log. Forgot-password and phone verification need a provider that delivers internationally before real users can use them.
+- **Each API process keeps the marketplace data in memory** per data version, and changes run one at a time. Correct and fine for a launch; loading only what each call needs is the next step before large data.
+- **The trip assistant's own limit is per process**, and the assistant needs a server (it holds the AI key), so the offline phone app shows it only with the pretend AI.
 - **Messages and notifications refresh by polling.** Push notifications would need a push service.
-- **Sign-in tokens live in local storage.** Use httpOnly cookies on the web, and add password reset and rate limiting before a public launch.
+- **Sign-in tokens live in the app's local storage.** They are random, stored hashed on the server, expire, and end on sign-out and password change.
+- **Country flags** in the phone field are emoji: Windows browsers show two letters instead.
+
+More ideas that were noticed but not done are in [IMPROVEMENTS.md](IMPROVEMENTS.md).

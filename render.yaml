@@ -1,10 +1,31 @@
+# Free trial hosting of the real API on Render (render.com): New > Blueprint > this repository, branch `production`.
+# The database and the photo storage are a free Supabase project (docs/FREE_HOSTING.md has every step).
+# Values marked `sync: false` are typed by you in Render's dashboard. They are never written in this repository.
+# Free services sleep after 15 minutes without visitors; the first call after that takes about a minute.
 services:
   - type: web
-    name: tripguide
-    runtime: node
+    name: tripguide-api
+    runtime: docker
     plan: free
-    buildCommand: npm install && npm run build
-    startCommand: node dist/server.mjs
+    branch: production
+    autoDeploy: true
+    healthCheckPath: /healthz
     envVars:
-      - key: NODE_VERSION
-        value: "22"
+      - { key: APP_ENV, value: staging } # staging: demo accounts and demo data, codes shown on screen (no SMS provider yet)
+      - { key: SEED_DEMO, value: '1' }
+      - { key: TRUST_PROXY, value: '1' }
+      - { key: TOKEN_SECRET, generateValue: true }
+      - { key: ADMIN_PASSWORD, sync: false } # the state account's password: 8+ characters with a capital, a small letter, a number and a symbol
+      - { key: DATABASE_URL, sync: false } # Supabase > Connect > Session pooler
+      - { key: DATABASE_SSL, value: require }
+      - { key: DATABASE_POOL, value: '5' }
+      - { key: MEDIA_DRIVER, value: s3 }
+      - { key: S3_FORCE_PATH_STYLE, value: '1' }
+      - { key: S3_ENDPOINT, sync: false } # https://<project-ref>.storage.supabase.co/storage/v1/s3
+      - { key: S3_REGION, sync: false } # shown next to the endpoint
+      - { key: S3_ACCESS_KEY_ID, sync: false }
+      - { key: S3_SECRET_ACCESS_KEY, sync: false }
+      - { key: S3_BUCKET, value: tripguide-public }
+      - { key: S3_PRIVATE_BUCKET, value: tripguide-private }
+      - { key: S3_PUBLIC_URL, sync: false } # https://<project-ref>.supabase.co/storage/v1/object/public/tripguide-public
+      - { key: AI_PROVIDER, value: mock } # the pretend trip assistant; replace with a real provider and key when you have one

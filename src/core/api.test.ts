@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createApi } from './api';
-import { seed, DEMO_PASSWORD, DEMO_ACCOUNTS } from './seed';
+import { seed, DEMO_PASSWORD, DEMO_ACCOUNTS, DEMO_EMAILS } from './seed';
 import { addDays, iraqDate } from './util';
 import type { Platform } from './types';
 
@@ -22,10 +22,12 @@ function setup(start = new Date('2026-10-18T09:00:00Z')) {
     assert.equal(r.status, 200, `${method} ${path} -> ${r.status} ${JSON.stringify(r.body)}`);
     return r.body;
   };
-  const login = (email: string) => ok('POST', '/auth/login', { email, password: DEMO_PASSWORD }).token as string;
+  // People sign in with their phone number. Tests may still name a demo account by its email.
+  const phoneOf = (who: string) => (who.startsWith('+') ? who : data.users.find((u) => u.email === who)!.phone);
+  const login = (who: string) => ok('POST', '/auth/login', { phone: phoneOf(who), password: DEMO_PASSWORD }).token as string;
   const advance = (hours: number) => (clock += hours * 3600_000);
   const today = () => iraqDate(new Date(clock));
-  return { data, call, ok, login, advance, today };
+  return { data, call, ok, login, advance, today, phoneOf };
 }
 
 const CARD = { number: '4242 4242 4242 4242', name: 'Test Tourist', expiry: '12/30', cvc: '123' };
@@ -67,7 +69,7 @@ test('seed: demo accounts log in and dashboards load', () => {
 
 test('full flow: post, offer, hire, confirm, release day by day, review both ways', () => {
   const s = setup();
-  const reg = s.ok('POST', '/auth/register', { role: 'tourist', name: 'Test Tourist', email: 'tt@example.com', password: 'Long#pass1', country: 'Spain', gender: 'f' });
+  const reg = s.ok('POST', '/auth/register', { role: 'tourist', name: 'Test Tourist', phone: '+34612345678', email: 'tt@example.com', password: 'Long#pass1', country: 'Spain', gender: 'f' });
   const tt = reg.token;
   const req = s.ok('POST', '/requests', tripBody(s.today()), tt);
   assert.equal(req.days, 2);
@@ -186,14 +188,14 @@ test('report and admin refund', () => {
   const b = s.ok('GET', `/bookings/${reports[0].bookingId}`, null, reza);
   assert.equal(b.status, 'cancelled');
   assert.equal(b.money.refunded, 55);
-  assert.equal(s.call('POST', '/auth/login', { email: 'hamid@tripguide.demo', password: DEMO_PASSWORD }).status, 200);
+  assert.equal(s.call('POST', '/auth/login', { phone: s.phoneOf('hamid@tripguide.demo'), password: DEMO_PASSWORD }).status, 200);
   const hamidTok = s.login('hamid@tripguide.demo');
   assert.equal(s.call('POST', '/threads', { touristId: 1 }, hamidTok).body.error, 'account_suspended');
 });
 
 test('guide sign-up, profile, verification approved by admin', () => {
   const s = setup();
-  const g = s.ok('POST', '/auth/register', { role: 'guide', name: 'New Guide', email: 'new@guide.iq', password: 'Guide#2026', country: 'Iraq', gender: 'm' }).token;
+  const g = s.ok('POST', '/auth/register', { role: 'guide', name: 'New Guide', phone: '+9647801234567', email: 'new@guide.iq', password: 'Guide#2026', country: 'Iraq', gender: 'm' }).token;
   const profile = { headline: 'Basra boat tours', bio: 'I run boat trips on the Shatt al-Arab and in the marshes for small groups.', cities: ['basra'], pricePerDay: 45, languages: [{ code: 'ar', level: 'native' }, { code: 'en', level: 'good' }], specialities: ['nature'] };
   // Identity first: the profile, price and bio are locked until the admin approves.
   assert.equal(s.call('PUT', '/guide/profile', profile, g).body.error, 'verify_first');
@@ -374,7 +376,7 @@ test('a trip sent straight to one guide carries the tourist plan and stays hidde
   const meId = s.ok('GET', '/me', null, g).id;
   const other = s.data.guides.find((x) => x.userId !== meId && x.headline)!;
   const otherUser = s.data.users.find((u) => u.id === other.userId)!;
-  const og = s.ok('POST', '/auth/login', { email: otherUser.email, password: DEMO_PASSWORD }).token as string;
+  const og = s.ok('POST', '/auth/login', { phone: otherUser.phone, password: DEMO_PASSWORD }).token as string;
   const plan = [{ title: 'Old Baghdad', details: 'Mutanabbi Street' }, { title: '', details: '' }];
   const r = s.ok('POST', '/requests', { ...tripBody(s.today()), directGuideId: meId, plan }, tt);
   assert.deepEqual(s.ok('GET', `/requests/${r.id}`, null, tt).plan, plan);
@@ -398,7 +400,8 @@ test('admin city statistics', () => {
 
 test('new accounts need a strong password', () => {
   const s = setup();
-  const reg = (password: string) => s.call('POST', '/auth/register', { role: 'tourist', name: 'Pat Doe', email: password.length + 'p' + Math.random() + '@ex.com', password, country: 'Spain', gender: 'f' });
+  let n = 0;
+  const reg = (password: string) => s.call('POST', '/auth/register', { role: 'tourist', name: 'Pat Doe', phone: '+3461234567' + n++, email: password.length + 'p' + Math.random() + '@ex.com', password, country: 'Spain', gender: 'f' });
   assert.equal(reg('Ab1!').body.error, 'password_short');
   for (const weak of ['alllower1!', 'ALLUPPER1!', 'NoDigits!!', 'NoSymbol12']) assert.equal(reg(weak).body.error, 'password_weak', weak);
   assert.equal(reg('Strong#Pass9').status, 200);
@@ -482,7 +485,7 @@ test('changing name, country and email from the profile; a taken email is refuse
   assert.equal(me.email, 'hannah.new@example.com');
   assert.equal(me.country, 'Austria');
   assert.equal(s.call('PUT', '/me', { email: 'not-an-email' }, tt).body.error, 'email_invalid');
-  assert.equal(s.call('PUT', '/me', { email: DEMO_ACCOUNTS.guide }, tt).body.error, 'email_taken');
+  assert.equal(s.call('PUT', '/me', { email: DEMO_EMAILS.guide }, tt).body.error, 'email_taken');
 });
 
 test('trip cover: picked from the chosen governorates, checked by the server, with a default', () => {
@@ -596,21 +599,21 @@ test('wallet: a guide withdraws released earnings to a saved card; a tourist kee
 
 test('passwords: forgot sends a code (shown in the demo), reset signs in with the new one; change needs the current one', () => {
   const s = setup();
-  assert.deepEqual(s.ok('POST', '/auth/forgot', { email: 'nobody@example.com' }), { sent: true }); // same answer for unknown emails
-  const f = s.ok('POST', '/auth/forgot', { email: DEMO_ACCOUNTS.tourist });
+  assert.deepEqual(s.ok('POST', '/auth/forgot', { phone: '+9647809999999' }), { sent: true }); // same answer for unknown numbers
+  const f = s.ok('POST', '/auth/forgot', { phone: DEMO_ACCOUNTS.tourist });
   assert.match(f.demoCode, /^\d{6}$/);
   const wrong = f.demoCode === '000000' ? '111111' : '000000';
-  assert.equal(s.call('POST', '/auth/reset', { email: DEMO_ACCOUNTS.tourist, code: wrong, password: 'New#Pass123' }).body.error, 'reset_code_invalid');
-  assert.equal(s.call('POST', '/auth/reset', { email: DEMO_ACCOUNTS.tourist, code: f.demoCode, password: 'weak' }).body.error, 'password_short');
-  const r = s.ok('POST', '/auth/reset', { email: DEMO_ACCOUNTS.tourist, code: f.demoCode, password: 'New#Pass123' });
+  assert.equal(s.call('POST', '/auth/reset', { phone: DEMO_ACCOUNTS.tourist, code: wrong, password: 'New#Pass123' }).body.error, 'reset_code_invalid');
+  assert.equal(s.call('POST', '/auth/reset', { phone: DEMO_ACCOUNTS.tourist, code: f.demoCode, password: 'weak' }).body.error, 'password_short');
+  const r = s.ok('POST', '/auth/reset', { phone: DEMO_ACCOUNTS.tourist, code: f.demoCode, password: 'New#Pass123' });
   assert.ok(r.token);
-  assert.equal(s.call('POST', '/auth/reset', { email: DEMO_ACCOUNTS.tourist, code: f.demoCode, password: 'Other#Pass1' }).body.error, 'reset_code_invalid'); // used once
-  assert.equal(s.call('POST', '/auth/login', { email: DEMO_ACCOUNTS.tourist, password: 'Demo@1234' }).status, 401);
-  const tk = s.ok('POST', '/auth/login', { email: DEMO_ACCOUNTS.tourist, password: 'New#Pass123' }).token;
+  assert.equal(s.call('POST', '/auth/reset', { phone: DEMO_ACCOUNTS.tourist, code: f.demoCode, password: 'Other#Pass1' }).body.error, 'reset_code_invalid'); // used once
+  assert.equal(s.call('POST', '/auth/login', { phone: DEMO_ACCOUNTS.tourist, password: 'Demo@1234' }).status, 401);
+  const tk = s.ok('POST', '/auth/login', { phone: DEMO_ACCOUNTS.tourist, password: 'New#Pass123' }).token;
   assert.equal(s.call('POST', '/me/password', { current: 'nope', password: 'Third#Pass1' }, tk).body.error, 'password_wrong');
   assert.equal(s.call('POST', '/me/password', { current: 'New#Pass123', password: 'New#Pass123' }, tk).body.error, 'password_same');
   s.ok('POST', '/me/password', { current: 'New#Pass123', password: 'Third#Pass1' }, tk);
-  assert.equal(s.call('POST', '/auth/login', { email: DEMO_ACCOUNTS.tourist, password: 'Third#Pass1' }).status, 200);
+  assert.equal(s.call('POST', '/auth/login', { phone: DEMO_ACCOUNTS.tourist, password: 'Third#Pass1' }).status, 200);
 });
 
 test('special events: the admin adds them, tourists see upcoming ones on their home with their offers', () => {
@@ -637,4 +640,26 @@ test('special events: the admin adds them, tourists see upcoming ones on their h
   assert.ok(s.ok('GET', '/events', null, ad, { all: '1' }).some((x: any) => x.id === e.id));
   s.ok('DELETE', `/admin/events/${e.id}`, null, ad);
   assert.equal(s.call('GET', `/events/${e.id}`).status, 404);
+});
+
+test('phone sign-up and sign-in: E.164 only, unique, and editable from the profile with the same rules', () => {
+  const s = setup();
+  const body = (extra: any) => ({ role: 'tourist', name: 'Pat Doe', email: 'pat' + Math.random() + '@ex.com', password: 'Long#pass1', country: 'Spain', gender: 'f', ...extra });
+  assert.equal(s.call('POST', '/auth/register', body({})).body.params.field, 'phone', 'a phone number is required');
+  assert.equal(s.call('POST', '/auth/register', body({ phone: '07713111325' })).body.error, 'country_code_required');
+  assert.equal(s.call('POST', '/auth/register', body({ phone: '+964123' })).body.error, 'phone_invalid');
+  assert.equal(s.call('POST', '/auth/register', body({ phone: DEMO_ACCOUNTS.guide })).body.error, 'phone_taken');
+  const reg = s.ok('POST', '/auth/register', body({ phone: '+44 7400 123456' }));
+  assert.equal(reg.user.phone, '+447400123456', 'stored in E.164');
+  assert.equal(s.call('POST', '/auth/register', body({ phone: '+447400123456' })).status, 409, 'compared in E.164');
+  // Sign in with the phone; spaces and Arabic-Indic digits are the same number.
+  assert.equal(s.call('POST', '/auth/login', { phone: '+44 7400 123456', password: 'Long#pass1' }).status, 200);
+  assert.equal(s.call('POST', '/auth/login', { phone: '+٤٤٧٤٠٠١٢٣٤٥٦', password: 'Long#pass1' }).status, 200);
+  assert.equal(s.call('POST', '/auth/login', { phone: '+447400123456', password: 'wrong' }).body.error, 'login_failed');
+  assert.equal(s.call('POST', '/auth/login', { email: reg.user.email, password: 'Long#pass1' }).body.error, 'login_failed', 'email no longer signs in');
+  // Your info: same rules.
+  assert.equal(s.call('PUT', '/me', { phone: DEMO_ACCOUNTS.guide }, reg.token).body.error, 'phone_taken');
+  assert.equal(s.call('PUT', '/me', { phone: '0771' }, reg.token).body.error, 'country_code_required');
+  assert.equal(s.ok('PUT', '/me', { phone: '+9647712345678' }, reg.token).phone, '+9647712345678');
+  assert.equal(s.call('POST', '/auth/forgot', { phone: 'abc' }).body.error, 'country_code_required');
 });

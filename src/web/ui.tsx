@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { IS_PRODUCTION } from './lib/env';
 import { useApp } from './lib/app';
 import { useFmt } from './lib/format';
 import { Link, back } from './lib/router';
@@ -543,7 +544,7 @@ export function CardForm({ value, onChange, allowSaved = true }: { value: CardVa
     const d = s.replace(/\D/g, '').slice(0, 4);
     return d.length > 2 ? d.slice(0, 2) + '/' + d.slice(2) : d;
   };
-  const sandbox = !!meta?.payments?.cardSandbox;
+  const sandbox = !!meta?.payments?.cardSandbox && !IS_PRODUCTION;
   if (saved && value.saved)
     return (
       <div className="card stack card-form" style={{ gap: 10 }}>

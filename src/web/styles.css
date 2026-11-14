@@ -1160,3 +1160,22 @@ html:has(.post-wizard) { scroll-padding: 110px 0 170px; }
 .offer-mini-price { font-size: 20px; font-weight: 900; }
 .add-pick { min-height: 76px; }
 @media (min-width: 900px) { .event-strip, .offer-strip { margin-inline: 0; padding-inline: 0; } }
+
+/* Phone number field: country code picker + number in one row, styled like the other inputs. */
+.phone-row { display: flex; gap: 8px; align-items: stretch; direction: ltr; }
+.phone-cc { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 50px; padding: 0 12px; border: 1.5px solid transparent; border-radius: var(--radius-sm); background: var(--paper); color: var(--navy); font: inherit; font-size: 16px; font-weight: 500; cursor: pointer; }
+.phone-cc:focus-visible { border-color: var(--teal); outline: none; background: var(--surface); }
+.phone-cc[aria-invalid='true'] { border-color: var(--danger); }
+.phone-row.big .phone-cc { min-height: 58px; border-radius: 18px; }
+.phone-row .phone-number { flex: 1; min-width: 0; text-align: left; direction: ltr; }
+.phone-flag { font-size: 20px; line-height: 1; }
+.phone-dial { direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
+.phone-caret { opacity: 0.6; }
+.phone-search { position: relative; }
+.phone-search svg { position: absolute; inset-inline-start: 14px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.phone-search .input { padding-inline-start: 42px; }
+.phone-list { display: flex; flex-direction: column; min-height: 40vh; max-height: 56vh; overflow-y: auto; margin-inline: -8px; }
+.phone-opt { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 50px; padding: 8px 12px; border: 0; border-radius: 12px; background: none; color: var(--navy); font: inherit; text-align: start; cursor: pointer; }
+.phone-opt:active, .phone-opt.on { background: var(--paper); }
+.phone-opt.on { font-weight: 700; }
+.phone-opt .phone-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

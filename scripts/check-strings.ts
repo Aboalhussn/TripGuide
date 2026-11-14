@@ -42,14 +42,14 @@ each('ai.missing.', ['cities', 'dates', 'groupSize', 'languages', 'budget', 'tit
 each('home.step', ['1', '2', '3', '1_text', '2_text', '3_text']);
 
 // Every error code and notification type the core can produce.
-const core = fs.readFileSync(path.join(process.cwd(), 'src/core/api.ts'), 'utf8') + fs.readFileSync(path.join(process.cwd(), 'src/core/util.ts'), 'utf8');
+const core = fs.readFileSync(path.join(process.cwd(), 'src/core/api.ts'), 'utf8') + fs.readFileSync(path.join(process.cwd(), 'src/core/util.ts'), 'utf8') + fs.readFileSync(path.join(process.cwd(), 'src/core/phone.ts'), 'utf8');
 for (const m of core.matchAll(/(?:bad|conflict|forbidden|notFound|new ApiError\(\d+,)\s*\(?\s*'([a-z_]+)'/g)) used.add('err.' + m[1]);
 for (const m of core.matchAll(/notify(?:Admins)?\(ctx,(?:\s*[\w.]+,)?\s*'([a-z_]+)'/g)) used.add('notif.' + m[1]);
 for (const m of core.matchAll(/(?:str|optStr|num|strList)\([^,]+,\s*'([a-zA-Z.]+)'/g)) used.add('field.' + m[1]);
 for (const m of core.matchAll(/field: '([a-zA-Z.]+)'/g)) used.add('field.' + m[1]);
 const seed = fs.readFileSync(path.join(process.cwd(), 'src/core/seed.ts'), 'utf8');
 for (const m of seed.matchAll(/type: '([a-z_]+)'/g)) used.add('notif.' + m[1]);
-['offline', 'generic', 'title', 'too_large', 'bad_json', 'server_error', 'method_not_allowed'].forEach((x) => used.add('err.' + x));
+['phone_invalid', 'country_code_required', 'too_many_attempts', 'offline', 'generic', 'title', 'too_large', 'bad_json', 'server_error', 'method_not_allowed'].forEach((x) => used.add('err.' + x));
 
 let missing = 0;
 for (const lang of ['en', 'ar'] as const) {
