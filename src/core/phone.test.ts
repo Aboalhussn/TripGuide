@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cleanPhoneInput, countryOptions, loginPhone, parsePhone, searchCountries, serverPhone, splitPhone } from './phone';
+import { cleanPhoneInput, countryOptions, formatPhone, loginPhone, parsePhone, searchCountries, serverPhone, splitPhone } from './phone';
 import { ApiError } from './util';
 
 const e164 = (input: string, country?: any) => {
@@ -78,4 +78,10 @@ test('phone: the country list is searchable by English name, Arabic name and dia
   assert.deepEqual(searchCountries('٩٦٤').map((c) => c.code), ['IQ'], 'Arabic-Indic dial code');
   assert.ok(searchCountries('49').some((c) => c.code === 'DE'));
   assert.equal(searchCountries('zzzz').length, 0);
+});
+
+test('phone: a stored number is shown with spaces, the way people read it', () => {
+  assert.equal(formatPhone('+9647700001004'), '+964 770 000 1004');
+  assert.equal(formatPhone('+447400123456'), '+44 7400 123456');
+  assert.equal(formatPhone('not a number'), 'not a number');
 });

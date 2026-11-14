@@ -1,6 +1,6 @@
 # PLAN — Trip guide: from demo to production
 
-Branch: `production` (from `main` @ `d923015`). Status: **M1 approved. M2–M5 done. Next: M6 (parity proof against the engine frozen at `main`, screenshots, APK).**
+Branch: `production` (from `main` @ `d923015`). Status: **M1 approved. M2–M6 done (results in `PARITY.md`). Next: M7 (deployment and docs).**
 
 How M3 was built (a change from section 3, said plainly): instead of rewriting each rule in SQL, every marketplace call loads the
 rows from PostgreSQL, runs the engine's own handler from `src/core/api.ts` inside one transaction, and saves exactly what it changed

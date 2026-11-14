@@ -97,3 +97,9 @@ export function searchCountries(q: string): CountryOption[] {
   const digits = term.replace(/[^\d]/g, '');
   return all.filter((c) => c.name.toLowerCase().includes(term) || c.nameAr.includes(term) || c.code.toLowerCase() === term || (!!digits && c.dial.slice(1).startsWith(digits)));
 }
+
+// A stored number written the way people read it: +9647700001004 -> +964 770 000 1004.
+export function formatPhone(e164: string): string {
+  const p = parsePhoneNumberFromString(cleanPhoneInput(e164));
+  return p ? p.formatInternational() : e164;
+}

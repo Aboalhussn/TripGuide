@@ -28,7 +28,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/cli.ts migrate",
     "db:seed": "tsx src/db/cli.ts seed",
-    "parity:contract": "node scripts/baseline.mjs && tsx scripts/parity-contract.ts"
+    "parity:contract": "node scripts/baseline.mjs && tsx scripts/parity-contract.ts",
+    "parity:screens": "node scripts/baseline.mjs && tsx scripts/parity-screens.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1168.0",
